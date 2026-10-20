@@ -12,7 +12,7 @@ podium init --name my-skill --command /my-skill --extension ~/skills/my-skill/ex
 
 `init` creates `podium/podium.json` when the run has none, and otherwise updates only the `orchestrator` block. `examples/minimal_extension.py` is a complete small one.
 
-The tool loads the file with `importlib.util.spec_from_file_location`, registered as `sys.modules["podium_extension"]`. When the file is missing or raises on import, core commands keep working and an extension verb prints `podium: extension <path> not loadable: <why>` and exits 2. A core verb always wins over an extension verb of the same name.
+The tool loads the file with `importlib.util.spec_from_file_location`, registered as `sys.modules["podium_extension"]`. Only a `.py` file loads; it may live anywhere, the run dir included, since sync never writes one. When the file is missing, is not a `.py` file, or raises on import, core commands keep working and an extension verb prints `podium: extension <path> not loadable: <why>` and exits 2. A core verb always wins over an extension verb of the same name.
 
 The module may define any of these:
 
@@ -76,7 +76,7 @@ Every request must carry a `Host` of `127.0.0.1:<port>` or `localhost:<port>`; a
 | `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
-| `GET /repo/<path>` | a file under the folder holding the run dir; the path is resolved and anything outside answers 404 |
+| `GET /repo/<path>` | a file under the run's repo: the git toplevel of the run dir, else the run dir itself; the path is resolved and anything outside answers 404 |
 | `GET /podium/...` | the run's own files |
 | `POST /<action>/<id>` | queue a request line, 202 `{"queued": {...}}`; `<action>` is a core action or one of `ACTIONS`; `confirm` and `reverse` take an assumption number or `all`, and `?note=` |
 | `POST /build-all/<milestone>`, `POST /stop/<milestone>` | the same, per milestone |
@@ -135,7 +135,7 @@ An extension calling `asana.refresh(p)` gets the same lines as a list, `[]` when
 
 The run state is committed with git plumbing onto a ref (default `refs/heads/podium-run/<run dir name in kebab case>`) and pushed to the remote, without touching any working tree, index or HEAD. A remote name refers to a remote of the repo the run dir sits in. A URL needs no repo: the commits live in a bare cache under `~/.podium/sync/`, one per URL, ref and run dir. Every machine must use the same ref; `podium sync status` prints it first.
 
-Files: `sync.include` globs (relative to the run dir) pick them, by default `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. Add planning docs, for example `["podium/**", "*.md", "domain-stories/**"]`. `sync.exclude` and the machine-local list in `SCHEMA.md` never sync. `sync.enabled`, `sync.remote` and `sync.ref` stay on their machine.
+Files: `sync.include` globs (relative to the run dir) pick them, by default `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. Add planning docs, for example `["podium/**", "*.md", "domain-stories/**"]`. `sync.exclude` and the machine-local list in `SCHEMA.md` never sync. `sync.enabled`, `sync.remote` and `sync.ref` stay on their machine. `orchestrator.extension` is each machine's own too: the run carries the value its first save seeded, no save changes it after, and a pull sets it only on a machine that has none, so a joiner runs the run's extension until `podium init` registers its own. The rest of the `orchestrator` block syncs.
 
 Results, one line each:
 

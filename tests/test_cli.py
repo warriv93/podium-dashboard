@@ -103,6 +103,25 @@ class Init(Cli):
         self.podium("--dir", run, "init", "--name", "n", "--command", "/n", "--extension", "x.py")
         self.assertEqual(self.state(run)["project"]["title"], "api")
 
+    def test_stores_a_path_typed_relative_to_the_cwd_relative_to_podium_json(self):
+        repo = os.path.join(self.tmp, "api")
+        os.makedirs(os.path.join(repo, "tools"))
+        with open(os.path.join(repo, "tools", "ext.py"), "w") as f:
+            f.write("COMMANDS = {'hi': lambda p, args: print('hi')}\n")
+        self.podium("--dir", ".deep-plan", "init", "--name", "n", "--command", "/n", "--extension", "tools/ext.py", cwd=repo)
+        run = os.path.join(repo, ".deep-plan")
+        self.assertEqual(self.state(run)["orchestrator"]["extension"], "../../tools/ext.py")
+        self.assertEqual(self.podium("hi", cwd=os.path.join(repo, "tools")).stdout, "hi\n")
+
+    def test_a_run_at_the_repo_root_loads_an_extension_beside_podium(self):
+        repo = os.path.join(self.tmp, "api")
+        os.makedirs(repo)
+        with open(os.path.join(repo, "ext.py"), "w") as f:
+            f.write("COMMANDS = {'hi': lambda p, args: print('hi')}\n")
+        self.podium("init", "--name", "n", "--command", "/n", "--extension", "./ext.py", cwd=repo)
+        self.assertEqual(self.state(repo)["orchestrator"]["extension"], "../ext.py")
+        self.assertEqual(self.podium("hi", cwd=repo).stdout, "hi\n")
+
     def test_refuses_missing_or_unknown_flags(self):
         for args in (("--name", "n", "--command", "/n"), ("--name", "n", "--command", "/n", "--extension"),
                      ("--name", "n", "--command", "/n", "--extension", "x.py", "--colour", "red")):
@@ -156,6 +175,15 @@ class Extension(Cli):
         r = self.podium("--dir", run, "hello", code=2)
         self.assertTrue(r.stderr.startswith(f"podium: extension {broken} not loadable: SyntaxError"), r.stderr)
         self.assertIn(f"extension {broken} not loadable", self.podium("--dir", run).stdout)
+
+    def test_only_a_py_file_loads(self):
+        for name in ("ext.so", "ext.pyc", "ext.txt"):
+            run = self.run_with(self.extension("COMMANDS = {'hello': print}\n", name=name))
+            r = self.podium("--dir", run, "hello", code=2)
+            self.assertEqual(r.stderr.strip(), f"podium: extension {self.tmp}/{name} not loadable: not a .py file")
+
+    def test_the_samples_extension_beside_the_run_loads(self):
+        self.assertIn("MINIMAL COMMANDS (", self.podium("--dir", os.path.join(ROOT, "sample")).stdout)
 
     def test_a_missing_extension_says_so(self):
         run = self.run_with("~/gone.py")

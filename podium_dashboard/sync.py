@@ -4,11 +4,12 @@ The state is committed onto `ref` (default refs/heads/podium-run/<run slug>) thr
 tree, index or HEAD, and pushed to `remote`: a remote name of the run's own repo (default origin), or a URL, whose
 commits live in a private bare cache per run under ~/.podium/sync, so a run outside any repo syncs too. `include`
 globs (relative to the run dir) pick the files; this machine's own files never go: the request queue and its cursor,
-the watcher's heartbeat, the server log. `enabled`, `remote` and `ref` are this machine's and stay out of the synced
-podium.json; `include` and `exclude` sync with the run. Two machines that both moved merge per file against their
-common save: podium.json as concurrent commands do (rebase), except that a milestone both gave an owner keeps the
-remote's, the claim that reached it first; events.jsonl and *.progress as the union of their lines
-in time order, any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
+the watcher's heartbeat, the server log; nor does Python code. `enabled`, `remote` and `ref` are this machine's and
+stay out of the synced podium.json; the orchestrator's `extension` is this machine's too: the run carries the value
+its first save seeded, and a pull sets it only on a machine that has none. `include` and `exclude` sync with the run.
+Two machines that both moved merge per file against their common save: podium.json as concurrent commands do
+(rebase), except that a milestone both gave an owner keeps the remote's, the claim that reached it first;
+events.jsonl and *.progress as the union of their lines in time order, any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
 it as `<file>.remote`, and adds to this person's needsYou; so does a file the run dir holds that the remote's save
 brings with other content. A pull or merge writes only files the incoming include and exclude lists carry, and
 deletes only a file that common save had, unchanged here, that those lists still carry.
@@ -34,7 +35,7 @@ MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
 STATE = ["podium.json", "events.jsonl", "handoffs.json", "stories/**"]
 MACHINE = ("enabled", "remote", "ref")
-LOCAL = ["cursor.json", "requests.jsonl", "watcher.json", "server.log", "*.tmp", "*.remote",
+LOCAL = ["cursor.json", "requests.jsonl", "watcher.json", "server.log", "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth",
          "repos/**", "worktrees/**", "**/*.logs/**", "*.logs/**"]
 IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 APPEND_ONLY = ["events.jsonl", "*.progress"]
@@ -221,8 +222,9 @@ def dump(data):
     return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode()
 
 
-def shared(raw):
-    """podium.json as it syncs: without this machine's own `sync` keys; None when nothing else is in it."""
+def shared(raw, extension=None):
+    """podium.json as it syncs: without this machine's own `sync` keys, with `extension`, when given, as the
+    orchestrator's; None when nothing else is in it."""
     try:
         data = json.loads(raw)
     except ValueError:
@@ -235,33 +237,60 @@ def shared(raw):
         data["sync"] = kept
     else:
         data.pop("sync", None)
-    return dump(data) if set(data) - {"updatedAt"} else None
+    if not set(data) - {"updatedAt"}:
+        return None
+    if extension:
+        block = data.get("orchestrator")
+        data["orchestrator"] = {**(block if isinstance(block, dict) else {}), "extension": extension}
+    return dump(data)
 
 
 def with_machine_keys(p, content):
-    """A synced podium.json with this machine's own `sync` keys put back; None when the save has none."""
-    block = p.read().get("sync")
+    """A synced podium.json with this machine's own `sync` keys and `orchestrator.extension` put back; None when the
+    save has none. A machine without an extension takes the one the save carries, once: a pull never changes the code
+    a machine runs."""
+    here = p.read()
+    block, orchestrator = here.get("sync"), here.get("orchestrator")
     machine = {k: v for k, v in block.items() if k in MACHINE} if isinstance(block, dict) else {}
+    extension = orchestrator.get("extension") if isinstance(orchestrator, dict) else None
     try:
         data = json.loads(content) if content is not None else None
     except ValueError:
         return content
-    if not machine or not isinstance(data, dict):
+    if not (machine or extension) or not isinstance(data, dict):
         return content
-    common = data.get("sync")
-    data["sync"] = {**(common if isinstance(common, dict) else {}), **machine}
+    if machine:
+        common = data.get("sync")
+        data["sync"] = {**(common if isinstance(common, dict) else {}), **machine}
+    if extension:
+        common = data.get("orchestrator")
+        data["orchestrator"] = {**(common if isinstance(common, dict) else {}), "extension": extension}
     return dump(data)
 
 
-def state_tree(p, g):
-    """The tree of this machine's run state, built in a throwaway index; None when there is none."""
+def seeded_extension(p, g, commit):
+    """The `orchestrator.extension` the podium.json of `commit` carries, None when it carries none."""
+    sha = commit and g.rev(f"{commit}:{podium_json(p)}")
+    try:
+        data = json.loads(g.cat(sha)) if sha else None
+    except ValueError:
+        return None
+    block = data.get("orchestrator") if isinstance(data, dict) else None
+    found = block.get("extension") if isinstance(block, dict) else None
+    return found if isinstance(found, str) and found else None
+
+
+def state_tree(p, g, seed=None):
+    """The tree of this machine's run state, built in a throwaway index; None when there is none. Its podium.json
+    carries the extension of `seed` (default this machine's last save), and this machine's own only when that has
+    none: the first save seeds it, and no machine changes it after."""
     rels, blobs, paths = [], [], []
     for rel in synced_files(p):
         if rel != podium_json(p):
             paths.append(rel)
             continue
         with open(p.path, "rb") as f:
-            content = shared(f.read())
+            content = shared(f.read(), seeded_extension(p, g, seed or g.rev(g.ref + "^{commit}")))
         if content is not None:
             rels.append(rel)
             blobs.append(g.blob(content))
@@ -288,8 +317,8 @@ def on_disk(p, rel):
 
 
 def apply(p, files, gone):
-    """Write each of `files` ({path relative to the run dir: content}) that differs, with this machine's own `sync`
-    keys kept in podium.json, and delete the files in `gone`. podium.json is written only when `files` has it."""
+    """Write each of `files` ({path relative to the run dir: content}) that differs, with this machine's own keys kept
+    in podium.json, and delete the files in `gone`. podium.json is written only when `files` has it."""
     files, pj = dict(files), podium_json(p)
     if pj in files:
         files[pj] = with_machine_keys(p, files[pj])
@@ -476,7 +505,7 @@ def merge_into(p, g, head, remote, message):
     """Merge the remote's commit into this machine's: the run dir gets the merged files, the ref a commit with both
     parents. Returns that commit."""
     apply(p, *merged(p, g, g.merge_base(head, remote), head, remote))
-    tree = state_tree(p, g) or g.out("mktree", input="").strip()
+    tree = state_tree(p, g, remote) or g.out("mktree", input="").strip()
     return g.commit(tree, [head, remote], message)
 
 

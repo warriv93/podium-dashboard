@@ -152,11 +152,16 @@ def orchestrator_of(data):
     return {"name": found.get("name"), "command": found.get("command")}
 
 
+def repo_dir(root):
+    """The folder `/repo/` serves: the git toplevel of the run dir, else the run dir itself."""
+    return git(root, "rev-parse", "--show-toplevel") or root
+
+
 def info(root):
     p = load_podium(root)
     data = p.data if p else {}
     people = data.get("people") if isinstance(data.get("people"), dict) else {}
-    return {"runDir": root, "repoDir": os.path.dirname(root), "watching": watching(root),
+    return {"runDir": root, "repoDir": repo_dir(root), "watching": watching(root),
             "orchestrator": orchestrator_of(data),
             "me": p.me if p else None,
             "people": {name: {"active": who.get("active")} for name, who in people.items() if isinstance(who, dict)},
@@ -240,7 +245,7 @@ def repos_of(root):
     _, active = load_run(root)
     for name, r in ((active or {}).get("repos") or {}).items():
         if (r or {}).get("path"):
-            out[name] = os.path.expanduser(r["path"])
+            out[name] = os.path.join(root, os.path.expanduser(r["path"]))
     return out
 
 
@@ -362,7 +367,7 @@ def make_handler(root):
 
         def repo_file(self, rel):
             """A file of the repo the run dir sits in, read-only: a mock kept outside the run dir."""
-            base = os.path.realpath(os.path.dirname(root))
+            base = os.path.realpath(repo_dir(root))
             full = os.path.realpath(os.path.join(base, urllib.parse.unquote(rel)))
             if not inside(base, full) or not os.path.isfile(full):
                 return self.send_error(404)

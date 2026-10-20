@@ -639,6 +639,15 @@ def cmd_log(p, args):
         f.write(f"{NOW()} {rest[0]} {note}".rstrip() + "\n")
 
 
+def stored_extension(given, folder):
+    """`given` as podium.json keeps it: a `~` or absolute path as typed, a path relative to the cwd rewritten relative
+    to `folder`, the one holding podium.json."""
+    if given.startswith("~") or os.path.isabs(given):
+        return given
+    where = os.path.realpath(os.path.dirname(os.path.abspath(given)))
+    return os.path.relpath(os.path.join(where, os.path.basename(given)), os.path.realpath(folder))
+
+
 def cmd_init(p, args):
     flags = ("--name", "--command", "--extension", "--phases")
     opts = dict(zip(args[::2], args[1::2]))
@@ -648,8 +657,8 @@ def cmd_init(p, args):
     if created:
         title = os.path.basename(p.repo if os.path.basename(p.root).startswith(".") else p.root)
         p.data = {"project": {"title": title}, "active": {}, "needsYou": None, "assumptions": [], "epics": []}
-    orchestrator = {**(p.data.get("orchestrator") or {}),
-                    "name": opts["--name"], "command": opts["--command"], "extension": opts["--extension"]}
+    orchestrator = {**(p.data.get("orchestrator") or {}), "name": opts["--name"], "command": opts["--command"],
+                    "extension": stored_extension(opts["--extension"], p.dir)}
     if "--phases" in opts:
         orchestrator["phases"] = [x.strip() for x in opts["--phases"].split(",") if x.strip()]
     p.data["orchestrator"] = orchestrator

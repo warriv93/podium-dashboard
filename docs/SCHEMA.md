@@ -8,7 +8,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 
 | File | Written by | Shared by `podium sync` |
 |---|---|---|
-| `podium.json` | `podium` commands, orchestrator | yes (`sync.enabled`, `sync.remote`, `sync.ref` stay local) |
+| `podium.json` | `podium` commands, orchestrator | yes (`sync.enabled`, `sync.remote`, `sync.ref` stay local; `orchestrator.extension` keeps the value the run's first save seeded) |
 | `events.jsonl` | `podium set --event`, core commands | yes, merged as a union of lines |
 | `stories/<milestone>/<story>.md`, `.progress` | orchestrator, `podium log` | yes (`.progress` merged as a union) |
 | `handoffs.json` | the server | yes |
@@ -19,7 +19,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 | `server.log` | `podium server --detach` | never |
 | `~/.podium/human.json` | `podium hours`, `whoami`, the Podium toggle | outside any run; one per machine |
 
-Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote`.
+Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote`, and Python code: `*.py`, `*.pyc`, `*.pth`.
 
 ## podium.json
 
@@ -114,7 +114,7 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
  "stages": {"REVIEW": {"doing": "reviewing", "step": 2, "time": "review"}}}
 ```
 
-`extension` is a Python file: `~` expands, a relative path is relative to `podium/`. `phases` replaces the default stepper: names, or `[name, label]` pairs. `maxAttempts` is the attempts a story gets, shown as `attempts of max` on a failed story (default 2). `stages` adds progress stages to the defaults, see Progress files. `podium init` writes this block. A run without it supports the core commands only. See `PROTOCOL.md` for what the extension does.
+`extension` is a `.py` file, this machine's own once set (a pull never changes it; see `PROTOCOL.md`, Sync): `~` expands, a relative path is relative to `podium/` (`podium init` rewrites one typed relative to the cwd). `phases` replaces the default stepper: names, or `[name, label]` pairs. `maxAttempts` is the attempts a story gets, shown as `attempts of max` on a failed story (default 2). `stages` adds progress stages to the defaults, see Progress files. `podium init` writes this block. A run without it supports the core commands only. See `PROTOCOL.md` for what the extension does.
 
 ### sync
 

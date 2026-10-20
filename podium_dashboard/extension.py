@@ -1,7 +1,8 @@
 """The run's orchestrator extension: the .py file podium.json's `orchestrator.extension` names.
 
 It may define COMMANDS ({verb: fn(p, args)}), ACTIONS (extra request actions), prompt(p, kind, target_id),
-on_asana_refresh(p, task_json) and SYNC_MAJOR(event). Every helper here takes the module or None.
+on_asana_refresh(p, task_json) and SYNC_MAJOR(event). Every helper here takes the module or None. Only a .py file
+loads: sync never writes one.
 """
 import importlib.util
 import os
@@ -23,11 +24,14 @@ def path_of(p):
 
 
 def load(p):
-    """(module, None), or (None, None) when the run names no extension, or (None, why) when it does not load, `why`
-    reading `extension <path> not loadable: <reason>`. A module loads once per path and modification time."""
+    """(module, None), or (None, None) when the run names no extension, or (None, why) when it does not load or is no
+    .py file, `why` reading `extension <path> not loadable: <reason>`. A module loads once per path and
+    modification time."""
     path = path_of(p)
     if not path:
         return None, None
+    if os.path.splitext(path)[1] != ".py":
+        return None, f"extension {path} not loadable: not a .py file"
     try:
         key = (os.path.realpath(path), os.stat(path).st_mtime_ns)
         if key not in _loaded:

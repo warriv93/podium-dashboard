@@ -340,6 +340,19 @@ class Pull(SyncCase):
         found = sorted(os.path.relpath(os.path.join(d, n), b.root) for d, _, ns in os.walk(b.root) for n in ns)
         self.assertEqual(found, ["docs/in.md", "podium/podium.json"])
 
+    def test_python_code_never_syncs_either_way(self):
+        a = self.run_in(self.clone("a"), {**DATA, "sync": {}}, include=["podium/**"])
+        for name in ("tool.py", "tool.pyc", "site.pth", "notes.md"):
+            self.write(os.path.join(a.dir, name), "x\n")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertEqual(self.remote_files(), ["podium/notes.md", "podium/podium.json"])
+        self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["**"]}}), "podium/ext.py": "x\n",
+                        "lib/ext.pyc": "x\n", "lib/evil.pth": "x\n", "docs/in.md": "x\n"})
+        b = self.run_in(self.clone("b"), None)
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        found = sorted(os.path.relpath(os.path.join(d, n), b.root) for d, _, ns in os.walk(b.root) for n in ns)
+        self.assertEqual(found, ["docs/in.md", "podium/podium.json"])
+
     def test_pull_never_writes_through_a_symlink(self):
         self.push_tree({"podium/podium.json": json.dumps(DATA), "podium/stories/M1/S1.progress": "p\n"})
         for elsewhere in (os.path.join(self.tmp, "elsewhere"), os.path.join(self.tmp, "b", ".deep-plan", "elsewhere")):
@@ -412,15 +425,15 @@ class Join(SyncCase):
         data = self.state(run)
         self.assertEqual((data["project"], data["epics"], data["sync"]), (DATA["project"], DATA["epics"], machine))
 
-    def test_a_run_only_init_wrote_takes_the_remotes_state_whole_on_its_first_pull(self):
+    def test_a_run_only_init_wrote_takes_the_remotes_state_whole_but_its_own_extension(self):
         self.shared_run()
         run = os.path.join(self.tmp, "join")
-        self.cli(run, "init", "--name", "o", "--command", "/o", "--extension", "o.py")
+        self.cli(run, "init", "--name", "o", "--command", "/o", "--extension", "~/o.py")
         self.cli(run, "sync", "on", "--remote", self.bare, "--ref", REF)
         self.assertRegex(self.cli(run, "sync", "pull"), r"^PULLED ")
         data = self.state(run)
         self.assertEqual((data["project"]["title"], data["epics"]), ("T", DATA["epics"]))
-        self.assertNotIn("orchestrator", data)
+        self.assertEqual(data["orchestrator"], {"extension": "~/o.py"})
         self.assertEqual(data["sync"], {"enabled": True, "remote": self.bare, "ref": REF})
 
     def test_a_run_with_more_than_init_wrote_merges_with_the_remote(self):
@@ -432,6 +445,95 @@ class Join(SyncCase):
         self.assertRegex(self.cli(run, "sync", "pull"), r"^PULLED ")
         data = self.state(run)
         self.assertEqual((data["project"]["title"], data["orchestrator"]["name"], len(data["assumptions"])), ("join", "o", 1))
+
+    def test_a_joiner_runs_the_runs_extension_until_it_registers_its_own_which_never_reaches_the_others(self):
+        first, run = os.path.join(self.tmp, "first"), os.path.join(self.tmp, "join")
+        self.run_in(first, hidden=False, remote=self.bare)
+        exts = {}
+        for who in ("a", "b"):
+            exts[who] = os.path.join(self.tmp, f"ext_{who}.py")
+            self.write(exts[who], f"COMMANDS = {{'hi': lambda p, args: print({who!r})}}\n")
+        self.cli(first, "init", "--name", "o", "--command", "/o", "--extension", exts["a"])
+        self.assertRegex(self.cli(first, "sync", "save"), r"^SAVED ")
+        self.cli(run, "sync", "on", "--remote", self.bare, "--ref", REF)
+        self.assertRegex(self.cli(run, "sync", "pull"), r"^PULLED ")
+        self.assertEqual(self.cli(run, "hi"), "a\n")
+        self.cli(run, "init", "--name", "o", "--command", "/o", "--extension", exts["b"])
+        self.cli(run, "assume", "q", "c", "w")
+        self.assertRegex(self.cli(run, "sync", "save"), r"^SAVED ")
+        self.assertRegex(self.cli(first, "sync", "pull"), r"^PULLED ")
+        self.assertEqual((self.cli(first, "hi"), self.cli(run, "hi")), ("a\n", "b\n"))
+        self.assertEqual(json.loads(self.remote_file("podium/podium.json"))["orchestrator"]["extension"], exts["a"])
+
+    def test_a_pulled_run_never_runs_code_the_remote_planted(self):
+        marker = os.path.join(self.tmp, "ran")
+        orchestrator = {"name": "evil", "command": "/evil", "extension": "ext.py"}
+        self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["podium/**"]}, "orchestrator": orchestrator}),
+                        "podium/ext.py": f"open({marker!r}, 'w').close()\nCOMMANDS = {{'hello': print}}\n"})
+        run = os.path.join(self.tmp, "join")
+        self.cli(run, "sync", "on", "--remote", self.bare, "--ref", REF)
+        self.assertRegex(self.cli(run, "sync", "pull"), r"^PULLED ")
+        self.assertEqual(self.state(run)["orchestrator"], orchestrator)
+        planted = os.path.join(run, "podium", "ext.py")
+        self.assertFalse(os.path.exists(planted))
+        for args in ((), ("status",), ("ready",), ("hello",)):
+            r = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", run, *args], capture_output=True,
+                               text=True, env={**os.environ, "PYTHONPATH": ROOT})
+            self.assertIn(r.returncode, (0, 2) if args == ("hello",) else (0,), r.stderr)
+        self.assertIn(f"extension {planted} not loadable: no such file", r.stderr)
+        self.assertFalse(os.path.exists(marker))
+
+
+class Extension(SyncCase):
+    def orchestrate(self, p, name, extension):
+        p.data["orchestrator"] = {"name": name, "command": "/o", "extension": extension}
+        p.save()
+
+    def remote_orchestrator(self):
+        return json.loads(self.remote_file("podium/podium.json"))["orchestrator"]
+
+    def test_the_first_save_seeds_the_extension_and_no_machine_changes_it_after(self):
+        a = self.machine("a")
+        self.orchestrate(a, "o", "~/a/ext.py")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertEqual(self.remote_orchestrator(), {"name": "o", "command": "/o", "extension": "~/a/ext.py"})
+        b = self.machine("b")
+        self.assertEqual(b.data["orchestrator"]["extension"], "~/a/ext.py")
+        self.orchestrate(b, "o", "~/b/ext.py")
+        self.set_status(b, "M2", "working")
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertEqual(self.remote_orchestrator()["extension"], "~/a/ext.py")
+        self.orchestrate(a, "o2", "~/a2/ext.py")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertEqual(self.remote_orchestrator(), {"name": "o2", "command": "/o", "extension": "~/a/ext.py"})
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual(b.data["orchestrator"], {"name": "o2", "command": "/o", "extension": "~/b/ext.py"})
+        self.assertNotIn("changed since", sync.status(b))
+
+    def test_a_merge_keeps_each_machines_extension_and_the_seed_that_reached_the_remote_first(self):
+        a, b = self.machine("a"), self.machine("b")
+        self.orchestrate(a, "o", "~/a/ext.py")
+        self.orchestrate(b, "o", "~/b/ext.py")
+        self.set_status(a, "M1", "done")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.set_status(b, "M2", "working")
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertEqual((b.read()["orchestrator"]["extension"], b.milestone("M1")["status"]), ("~/b/ext.py", "done"))
+        self.assertEqual(self.remote_orchestrator()["extension"], "~/a/ext.py")
+        self.assertRegex(sync.pull(a), r"^PULLED ")
+        self.assertEqual((a.read()["orchestrator"]["extension"], a.milestone("M2")["status"]), ("~/a/ext.py", "working"))
+
+    def test_a_join_takes_the_runs_extension_once(self):
+        orchestrator = {"name": "o", "command": "/o", "extension": "~/skills/o/ext.py"}
+        self.push_tree({"podium/podium.json": sync.dump({**DATA, "orchestrator": orchestrator}).decode()})
+        b = self.run_in(self.clone("b"), None)
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual(b.data["orchestrator"], orchestrator)
+        self.assertNotIn("changed since", sync.status(b))
+        moved = {**DATA, "project": {"title": "T2"}, "orchestrator": {**orchestrator, "extension": "~/other.py"}}
+        self.push_tree({"podium/podium.json": json.dumps(moved)})
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual((b.data["project"]["title"], b.data["orchestrator"]["extension"]), ("T2", "~/skills/o/ext.py"))
 
 
 class Merge(SyncCase):

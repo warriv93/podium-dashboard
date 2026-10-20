@@ -1,5 +1,6 @@
 """Tests for the Podium server, run as `podium server` against a temp run: what /info says, the Host and Origin checks,
-/repo/ confined to the folder the run sits in, request queuing, and prompts from the run's extension."""
+/repo/ confined to the run's repo, checkouts read relative to the run dir, request queuing, and prompts from the run's
+extension."""
 import http.client
 import json
 import os
@@ -49,7 +50,16 @@ class Server(unittest.TestCase):
         os.makedirs(self.pod)
         self.env = {k: v for k, v in os.environ.items() if k not in ("PODIUM_DIR", "PODIUM_ME")}
         self.env.update({"HOME": self.tmp, "PYTHONPATH": ROOT, "PODIUM_HUMAN": os.path.join(self.tmp, "human.json"),
-                         "PODIUM_ME": "ann", "GIT_CONFIG_NOSYSTEM": "1"})
+                         "PODIUM_ME": "ann", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CEILING_DIRECTORIES": self.tmp})
+        self.git("init", "-q", self.repo)
+
+    def git(self, *args):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], check=True, capture_output=True,
+                       env=self.env)
+
+    def at(self, run_dir):
+        self.run_dir, self.pod = run_dir, os.path.join(run_dir, "podium")
+        os.makedirs(self.pod, exist_ok=True)
 
     def write(self, rel, text):
         path = os.path.join(self.tmp, rel)
@@ -58,7 +68,7 @@ class Server(unittest.TestCase):
             f.write(text)
         return path
 
-    def serve(self, data=DATA, extension=None):
+    def serve(self, data=DATA, extension=None, git_every=0):
         data = json.loads(json.dumps(data))
         if extension:
             data["orchestrator"]["extension"] = self.write("ext/orch.py", textwrap.dedent(extension))
@@ -66,7 +76,7 @@ class Server(unittest.TestCase):
             json.dump(data, f)
         self.port = free_port()
         proc = subprocess.Popen([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "server",
-                                 "--port", str(self.port), "--idle", "0", "--git-every", "0"],
+                                 "--port", str(self.port), "--idle", "0", "--git-every", str(git_every)],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env, cwd=self.tmp)
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
@@ -144,6 +154,43 @@ class Hardening(Server):
         for path in ("/repo/../secret.txt", "/repo/..%2Fsecret.txt", "/repo/%2E%2E/secret.txt", "/repo/link.txt",
                      f"/repo/{self.tmp}/secret.txt", "/repo/", "/repo/.."):
             self.assertEqual(self.call("GET", path)[0], 404, path)
+
+    def test_a_run_at_its_repos_root_serves_nothing_beside_the_repo(self):
+        self.at(self.repo)
+        self.write("api/mock.html", "mock")
+        self.write("secret.txt", "secret")
+        self.write("web/index.html", "web")
+        self.serve()
+        self.assertEqual(self.call("GET", "/info")[1]["repoDir"], self.repo)
+        self.assertEqual(self.call("GET", "/repo/mock.html"), (200, "mock"))
+        for path in ("/repo/secret.txt", "/repo/../secret.txt", "/repo/web/index.html", "/repo/../web/index.html"):
+            self.assertEqual(self.call("GET", path)[0], 404, path)
+
+    def test_a_run_outside_any_repo_serves_its_own_files_and_nothing_above_them(self):
+        self.at(os.path.join(self.tmp, "myrun"))
+        self.write("myrun/own.txt", "own")
+        self.write("notes.txt", "notes")
+        self.serve()
+        self.assertEqual(self.call("GET", "/info")[1]["repoDir"], self.run_dir)
+        self.assertEqual(self.call("GET", "/repo/own.txt"), (200, "own"))
+        for path in ("/repo/notes.txt", "/repo/../notes.txt", "/repo/myrun/own.txt"):
+            self.assertEqual(self.call("GET", path)[0], 404, path)
+
+
+class Checkouts(Server):
+    def test_reads_a_checkout_path_relative_to_the_run_dir_whatever_the_servers_cwd(self):
+        checkout = os.path.join(self.run_dir, "repos", "events")
+        self.git("init", "-q", "-b", "feat", checkout)
+        self.git("-C", checkout, "commit", "-q", "--allow-empty", "-m", "first")
+        data = json.loads(json.dumps(DATA))
+        data["epics"][0]["milestones"][0]["repos"] = {"events": {"path": "repos/events"}}
+        self.serve(data, git_every=1)
+        for _ in range(100):
+            found = self.call("GET", "/git")[1]
+            if found["at"]:
+                break
+            time.sleep(0.1)
+        self.assertEqual({r["name"]: r["branch"] for r in found["repos"]}.get("events"), "feat")
 
 
 class Requests(Server):
