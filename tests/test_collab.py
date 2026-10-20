@@ -298,7 +298,8 @@ class TwoMachines(Case):
 
     def with_launch(self):
         """Give the run an extension whose `launch <milestone>` changes the milestone after require_owner, as an
-        orchestrator's verbs do, and share it with b."""
+        orchestrator's verbs do, and register it on b too: b synced before the run had one, so a pull never gives it
+        one."""
         ext = os.path.join(self.tmp, "ext.py")
         with open(ext, "w") as f:
             f.write("from podium_dashboard.commands import require_owner\n\n\n"
@@ -310,7 +311,8 @@ class TwoMachines(Case):
                     "COMMANDS = {'launch': launch}\n")
         self.podium(self.a, "init", "--name", "o", "--command", "/o", "--extension", ext, me="a")
         self.assertRegex(self.podium(self.a, "sync", "save", me="a").stdout, r"^SAVED ")
-        self.assertRegex(self.podium(self.b, "sync", "pull", me="b").stdout, r"^PULLED ")
+        self.podium(self.b, "init", "--name", "o", "--command", "/o", "--extension", ext, me="b")
+        self.assertRegex(self.podium(self.b, "sync", "pull", me="b").stdout, r"^(PULLED |UP-TO-DATE)")
 
     def remote_state(self):
         return json.loads(git("--git-dir", self.bare, "show", "refs/heads/podium:podium/podium.json"))

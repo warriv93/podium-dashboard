@@ -61,6 +61,27 @@ EVENTS = [
 
 PROGRESS = f"2026-10-20T07:00:00+00:00 STARTED {X}\n2026-10-20T07:30:00+00:00 RED {X}\n{DONE} COMMITTED {X}\n"
 
+KEYS = ["constructor", "__proto__", "toString"]
+PROTO_RUN = {
+    "project": {"title": "T", "quest": {"doc": "toString"}},
+    "orchestrator": {"name": "o", "command": "/o", "phases": ["recon", "constructor", "build"],
+                     "stages": {"toString": {"doing": "x", "step": 1, "time": "__proto__"}, "constructor": {"time": "toString"}}},
+    "active": {"epic": "e1", "milestone": "M1"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "M", "status": "working", "phase": "build", "deps": KEYS,
+         "repos": {"__proto__": {"pr": {"number": 1, "state": "constructor"}}, "constructor": {"pr": {"number": 2, "state": "__proto__"}},
+                   "toString": {}},
+         "stories": [{"id": "constructor", "title": "c", "status": "working", "deps": ["__proto__", "toString"],
+                      "startedAt": "2026-10-20T07:00:00+00:00", "spec": "constructor"},
+                     {"id": "__proto__", "title": "p", "status": "toString", "deps": ["toString"], "brief": "__proto__"},
+                     {"id": "toString", "title": "t", "status": "done", "deps": [], "finishedAt": "2026-10-20T09:00:00+00:00"},
+                     {"id": "S1", "title": "s", "status": "constructor", "deps": KEYS}]},
+        {"id": "constructor", "title": "c", "status": "__proto__", "phase": "toString", "deps": ["__proto__"]}]}]}
+PROTO_EVENTS = [{"type": kind, "milestone": "M1", "story": "constructor", "phase": kind, "state": kind, "at": DONE} for kind in KEYS] + [
+    {"type": "phase", "milestone": "M1", "phase": kind, "at": f"2026-10-20T0{i}:00:00+00:00"} for i, kind in enumerate(KEYS)] + [
+    {"type": "pr", "milestone": "M1", "number": 3, "state": kind, "at": DONE} for kind in KEYS]
+PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
+
 HARNESS = r"""
 const OUT = [];
 const els = {};
@@ -88,11 +109,12 @@ Object.assign(globalThis, {
   addEventListener() {}, matchMedia: () => ({ matches: false }), scrollTo() {}, requestAnimationFrame: () => 0,
   setInterval: () => 0, setTimeout: () => 0, MutationObserver: class { observe() {} }, CSS: { escape: String }, Node: { TEXT_NODE: 3 },
   fetch: async (path) => {
-    const body = FILES[String(path).split("?")[0]];
+    const at = String(path).split("?")[0], body = Object.hasOwn(FILES, at) ? FILES[at] : undefined;
     return { ok: body !== undefined, status: body === undefined ? 404 : 200, headers: { get: () => "application/json" },
              text: async () => body, json: async () => JSON.parse(body) };
   },
 });
+const PROTO = Object.getOwnPropertyNames(Object.prototype);
 /*PAGE*/
 (async () => {
   await poll();
@@ -115,6 +137,8 @@ Object.assign(globalThis, {
     S.ds = { id: E.id, tab: 0 };
     renderDs();
   }
+  const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
+  if (gained.length) throw new Error(`Object.prototype gained ${gained}`);
   process.stdout.write(JSON.stringify(OUT));
 })().catch((e) => { console.error(e.stack); process.exit(1); });
 """
@@ -135,19 +159,19 @@ class Scan(HTMLParser):
 
 @unittest.skipUnless(shutil.which("node"), "needs Node to run the page's script")
 class HostileRun(unittest.TestCase):
-    def rendered(self):
+    def rendered(self, run=RUN, events=EVENTS, progress=PROGRESS, stories=("S1", "S2", "S4"), **files):
         with open(PAGE) as f:
             page = f.read()
         script = page[page.index("<script>") + len("<script>"):page.rindex("</script>")]
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)
-        files = {"podium/podium.json": json.dumps(RUN), "podium/events.jsonl": "".join(json.dumps(e) + "\n" for e in EVENTS),
+        files = {**files, "podium/podium.json": json.dumps(run), "podium/events.jsonl": "".join(json.dumps(e) + "\n" for e in events),
                  "/info": json.dumps({"runDir": "/run", "repoDir": "/repo", "watching": True, "me": "ann", "people": {},
-                                      "orchestrator": RUN["orchestrator"], "paseoServer": X, "stale": False}),
+                                      "orchestrator": run["orchestrator"], "paseoServer": X, "stale": False}),
                  "/human": json.dumps({"mode": "available", "until": None, "source": "hours",
                                        "hours": {"days": "Mon-Fri", "from": "07:00", "to": "17:00"}}),
                  "/git": json.dumps({"repos": [], "at": None}),
-                 "progress": json.dumps({f"M1/{sid}": PROGRESS for sid in ("S1", "S2", "S4")})}
+                 "progress": json.dumps({f"M1/{sid}": progress for sid in stories})}
         with open(os.path.join(tmp, "files.json"), "w") as f:
             json.dump(files, f)
         with open(os.path.join(tmp, "harness.js"), "w") as f:
@@ -181,6 +205,13 @@ class HostileRun(unittest.TestCase):
         for shown in ("Failed · 0/2", "0 findings · 0 fixed · 0 skipped", "Gate · 0 of 0 fixed", "+0 −0", "Attempts0 of 2"):
             self.assertIn(shown, text)
         self.assertIn("Re-read the Asana task and its subtasks", [v for _, k, v in scan.attrs if k == "title"])
+
+    def test_renders_a_run_whose_ids_types_and_states_are_object_prototype_keys(self):
+        scan = self.rendered(PROTO_RUN, PROTO_EVENTS, PROTO_PROGRESS, (*KEYS, "S1"), **{"podium/handoffs.json": "null"})
+        text = "".join(scan.text)
+        for kind in KEYS:
+            self.assertIn(kind, text)
+        self.assertNotIn("[native code]", text + "".join(v for _, _, v in scan.attrs))
 
 
 if __name__ == "__main__":

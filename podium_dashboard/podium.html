@@ -690,7 +690,7 @@ const DEFAULT_PHASES = [
 function phases() {
   const own = S.project?.orchestrator?.phases;
   if (!Array.isArray(own) || !own.length) return DEFAULT_PHASES;
-  const known = Object.fromEntries(DEFAULT_PHASES);
+  const known = dict(DEFAULT_PHASES);
   return own.map((p) => (Array.isArray(p) ? [String(p[0]), String(p[1] ?? p[0])] : [String(p), known[p] || String(p).charAt(0).toUpperCase() + String(p).slice(1).replace(/[-_]/g, " ")]));
 }
 const maxAttempts = () => Number(S.project?.orchestrator?.maxAttempts) || 2;
@@ -704,7 +704,9 @@ const HIDDEN_POLL_MS = 30000;
 let lastPoll = 0;
 const W = 236, H = 140, EPIC_W = 380, EPIC_W_REPOS = 460, EPIC_H = 132, GX = 22, GY = 64, PAD = 56;
 
-const S = { base: "podium/", handoffs: {}, human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: {}, briefs: {}, selected: null, view: undefined, query: "", filter: "all", online: true };
+/* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
+const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
+const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), selected: null, view: undefined, query: "", filter: "all", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -818,14 +820,14 @@ async function poll() {
     } catch { /* no events yet */ }
     try {
       const h = await getText(S.base + "handoffs.json");
-      if (h !== S.handoffsRaw) { S.handoffsRaw = h; S.handoffs = JSON.parse(h); changed = true; }
-    } catch { if (S.handoffsRaw) { S.handoffsRaw = ""; S.handoffs = {}; changed = true; } }
+      if (h !== S.handoffsRaw) { S.handoffsRaw = h; S.handoffs = dict(Object.entries(JSON.parse(h) || {})); changed = true; }
+    } catch { if (S.handoffsRaw) { S.handoffsRaw = ""; S.handoffs = dict(); changed = true; } }
     try {
       const rq = await getText(S.base + "requests.jsonl");
       if (rq !== S.requestsRaw) {
         S.requestsRaw = rq;
-        S.settling = Object.fromEntries(parseJsonl(rq).filter((r) => ["confirm", "reverse"].includes(r.action)).flatMap((r) => String(r.story).split(",").map((i) => [i, r.action])));
-        S.asanaChoice = Object.fromEntries(parseJsonl(rq).filter((r) => r.action === "asana-done").map((r) => [String(r.story), r.note]));
+        S.settling = dict(parseJsonl(rq).filter((r) => ["confirm", "reverse"].includes(r.action)).flatMap((r) => String(r.story).split(",").map((i) => [i, r.action])));
+        S.asanaChoice = dict(parseJsonl(rq).filter((r) => r.action === "asana-done").map((r) => [String(r.story), r.note]));
         changed = true;
       }
     } catch { /* no requests yet */ }
@@ -872,15 +874,15 @@ function progressLines(ms, id) {
   });
 }
 const DOING = {
-  STARTED: ["Writing tests", 1], RED: ["Making them pass", 2], GREEN: ["Refactoring", 3], REFACTOR: ["Running checks", 3],
+  __proto__: null, STARTED: ["Writing tests", 1], RED: ["Making them pass", 2], GREEN: ["Refactoring", 3], REFACTOR: ["Running checks", 3],
   CONTRACT: ["Committing", 3], COMMITTED: ["Merging", 3], WAITING: ["Waiting for approval", 0], FAILED: ["Retrying", 1], FIX: ["Fixing", 2],
 };
 const ownStages = () => Object.entries(S.project?.orchestrator?.stages || {}).filter(([, v]) => v && typeof v === "object");
-const doingMap = () => ({ ...DOING, ...Object.fromEntries(ownStages().filter(([, v]) => v.doing).map(([k, v]) => [k, [String(v.doing), Number(v.step) || 0]])) });
+const doingMap = () => ({ __proto__: null, ...DOING, ...dict(ownStages().filter(([, v]) => v.doing).map(([k, v]) => [k, [String(v.doing), Number(v.step) || 0]])) });
 function doing(ms, id) { const l = progressLines(ms, id); const st = l.length ? l[l.length - 1].stage : null; return st ? doingMap()[st] || [st.toLowerCase(), 0] : ["Starting", 0]; }
 function bar3(n) { return `<span class="bar3" aria-label="step ${n} of 3">${[1, 2, 3].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`; }
 
-const msById = () => Object.fromEntries(S.epic.milestones.map((m) => [m.id, m]));
+const msById = () => dict(S.epic.milestones.map((m) => [m.id, m]));
 const activeMs = () => msById()[S.epic.active] || null;
 const viewMs = () => (S.view ? msById()[S.view] : null);
 const isBuilding = (m) => !!m && m.status === "working" && (m.id === S.project.active?.milestone || m.phase === "build");
@@ -888,7 +890,7 @@ const buildingMs = () => S.project.epics.flatMap((E) => E.milestones || []).filt
 const msBuildAll = (m) => (S.project.buildAll !== undefined && m.id === S.project.active?.milestone ? !!S.project.buildAll : !!m.buildAll);
 const idPath = (id) => String(id).split("/").map(encodeURIComponent).join("/");
 const items = () => viewMs()?.stories || (viewMs() ? [] : S.epic.milestones);
-const byId = () => Object.fromEntries(items().map((s) => [s.id, s]));
+const byId = () => dict(items().map((s) => [s.id, s]));
 const phaseLabel = (p) => phases().find(([k]) => k === p)?.[1] || p || "";
 function viewStatus(s, map) {
   if (s.status !== "todo") return s.status;
@@ -896,7 +898,7 @@ function viewStatus(s, map) {
   return (s.deps || []).every((d) => !map[d] || ["done", "dropped"].includes(map[d].status)) ? "ready" : "waiting";
 }
 function filterKey(st) {
-  return { ready: "todo", waiting: "todo", todo: "todo", draft: "todo", parked: "todo", later: "todo", approval: "working", elsewhere: "working", blocked: "failed" }[st] || st;
+  return { __proto__: null, ready: "todo", waiting: "todo", todo: "todo", draft: "todo", parked: "todo", later: "todo", approval: "working", elsewhere: "working", blocked: "failed" }[st] || st;
 }
 function matches(s) {
   const q = S.query.trim().toLowerCase();
@@ -916,7 +918,7 @@ function repoUrl(repo) {
   const pr = S.project.epics.flatMap((E) => (E.milestones || []).map((m) => m.repos?.[repo]?.pr)).find((x) => x?.url);
   return pr ? String(pr.url).replace(/\/pull\/.*$/, "") : null;
 }
-const PR_LABEL = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
+const PR_LABEL = { __proto__: null, draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
 function prPill(pr, ms) {
   if (!pr) return `<span class="pr none">no PR yet</span>`;
   const st = PR_LABEL[pr.state] ? pr.state : "open";
@@ -926,7 +928,7 @@ function prPill(pr, ms) {
 }
 const msRepoRows = (m) => msRepos(m).map((r) => ({ repo: r.repo, prs: r.pr ? [{ pr: r.pr }] : [] }));
 function epicRepoRows(milestones) {
-  const rows = {};
+  const rows = dict();
   for (const m of milestones || []) for (const r of msRepos(m)) {
     rows[r.repo] ||= { repo: r.repo, prs: [] };
     if (r.pr) rows[r.repo].prs.push({ pr: r.pr, ms: m.id });
@@ -964,8 +966,8 @@ function renderPeople() {
 }
 
 function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
-  const map = Object.fromEntries(list.map((s) => [s.id, s]));
-  const rank = {};
+  const map = dict(list.map((s) => [s.id, s]));
+  const rank = dict();
   const r = (id, seen = new Set()) => {
     if (rank[id]) return rank[id];
     if (seen.has(id)) return 1;
@@ -978,7 +980,7 @@ function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
   const rows = [];
   list.forEach((s) => (rows[rank[s.id]] ||= []).push(s));
   const lines = (row) => (cols >= row.length ? [row] : Array.from({ length: Math.ceil(row.length / cols) }, (_, i) => row.slice(i * cols, (i + 1) * cols)));
-  const xIndex = {};
+  const xIndex = dict();
   rows.forEach((row, ri) => {
     if (!row) return;
     if (ri > 1) {
@@ -993,7 +995,7 @@ function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
   const maxRow = Math.max(1, ...rows.filter(Boolean).map((r) => Math.min(r.length, cols)));
   const width = Math.max(sz.rw + 2 * PAD, maxRow * (W + GX) - GX + 2 * PAD);
   const cx = width / 2;
-  const pos = {}, rowY = [], rowN = [], rowH = [], rowL = [];
+  const pos = dict(), rowY = [], rowN = [], rowH = [], rowL = [];
   let y = PAD / 2 + sz.rh + GY;
   rows.forEach((row) => {
     if (!row) return;
@@ -1007,8 +1009,8 @@ function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
   return { pos, width, height: y - GY + PAD, rows: rowY.length, rowY, rowN, rowH, rowL };
 }
 function runOrder(list) {
-  const by = Object.fromEntries(list.map((m) => [m.id, m]));
-  const group = (m) => ({ done: 0, working: 1, dropped: 3 }[m.status] ?? 2);
+  const by = dict(list.map((m) => [m.id, m]));
+  const group = (m) => ({ __proto__: null, done: 0, working: 1, dropped: 3 }[m.status] ?? 2);
   const out = [], seen = new Set();
   const visit = (m) => {
     if (seen.has(m.id)) return;
@@ -1063,7 +1065,7 @@ function projectChrome() {
 }
 
 function wavesOf(list) {
-  const by = Object.fromEntries(list.map((s) => [s.id, s])), rank = {};
+  const by = dict(list.map((s) => [s.id, s])), rank = dict();
   const r = (s, seen = new Set()) => {
     if (rank[s.id]) return rank[s.id];
     if (seen.has(s.id)) return 1;
@@ -1088,14 +1090,14 @@ function fullMs(m, all) {
   else if (planAsked(m)) foot = `<span class="pulse"></span><span class="badge working">Planning requested</span><span>the orchestrator picks it up</span>`;
   else if (grilledWaits(m)) foot = `<span class="badge grilled">Grilled</span><span>${esc(grilledWaits(m))}</span>${grilledWaits(m) === "ready to plan" ? planBtns(m) : ""}`;
   else if (left.length) foot = `<span class="badge waiting">Needs ${esc(left.join(", "))}</span>`;
-  else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
-  const map = Object.fromEntries(stories.map((s) => [s.id, s]));
+  else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ __proto__: null, draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
+  const map = dict(stories.map((s) => [s.id, s]));
   const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
   return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span><div class="foot">${foot}</div>${waves}</div>`;
 }
 function miniMap(vm) {
-  const all = Object.fromEntries(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
+  const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const pills = runOrder(Object.values(all).filter((x) => x.status !== "dropped")).map((x) =>
     `<span class="mpill ${esc(fullStatus(x, all))} ${x.id === vm.id ? "here" : ""}" ${x.id === vm.id ? "" : `data-drill="${esc(x.id)}"`} title="${esc(`${x.id} · ${x.title}${x.owner ? ` · ${isMe(x.owner) ? "yours" : x.owner}` : ""}`)}">${esc(x.id)}</span>`).join("");
   return `<div class="mini" data-out tabindex="0" title="Back to the full map"><span class="mini-l">‹ Full map</span><span class="mpills">${pills}</span></div>`;
@@ -1111,8 +1113,8 @@ function renderFull() {
   const m = $("map");
   m.style.width = ""; m.style.height = ""; m.style.zoom = 1;
   m.classList.remove("focus");
-  const all = Object.fromEntries(P.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
-  const lane = Object.fromEntries(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
+  const all = dict(P.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
+  const lane = dict(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
   const listed = runOrder(Object.values(all).filter((x) => x.status !== "dropped"));
   const order = listed.filter((x) => !isResearch(x)), research = listed.filter(isResearch);
   const cols = `34px ${P.epics.map((E) => (E.id === P.active?.epic ? "minmax(300px, 1.7fr)" : "minmax(200px, 1fr)")).join(" ")}`;
@@ -1149,7 +1151,7 @@ function day(v) {
 function msPrs(m) {
   return [m.pr, ...Object.entries(m.repos || {}).map(([repo, r]) => r?.pr && { ...r.pr, repo })].filter(Boolean);
 }
-const PR_WORD = { draft: "Draft PR", open: "PR open", merged: "PR merged", closed: "PR closed" };
+const PR_WORD = { __proto__: null, draft: "Draft PR", open: "PR open", merged: "PR merged", closed: "PR closed" };
 const prLink = (pr) => ((url, text) => (url ? `<a class="prlink" href="${esc(url)}" target="_blank" rel="noopener">${text} ↗</a>` : `<span class="prlink">${text}</span>`))(
   safeUrl(pr.url), `${esc(PR_WORD[pr.state] || "PR")}${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)}`);
 const PLANNING = ["recon", "spec", "mock", "architecture", "stories"];
@@ -1158,7 +1160,7 @@ const planning = (m) => m.status === "working" && planningPhases().includes(m.ph
 const planAsked = (m) => m.status !== "working" && Date.now() - (S.planAsked?.[m.id] || 0) < 120000;
 function grilledWaits(m) {
   if (!m.grilled || ["working", "done", "dropped"].includes(m.status)) return "";
-  const all = Object.fromEntries(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
+  const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const after = [...new Set([S.project.active?.milestone, ...(m.deps || []).filter((d) => all[d] && all[d].status !== "done")].filter(Boolean))];
   return after.length ? `next after ${after.join(", ")}` : "ready to plan";
 }
@@ -1208,7 +1210,7 @@ function renderBanner() {
   } else if (allDone) {
     html = `<div class="banner done"><span class="label">✓ ${e.single ? "Completed" : "Epic completed"}</span><span class="sub">${ms.filter((m) => m.status === "done").length} ${e.single ? "" : "milestones "}landed</span></div>`;
   } else if (am && am.status === "working") {
-    const map = Object.fromEntries(stories.map((s) => [s.id, s]));
+    const map = dict(stories.map((s) => [s.id, s]));
     const ready = stories.filter((s) => viewStatus(s, map) === "ready").length;
     const sub = stories.length ? `${am.id}: ${ready} ${ready === 1 ? "story is" : "stories are"} ready to assign` : `${am.id}: ${phaseLabel(am.phase)} in progress — stories appear after breakdown`;
     html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${esc(sub)}</span></div>`;
@@ -1278,7 +1280,7 @@ async function settle(action, id) {
   try {
     const r = await fetch(`/${action}/${encodeURIComponent(id)}${note ? `?note=${encodeURIComponent(note)}` : ""}`, { method: "POST" });
     if (!r.ok) throw new Error(r.status);
-    S.settling = { ...(S.settling || {}), ...Object.fromEntries((all ? open : [id]).map((i) => [i, action])) };
+    S.settling = { __proto__: null, ...S.settling, ...dict((all ? open : [id]).map((i) => [i, action])) };
     render();
     toast(all ? `${open.length} decisions confirmed` : action === "confirm" ? `${assumptionName(id)} confirmed` : `${assumptionName(id)} reversed: the orchestrator reworks what it shaped`);
   } catch {
@@ -1370,7 +1372,7 @@ function renderMap() {
   const avail = $("map").parentElement.clientWidth - 8;
   const cols = innerWidth <= 1100 ? Math.max(1, Math.floor((avail / 0.6 - 2 * PAD + GX) / (W + GX))) : Infinity;
   const L = layout(list, sz, cols);
-  const map = Object.fromEntries(list.map((s) => [s.id, s]));
+  const map = dict(list.map((s) => [s.id, s]));
   const edges = [];
   list.forEach((s) => {
     const deps = (s.deps || []).filter((d) => L.pos[d]);
@@ -1509,6 +1511,7 @@ function renderQuality() {
 }
 
 const EV = {
+  __proto__: null,
   dispatched: ["→", "blue", (e) => `${link(e)} dispatched to ${esc(e.backend || "subagent")}${e.model ? ` · ${esc(e.model)}` : ""}`],
   commit: ["●", "", (e) => `${link(e)} committed <code>${esc(shortSha(e.sha))}</code>${e.repo ? ` in ${esc(e.repo)}` : ""} ${esc(e.subject || "")}`],
   merged: ["✓", "green", (e) => `${link(e)} merged${e._commit?.subject ? `: ${esc(e._commit.subject)}` : ` into ${esc(e.into || "the milestone branch")}`}`],
@@ -1528,7 +1531,7 @@ const EV = {
   assumed: ["◇", "blue", (e) => `${link(e)} Decided: ${esc(e.question || "")} → <b>${esc(e.choice || "")}</b>`],
   denied: ["⊘", "amber", (e) => `${link(e)} permission denied while you're away: ${esc(e.tool || "")} — finding another way`],
   settled: ["✓", "", (e) => e.count ? `You ${e.status === "reversed" ? "reversed" : "confirmed"} ${esc(e.count)} decisions` : `${link(e)} You ${e.status === "reversed" ? "reversed" : "confirmed"}: ${esc(e.question || "")}`],
-  pr: ["⇡", (e) => ({ merged: "purple", closed: "red", open: "green" }[e.state] || "blue"), (e) => `${msLink(e.milestone)}${esc(e.repo || "")} ${prPill({ number: e.number, url: e.url, state: e.state })}${e.was ? ` <span class="meta">was ${esc(e.was)}</span>` : ""}`],
+  pr: ["⇡", (e) => ({ __proto__: null, merged: "purple", closed: "red", open: "green" }[e.state] || "blue"), (e) => `${msLink(e.milestone)}${esc(e.repo || "")} ${prPill({ number: e.number, url: e.url, state: e.state })}${e.was ? ` <span class="meta">was ${esc(e.was)}</span>` : ""}`],
 };
 function link(e) {
   if (!e.story) return msLink(e.milestone);
@@ -1639,7 +1642,7 @@ function renderAttention() {
 function phaseTimes(m) {
   const evs = S.events.filter((e) => e.milestone === m.id && ["planned", "phase", "landed"].includes(e.type))
     .map((e) => ({ ...e, t: Date.parse(e.at) })).filter((e) => !isNaN(e.t)).sort((a, b) => a.t - b.t);
-  const out = {};
+  const out = dict();
   evs.forEach((e, i) => {
     const p = e.type === "phase" ? e.phase : e.type === "planned" && !evs.some((x) => x.phase === "recon") ? "recon" : null;
     if (!p) return;
@@ -1653,7 +1656,7 @@ function phaseTimes(m) {
   return out;
 }
 function waveTimes(m) {
-  const st = m.stories || [], by = Object.fromEntries(st.map((s) => [s.id, s])), depth = {};
+  const st = m.stories || [], by = dict(st.map((s) => [s.id, s])), depth = dict();
   const d = (s) => (depth[s.id] ??= 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((x) => by[x]).map((x) => d(by[x]))));
   const waves = [];
   st.forEach((s) => {
@@ -1706,7 +1709,7 @@ async function asanaDone(choice, id) {
   try {
     const r = await fetch(`/asana-done/${encodeURIComponent(id)}?choice=${choice}`, { method: "POST" });
     if (!r.ok) throw new Error(r.status);
-    S.asanaChoice = { ...(S.asanaChoice || {}), [id]: choice };
+    S.asanaChoice = { __proto__: null, ...S.asanaChoice, [id]: choice };
     render(); if (S.selected) renderSheet();
     toast(choice === "drop" ? `${id}: skipping it` : `${id}: keeping it`);
   } catch { toast(SERVER_DOWN); }
@@ -1772,7 +1775,7 @@ function closeSheet() {
   $("sheet").setAttribute("aria-hidden", "true");
   if (!S.epic || !S.view) renderFull(); else renderMap();
 }
-const CHIP_DOT = { working: "var(--green-dot)", approval: "var(--amber-dot)", failed: "var(--red)", blocked: "var(--red)" };
+const CHIP_DOT = { __proto__: null, working: "var(--green-dot)", approval: "var(--amber-dot)", failed: "var(--red)", blocked: "var(--red)" };
 const finished = (x, map) => ["done", "dropped"].includes(map[x]?.status);
 const chip = (x, map) => {
   const st = map[x]?.status;
@@ -1818,7 +1821,7 @@ function renderSheet() {
   const live = isBuilding(vm), sk = key(vm.id, id);
   const st = viewStatus(s, map);
   const blocks = items().filter((x) => (x.deps || []).includes(id));
-  const label = { done: storyDone(vm), working: "Working on", elsewhere: "In another session", approval: "Waiting for approval", failed: "Failed", blocked: "Blocked", ready: "Ready", waiting: "Waiting on dependencies", dropped: "Dropped" }[st];
+  const label = { __proto__: null, done: storyDone(vm), working: "Working on", elsewhere: "In another session", approval: "Waiting for approval", failed: "Failed", blocked: "Blocked", ready: "Ready", waiting: "Waiting on dependencies", dropped: "Dropped" }[st];
   const action = st === "ready" && live && orch() ? `<button class="btn big" data-act="assign" data-id="${esc(sk)}">Assign subagent</button>${copyBtn("assign", sk)}`
     : st === "elsewhere" ? `<button class="btn big ghost" data-release="${esc(sk)}">✕ Take it back</button>${copyBtn("assign", sk)}` : "";
   const log = progressLines(vm.id, id);
@@ -1842,16 +1845,16 @@ function renderSheet() {
 const TW = [["tests", "Writing tests", "var(--purple)"], ["build", "Building the feature", "var(--accent)"], ["bug", "Fixing bugs", "var(--red)"],
   ["test", "Fixing tests", "var(--amber-dot)"], ["fix", "Fixing", "#ff6b81"], ["refactor", "Refactoring", "var(--green-dot)"],
   ["checks", "Running checks", "#8e8e93"], ["wait", "Waiting on you", "#c7c7cc"]];
-const TW_OF = { STARTED: "tests", RED: "build", GREEN: "refactor", REFACTOR: "checks", CONTRACT: "checks", WAITING: "wait" };
-const TW_REPORTING_LINE = { tests: "RED", build: "GREEN", refactor: "REFACTOR", checks: "CONTRACT" };
-const twOf = () => ({ ...TW_OF, ...Object.fromEntries(ownStages().filter(([, v]) => v.time).map(([k, v]) => [k, String(v.time)])) });
+const TW_OF = { __proto__: null, STARTED: "tests", RED: "build", GREEN: "refactor", REFACTOR: "checks", CONTRACT: "checks", WAITING: "wait" };
+const TW_REPORTING_LINE = { __proto__: null, tests: "RED", build: "GREEN", refactor: "REFACTOR", checks: "CONTRACT" };
+const twOf = () => ({ __proto__: null, ...TW_OF, ...dict(ownStages().filter(([, v]) => v.time).map(([k, v]) => [k, String(v.time)])) });
 function timeWent(log, endAt) {
   const of = twOf();
   const lines = log.filter((l) => !isNaN(Date.parse(l.at)));
   let attempt = 1;
   const att = lines.map((l) => { const a = attempt; if (l.stage === "FAILED") attempt++; return a; });
-  const failed = Object.fromEntries(lines.map((l, i) => [att[i], l.stage === "FAILED" ? l.note : undefined]).filter(([, n]) => n !== undefined));
-  const rows = {};
+  const failed = dict(lines.map((l, i) => [att[i], l.stage === "FAILED" ? l.note : undefined]).filter(([, n]) => n !== undefined));
+  const rows = dict();
   let prev = null;
   lines.forEach((l, i) => {
     if (["COMMITTED", "FAILED"].includes(l.stage)) return;
@@ -1890,7 +1893,7 @@ function milestoneSheet(m) {
   const map = msById(), st = viewStatus(m, map);
   const stories = m.stories || [];
   const wt = st === "working" && msWaits(m), bst = wt ? "needs" : grilledWaits(m) ? "grilled" : st;
-  const label = isResearch(m) ? (st === "done" ? "Answered" : "Research") : wt ? "Waiting on you" : grilledWaits(m) ? `Grilled · ${grilledWaits(m)}` : st === "working" && planning(m) ? "Planning in progress" : planAsked(m) ? "Planning requested" : { done: "Completed", working: "Working on", ready: "Ready", waiting: "Waiting on dependencies", draft: "Draft", parked: "Parked", later: "Later", dropped: "Dropped" }[st] || st;
+  const label = isResearch(m) ? (st === "done" ? "Answered" : "Research") : wt ? "Waiting on you" : grilledWaits(m) ? `Grilled · ${grilledWaits(m)}` : st === "working" && planning(m) ? "Planning in progress" : planAsked(m) ? "Planning requested" : { __proto__: null, done: "Completed", working: "Working on", ready: "Ready", waiting: "Waiting on dependencies", draft: "Draft", parked: "Parked", later: "Later", dropped: "Dropped" }[st] || st;
   const blocks = S.epic.milestones.filter((x) => (x.deps || []).includes(m.id));
   const actions = [
     stories.length && S.view !== m.id && !S.epic.single ? `<button class="btn big" data-drill="${esc(m.id)}">Open story map ›</button>` : "",
@@ -2086,8 +2089,8 @@ async function act(action, id) {
     if (action === "claim" && !r.ok) return toast(`Couldn't claim ${id}: ${(await r.text()).trim() || r.status}`);
     if (r.status === 409) return toast(NO_ORCHESTRATOR());
     if (!r.ok) throw new Error(r.status);
-    if (action === "domain-story") { S.dsAsked = { ...(S.dsAsked || {}), [id]: Date.now() }; render(); setTimeout(render, 121000); }
-    if (action === "plan") { S.planAsked = { ...(S.planAsked || {}), [id]: Date.now() }; render(); setTimeout(render, 121000); }
+    if (action === "domain-story") { S.dsAsked = { __proto__: null, ...S.dsAsked, [id]: Date.now() }; render(); setTimeout(render, 121000); }
+    if (action === "plan") { S.planAsked = { __proto__: null, ...S.planAsked, [id]: Date.now() }; render(); setTimeout(render, 121000); }
     if (action === "human") { S.human = await r.json(); renderHuman(); return toast({ available: "You're available — the orchestrator brings its questions to you", mobile: "On mobile — questions only when they block, pictures instead of Podium links", unavailable: "You're away — the orchestrator keeps going and records its decisions", auto: "Back on your hours" }[id]); }
     toast({ assign: `Queued ${id} — the orchestrator picks it up next`, plan: `Planning ${id} — answer its questions in the orchestrator's chat`, "build-all": `Build all queued for ${id} — wave by wave`, "domain-story": `Drawing ${id} as domain stories — it opens from the Story button when ready`, stop: `${id} stops after this wave`, claim: `Claiming ${id} — it shows as yours once the claim is saved` }[action]);
   } catch {

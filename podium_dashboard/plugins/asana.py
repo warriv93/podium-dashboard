@@ -54,6 +54,11 @@ def fetch(path, token, **params):
     return out
 
 
+def asana_id(value):
+    """`value` when it is an Asana gid: 1 to 32 ASCII digits, so it goes into an API path as it is; else None."""
+    return value if isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 32 else None
+
+
 def parse(url):
     """(kind, gid) of an Asana project or task link, kind `project` or `task`; None for any other link. A project's
     permalink repeats its gid (`/0/<gid>/<gid>`)."""
@@ -61,11 +66,11 @@ def parse(url):
     if u.scheme != "https" or u.netloc != "app.asana.com":
         return None
     parts = [s for s in u.path.split("/") if s]
-    after = lambda word: next((b for a, b in zip(parts, parts[1:]) if a == word and b.isdigit()), None)
-    old = parts[1:3] if parts[:1] == ["0"] and len(parts) > 1 and parts[1].isdigit() else []
+    after = lambda word: next((b for a, b in zip(parts, parts[1:]) if a == word and asana_id(b)), None)
+    old = parts[1:3] if parts[:1] == ["0"] and len(parts) > 1 and asana_id(parts[1]) else []
     if after("task"):
         return "task", after("task")
-    if len(old) == 2 and old[1].isdigit() and old[1] != old[0]:
+    if len(old) == 2 and asana_id(old[1]) and old[1] != old[0]:
         return "task", old[1]
     gid = after("project") or after("projects") or (old[0] if old and old[0] != "0" else None)
     return ("project", gid) if gid else None
@@ -73,9 +78,9 @@ def parse(url):
 
 def linked_as(a):
     """(kind, gid) of an object's `asana`: its own kind, else the kind its URL names (a run from before kinds), else
-    a task."""
-    kind, gid = parse(a.get("url") or "") or ("task", None)
-    return a.get("kind") or kind, a.get("gid") or gid
+    a task; gid None unless it is an Asana id."""
+    kind, gid = parse(str(a.get("url") or "")) or ("task", None)
+    return a.get("kind") or kind, asana_id(a.get("gid") or gid)
 
 
 def asana_link(t, kind, old=None):
@@ -150,8 +155,11 @@ def refresh(p, token=None):
             note(f"ASANA {label} " + ", ".join(f"{k} {obj['asana'][k]}" if k != "fields" else "fields" for k in changed), milestone)
         return old
 
-    def read(a):
+    def read(a, label):
         kind, gid = linked_as(a)
+        if not gid:
+            lines.append(f"ASANA-ERROR {label}: not an Asana id")
+            return kind, None
         try:
             if kind == "project":
                 t = fetch(f"/projects/{gid}", token, opt_fields=PROJECT_FIELDS)
@@ -179,7 +187,7 @@ def refresh(p, token=None):
     for e in p.epics():
         if not e.get("asana"):
             continue
-        kind, t = read(e["asana"])
+        kind, t = read(e["asana"], f"epic {e['id']}")
         if not t:
             continue
         update(e, t, f"epic {e['id']}", kind=kind)
@@ -207,14 +215,14 @@ def refresh(p, token=None):
 
     project = p.data.get("project") or {}
     if project.get("asana"):
-        kind, t = read(project["asana"])
+        kind, t = read(project["asana"], "project")
         if t:
             update(project, t, "project", kind=kind)
 
     for m in p.milestones():  # a subtask linked outside its epic's task, or under an unlinked epic
         if not m.get("asana") or linked_as(m["asana"])[1] in seen:
             continue
-        kind, t = read(m["asana"])
+        kind, t = read(m["asana"], m["id"])
         if t:
             refresh_milestone(m, t, kind)
     return lines or ([] if len(p.new_events) > events else [f"ASANA {len(seen)} tasks read, no changes"])

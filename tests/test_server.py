@@ -228,6 +228,20 @@ class Hardening(Server):
                      f"/repo/{self.tmp}/secret.txt", "/repo/", "/repo/.."):
             self.assertEqual(self.call("GET", path)[0], 404, path)
 
+    def test_serves_the_run_dirs_files_and_none_a_symlink_leads_outside_it(self):
+        self.write("api/.deep-plan/repos/x/own.txt", "own")
+        secret = self.write("secret.txt", "secret")
+        os.symlink(secret, os.path.join(self.run_dir, "repos", "x", "leak.txt"))
+        os.symlink(self.tmp, os.path.join(self.run_dir, "repos", "x", "up"))
+        os.symlink(os.path.join(self.run_dir, "repos", "x", "own.txt"), os.path.join(self.run_dir, "repos", "x", "inside.txt"))
+        self.serve()
+        self.assertEqual(self.call("GET", "/repos/x/own.txt"), (200, "own"))
+        self.assertEqual(self.call("GET", "/repos/x/inside.txt"), (200, "own"))
+        self.assertEqual(self.call("GET", "/podium/podium.json")[0], 200)
+        for method in ("GET", "HEAD"):
+            for path in ("/repos/x/leak.txt", "/repos/x/leak.txt?x=1", "/repos/x/up/secret.txt", "/repos/x/", "/repos/x/up/"):
+                self.assertEqual(self.response(method, path)[0].status, 404, (method, path))
+
     def test_a_run_at_its_repos_root_serves_nothing_beside_the_repo(self):
         self.at(self.repo)
         self.write("api/mock.html", "mock")

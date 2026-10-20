@@ -89,7 +89,7 @@ podium --dir acme sync on --remote git@example.com:acme/podium-runs.git --ref re
 podium --dir acme sync pull
 ```
 
-Sync carries the run's state files; to share planning docs too, each machine adds the same globs to its own `sync.include` in `podium.json` (it never travels with the run). Each person claims their milestones, so changes stay apart; `podium.json` merges, `events.jsonl` and progress files union, and a text conflict keeps your file and writes the other as `<file>.remote`. While the watcher runs it pulls every minute and prints `SYNCED <sha> <summary>` when someone else's change arrives. The merge rules are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
+Sync carries the run's state files; to share planning docs too, each machine adds the same globs to its own `sync.include` in `podium.json` (it never travels with the run). Each person claims their milestones, so changes stay apart; `podium.json` merges, `events.jsonl` and progress files union (the progress of your own milestones stays as your machine has it), and a text conflict keeps your file and writes the other as `<file>.remote`. While the watcher runs it pulls every minute and prints `SYNCED <sha> <summary>` when someone else's change arrives. The merge rules are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ## Security
 

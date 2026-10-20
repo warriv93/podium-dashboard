@@ -657,6 +657,21 @@ class Extension(SyncCase):
         self.assertEqual((b.data["project"]["title"], b.data["orchestrator"]["extension"]), ("T2", "~/skills/o/ext.py"))
 
 
+    def test_a_machine_that_synced_before_the_run_had_an_extension_never_takes_the_one_a_later_save_names(self):
+        a, b = self.machine("a"), self.machine("b")
+        self.orchestrate(a, "o", "~/a/ext.py")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.set_status(b, "M2", "working")
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertEqual((b.read()["orchestrator"], b.milestone("M2")["status"]), ({"name": "o", "command": "/o"}, "working"))
+        self.orchestrate(a, "o2", "~/a/ext.py")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual(b.read()["orchestrator"], {"name": "o2", "command": "/o"})
+        self.assertEqual(self.remote_orchestrator()["extension"], "~/a/ext.py")
+        self.assertNotIn("changed since", sync.status(b))
+
+
 class Merge(SyncCase):
     def test_two_machines_changing_different_milestones_keep_both_changes(self):
         a, b = self.machine("a"), self.machine("b")

@@ -10,7 +10,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 |---|---|---|
 | `podium.json` | `podium` commands, orchestrator | yes (the `sync` block stays local; `orchestrator.extension` keeps the value the run's first save seeded) |
 | `events.jsonl` | `podium set --event`, core commands | yes, merged as a union of lines |
-| `stories/<milestone>/<story>.md`, `.progress` | orchestrator, `podium log` | yes (`.progress` merged as a union) |
+| `stories/<milestone>/<story>.md`, `.progress` | orchestrator, `podium log` | yes (`.progress` merged as a union, except that the owner's machine keeps its own milestone's as it is) |
 | `handoffs.json` | the server | yes |
 | planning docs (`*.md`, `domain-stories/**`, ...) | orchestrator | only to and from a machine whose own `sync.include` lists them |
 | `requests.jsonl` | the server | never |
@@ -131,7 +131,7 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
 
 ### Asana
 
-`asana` on a project, epic or milestone: `{kind: "project"|"task", gid, url, assignee, fields, completed, syncedAt}`. Written by `podium asana link` and `podium asana refresh`. Every link stores its `gid`, which refresh reads (a link from before `gid` is read from its `url`). `link` writes only `{kind, gid, url}`; the first refresh fills in the rest, and `assignee` is a project's owner. Keys a run added to the object, such as `keep`, survive a refresh and a relink to the same `gid`; a relink to another `gid` starts over.
+`asana` on a project, epic or milestone: `{kind: "project"|"task", gid, url, assignee, fields, completed, syncedAt}`. Written by `podium asana link` and `podium asana refresh`. Every link stores its `gid`, 1 to 32 ASCII digits (refresh skips any other as `ASANA-ERROR <target>: not an Asana id`), which refresh reads (a link from before `gid` is read from its `url`). `link` writes only `{kind, gid, url}`; the first refresh fills in the rest, and `assignee` is a project's owner. Keys a run added to the object, such as `keep`, survive a refresh and a relink to the same `gid`; a relink to another `gid` starts over.
 
 ## events.jsonl
 

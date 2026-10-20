@@ -6,11 +6,12 @@ commits live in a private bare cache per run under ~/.podium/sync, so a run outs
 globs (relative to the run dir) pick the files; this machine's own files never go: the request queue and its cursor,
 the watcher's heartbeat, the server log; nor does Python code or a native module. The whole `sync` block, `include` and `exclude` too,
 is this machine's and stays out of the synced podium.json: a remote's save never widens what lands here. The
-orchestrator's `extension` is this machine's too: the run carries the value its first save seeded, and a pull sets it
-only on a machine that has none.
+orchestrator's `extension` is this machine's too: the run carries the value its first save seeded, and only a first
+pull or merge here sets it, on a machine that has none.
 Two machines that both moved merge per file against their common save: podium.json as concurrent commands do
 (rebase), except that a milestone both gave an owner keeps the remote's, the claim that reached it first;
-events.jsonl and *.progress as the union of their lines in time order, any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
+events.jsonl and *.progress as the union of their lines in time order (a progress file of a milestone this person
+owns stays as it is here), any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
 it as `<file>.remote`, and adds to this person's needsYou; so does a file the run dir holds that the remote's save
 brings with other content. A pull or merge writes only files this machine's include and exclude lists carry, and
 deletes only a file that common save had, unchanged here, that those lists still carry; a save carries the files
@@ -274,10 +275,10 @@ def shared(raw, extension=None):
     return dump(data)
 
 
-def with_machine_keys(p, content):
+def with_machine_keys(p, content, joining=False):
     """A synced podium.json with this machine's own `sync` keys, and only those, and `orchestrator.extension` put
-    back; None when the save has none. A machine without an extension takes the one the save carries, once: a pull
-    never changes the code a machine runs."""
+    back; None when the save has none. Only a machine `joining` (never saved or pulled here) without an extension
+    takes the one the save carries: a later pull or merge never changes the code a machine runs."""
     here = p.read()
     block, orchestrator = here.get("sync"), here.get("orchestrator")
     machine = {k: v for k, v in block.items() if k in MACHINE} if isinstance(block, dict) else {}
@@ -290,15 +291,18 @@ def with_machine_keys(p, content):
         return content
     common = data.get("sync")
     common = {k: v for k, v in common.items() if k not in MACHINE} if isinstance(common, dict) else {}
-    if not (machine or extension or common != data.get("sync", {})):
+    incoming = data.get("orchestrator")
+    refused = not (extension or joining) and isinstance(incoming, dict) and "extension" in incoming
+    if not (machine or extension or refused or common != data.get("sync", {})):
         return content
     if machine or common:
         data["sync"] = {**common, **machine}
     else:
         data.pop("sync", None)
     if extension:
-        common = data.get("orchestrator")
-        data["orchestrator"] = {**(common if isinstance(common, dict) else {}), "extension": extension}
+        data["orchestrator"] = {**(incoming if isinstance(incoming, dict) else {}), "extension": extension}
+    elif refused:
+        incoming.pop("extension")
     return dump(data)
 
 
@@ -354,16 +358,18 @@ def on_disk(p, rel):
     return shared(raw) if rel == podium_json(p) else raw
 
 
-def apply(p, files, gone):
+def apply(p, files, gone, joining=False):
     """Write each of `files` ({path relative to the run dir: content}) that differs, with this machine's own keys kept
-    in podium.json and the lines an append-only file gained meanwhile kept in it, and delete the files in `gone`.
-    podium.json is written only when `files` has it."""
+    in podium.json and the lines an append-only file gained meanwhile kept in it, and delete the files in `gone`;
+    never a progress file of this person's milestones. podium.json is written only when `files` has it."""
     files, pj = dict(files), podium_json(p)
     if pj in files:
-        files[pj] = with_machine_keys(p, files[pj])
+        files[pj] = with_machine_keys(p, files[pj], joining)
     with p.locked():
+        kept = own_progress(p)
+        files = {rel: content for rel, content in files.items() if not kept(rel)}
         for rel in sorted(set(gone) - set(files) - {pj}):
-            if inside_run(p, rel):
+            if inside_run(p, rel) and not kept(rel):
                 try:
                     os.remove(os.path.join(p.root, *rel.split("/")))
                 except FileNotFoundError:
@@ -430,6 +436,21 @@ def owners(data):
     epics = data.get("epics") if isinstance(data, dict) else None
     return {m.get("id"): m.get("owner") for e in epics or [] if isinstance(e, dict)
             for m in e.get("milestones") or [] if isinstance(m, dict)}
+
+
+def own_progress(p):
+    """Whether a run dir path is a progress file of a story of a milestone this person owns, as this machine's
+    podium.json has it: the agent building it here is that file's only writer."""
+    try:
+        here = p.read()
+    except ValueError:
+        here = {}
+    epics = here.get("epics") if isinstance(here, dict) and isinstance(here.get("epics"), list) else []
+    milestones = [m for e in epics if isinstance(e, dict) and isinstance(e.get("milestones"), list) for m in e["milestones"]]
+    prefix = posixpath.dirname(podium_json(p))
+    folders = {folded(posixpath.join(prefix, "stories", m["id"])) for m in milestones
+               if isinstance(m, dict) and isinstance(m.get("id"), str) and m["id"] and p.me and m.get("owner") == p.me}
+    return lambda rel: folded(rel).endswith(".progress") and posixpath.dirname(folded(rel)) in folders
 
 
 def first_claim(base, mine, theirs, out):
@@ -500,11 +521,12 @@ def skeleton(p):
 def merged(p, g, base, mine, theirs):
     """(the files of commits `mine` and `theirs` merged against `base` (None: no common save), only those this
     machine's include and exclude lists carry, with a `<file>.remote` beside each conflict; the files to delete). A file the run
-    dir holds with content neither `mine` nor the merge has is a conflict too: it stays as it is."""
+    dir holds with content neither `mine` nor the merge has is a conflict too: it stays as it is. So does a progress
+    file of this person's milestones, whatever either side has."""
     b, m, t = (g.files(p, c) if c else {} for c in (base, mine, theirs))
-    pj, out, conflicts = podium_json(p), {}, []
+    pj, out, conflicts, kept = podium_json(p), {}, [], own_progress(p)
     for rel in sorted(set(m) | set(t), key=lambda x: x != pj):
-        if rel != pj and not covered(p, rel):
+        if rel != pj and not covered(p, rel) or kept(rel):
             continue
         bs, ms, ts = b.get(rel), m.get(rel), t.get(rel)
         if ms == ts or ts == bs:
@@ -530,7 +552,7 @@ def merged(p, g, base, mine, theirs):
         data = json.loads(out[pj]) if pj in out else json.loads(on_disk(p, pj) or b"{}")
         flag(p, data, conflicts)
         out[pj] = dump(data)
-    gone = {rel for rel in set(b) - set(out) - set(conflicts) if covered(p, rel)
+    gone = {rel for rel in set(b) - set(out) - set(conflicts) if covered(p, rel) and not kept(rel)
             and on_disk(p, rel) in (None, g.cat(b[rel]), g.cat(m[rel]) if rel in m else None)}
     return out, gone
 
@@ -538,7 +560,8 @@ def merged(p, g, base, mine, theirs):
 def merge_into(p, g, head, remote, message, mine=None):
     """Merge the remote's commit into this machine's, `mine` (default `head`) the tree that stands for this machine's
     files: the run dir gets the merged files, the ref a commit with both parents. Returns that commit."""
-    apply(p, *merged(p, g, g.merge_base(head, remote), mine or head, remote))
+    joining = not g.rev(g.ref + "^{commit}")
+    apply(p, *merged(p, g, g.merge_base(head, remote), mine or head, remote), joining)
     tree = state_tree(p, g, remote) or g.out("mktree", input="").strip()
     return g.commit(tree, [head, remote], message)
 
@@ -660,7 +683,7 @@ def _pull(p, g, from_watcher):
         elif local and not g.ancestor(local, remote):
             head = merge_into(p, g, local, remote, "podium: merge", tree)
         else:
-            apply(p, *merged(p, g, local, tree or local, remote))
+            apply(p, *merged(p, g, local, tree or local, remote), not local)
             head = remote
         g.update_ref(head, local)
     return f"PULLED {head[:7]}"

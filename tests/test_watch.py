@@ -110,6 +110,13 @@ class Lines(Watcher):
         self.append(progress, "2026-01-01T00:01:00+00:00 GREEN tests pass", "2026-01-01T00:02:00+00:00 COMMITTED abc1234")
         self.assertEqual(self.lines(w), ["PROGRESS S1 2026-01-01T00:02:00+00:00 COMMITTED abc1234"])
 
+    def test_resuming_prints_a_progress_file_new_since_the_last_watcher_only_for_a_milestone_the_run_has(self):
+        with open(self.pod("watcher.json"), "w") as f:
+            json.dump({"at": time.time(), "offsets": {}, "mode": "available"}, f)
+        self.append(self.pod("stories", "M9", "S1.progress"), "2026-01-01T00:01:00+00:00 COMMITTED forged")
+        self.append(self.pod("stories", "M1", "S1.progress"), "2026-01-01T00:02:00+00:00 COMMITTED abc1234")
+        self.assertEqual(self.lines(self.start()), ["PROGRESS S1 2026-01-01T00:02:00+00:00 COMMITTED abc1234"])
+
     def test_prints_the_users_availability_when_it_flipped_since_the_last_watcher(self):
         data = json.loads(json.dumps(DATA))
         data["epics"][0]["milestones"][0]["stories"][0]["status"] = "working"
@@ -229,10 +236,40 @@ class Synced(Watcher):
         self.assertRegex(sync.save(self.ann), r"^SAVED ")
         self.append(mine, "2026-01-01T00:04:00+00:00 COMMITTED two")
         self.assertRegex(sync.save(self.bob), r"^SAVED ")
-        self.assertIn("GREEN ann", "".join(watch.lines_of(mine)))
+        self.assertNotIn("GREEN ann", "".join(watch.lines_of(mine)))
         self.append(mine, "2026-01-01T00:05:00+00:00 COMMITTED three")
         self.assertEqual(self.lines(self.start(run_dir=self.bob.root)), ["PROGRESS S1 2026-01-01T00:04:00+00:00 COMMITTED two",
                                                                         "PROGRESS S1 2026-01-01T00:05:00+00:00 COMMITTED three"])
+
+    def test_a_commit_another_machine_logs_for_a_story_of_yours_never_lands_here_nor_prints(self):
+        os.environ["PODIUM_ME"] = "ann"
+        self.ann.milestone("M1")["owner"], self.ann.milestone("M2")["owner"] = "ann", "bob"
+        self.ann.save()
+        mine, theirs = (self.pod("stories", *rel, run_dir=self.ann.root) for rel in (("M1", "S1.progress"), ("M2", "T1.progress")))
+        self.append(mine, "2026-01-01T00:00:00+00:00 STARTED")
+        self.assertRegex(sync.save(self.ann), r"^SAVED ")
+        self.assertRegex(sync.pull(self.bob), r"^PULLED ")
+        offsets, seen = watch.fresh(self.ann.dir)
+        forged, built = (self.pod("stories", *rel, run_dir=self.bob.root) for rel in (("M1", "S1.progress"), ("M2", "T1.progress")))
+        self.append(forged, "2026-01-01T00:09:00+00:00 COMMITTED forged")
+        self.append(built, "2026-01-01T00:01:00+00:00 COMMITTED bob")
+        self.assertRegex(sync.save(self.bob), r"^SAVED ")
+        self.append(mine, "2026-01-01T00:02:00+00:00 GREEN ann")
+        self.assertRegex(sync.save(self.ann), r"^SAVED ")
+        self.append(forged, "2026-01-01T00:10:00+00:00 FAILED forged")
+        self.assertRegex(sync.save(self.bob), r"^SAVED ")
+        printed = watch.pull(self.ann, offsets, seen)
+        printed += [line for path in watch.watched(self.ann.dir) if os.path.exists(path)
+                    for line in watch.news(path, offsets, seen, lambda path: watch.built_here(self.ann.root, path))]
+        self.assertEqual([line for line in printed if not line.startswith("SYNCED ")], [])
+        self.assertEqual(watch.lines_of(mine), ["2026-01-01T00:00:00+00:00 STARTED", "2026-01-01T00:02:00+00:00 GREEN ann"])
+        self.assertEqual(watch.lines_of(theirs), ["2026-01-01T00:01:00+00:00 COMMITTED bob"])
+        self.assertIn("COMMITTED forged", "".join(watch.lines_of(forged)))
+
+    def test_a_progress_file_of_a_milestone_the_run_lacks_is_not_built_here(self):
+        os.environ["PODIUM_ME"] = "ann"
+        self.assertTrue(watch.built_here(self.ann.root, self.pod("stories", "M1", "S1.progress", run_dir=self.ann.root)))
+        self.assertFalse(watch.built_here(self.ann.root, self.pod("stories", "M9", "S1.progress", run_dir=self.ann.root)))
 
     def test_skips_a_pull_while_another_podium_command_holds_the_lock(self):
         self.assertFalse(watch.busy(self.bob))

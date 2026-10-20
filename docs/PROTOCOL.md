@@ -80,7 +80,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
 | `GET /repo/<path>` | a file under the run's repo: the git toplevel of the run dir, else the run dir itself; the path is resolved and anything outside answers 404 |
-| `GET /podium/...` | the run's own files |
+| `GET /podium/...`, any other path | a file of the run dir, by its real path: a folder, or a file a symlink leads outside the run dir, answers 404 |
 | `POST /<action>/<id>` | queue a request line, 202 `{"queued": {...}}`; `<action>` is a core action or one of `ACTIONS`; `confirm` and `reverse` take an assumption number or `all`, and `?note=` |
 | `POST /build-all/<milestone>`, `POST /stop/<milestone>` | the same, per milestone |
 | `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; it takes any `https://app.asana.com/...` link, 400 for any other and 404 for an unknown epic. `podium asana link` later refuses a link that is not a project or task |
@@ -108,7 +108,7 @@ A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 | `SYNCED <sha> <summary>` | a pull brought someone else's changes: their new event types by `by`, as in `ann: status×2, owner`, else the commit subject |
 | `LAPSE <mode>, nothing building` | the last line |
 
-When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. It pulls during a build too: the pull merges the remote's saves with the unsaved changes here (see Merge), so another person's claim arrives within a minute. Progress lines that arrive with a pull belong to the other person's stories and are not printed; a line logged here while the pull ran is. A progress file a save's merge rewrote behind the watcher is read again whole: it prints the lines it never handled, for a story of a milestone with no owner or this person, and nothing twice.
+When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. It pulls during a build too: the pull merges the remote's saves with the unsaved changes here (see Merge), so another person's claim arrives within a minute. Progress lines that arrive with a pull belong to the other person's stories and are not printed; a line logged here while the pull ran is. A progress file a save's merge rewrote behind the watcher is read again whole: it prints the lines it never handled, for a story of a milestone the run has, with no owner or this person, and nothing twice. A progress file that appeared since the watcher started is printed under the same rule.
 
 `podium requests` prints the requests nobody has passed on yet, as `ACT <confirm|reverse|asana|asana-done> <id> [note=...]` (the user's answers, to act on at once) and `LIST <action> <id> [note=...]` (the rest). It moves the cursor in `cursor.json`; lines the running watcher already printed are skipped.
 
@@ -128,7 +128,7 @@ When sync is on, the watcher pulls every 60 seconds, skipping a round while anot
 | `NEW <milestone> <draft\|done> "<title>" in <epic>` | a new subtask with no unlinked milestone to take it became one |
 | `ASK <subtask gid> "<name>" → <milestone ids> new` | only the user can place the subtask: one of the candidates, or a new milestone |
 | `COMPLETED <milestone> in Asana, not landed: the Podium asks Done?` | the subtask was completed and its milestone is not `done` or `dropped` |
-| `ASANA-ERROR <gid>: <why>` | a read failed; the command exits 1. `ASANA-ERROR <why>` is the extension failing to load |
+| `ASANA-ERROR <gid>: <why>` | a read failed; the command exits 1. `ASANA-ERROR <target>: not an Asana id` is a link whose gid is not 1 to 32 ASCII digits, skipped unread (`<target>` is `project`, `epic <id>` or the milestone id). `ASANA-ERROR <why>` is the extension failing to load |
 
 An extension calling `asana.refresh(p)` gets the same lines as a list, `[]` when nothing is linked and `["ASANA NO_TOKEN"]` without a token, and prints and saves them itself.
 
@@ -138,7 +138,7 @@ An extension calling `asana.refresh(p)` gets the same lines as a list, `[]` when
 
 The run state is committed with git plumbing onto a ref (default `refs/heads/podium-run/<run dir name in kebab case>`) and pushed to the remote, without touching any working tree, index or HEAD. A remote name refers to a remote of the repo the run dir sits in. A URL needs no repo: the commits live in a bare cache under `~/.podium/sync/`, one per URL, ref and run dir. Every machine must use the same ref; `podium sync status` prints it first.
 
-Files: this machine's `sync.include` globs (relative to the run dir) pick them, by default `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. `sync.exclude` and the machine-local list in `SCHEMA.md` never sync. The whole `sync` block stays on its machine: a save never pushes it and a pull never takes it, so a remote that lists more files changes nothing here. To share planning docs, every machine adds the same globs, for example `["podium/**", "*.md", "domain-stories/**"]`. A save carries the files its lists leave out as the last synced tree had them, so a machine that shares fewer files drops none of the others'; a machine whose lists widen gets the files they now cover from that tree on its next save or pull. `orchestrator.extension` is each machine's own too: the run carries the value its first save seeded, no save changes it after, and a pull sets it only on a machine that has none, so a joiner runs the run's extension until `podium init` registers its own. The rest of the `orchestrator` block syncs.
+Files: this machine's `sync.include` globs (relative to the run dir) pick them, by default `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. `sync.exclude` and the machine-local list in `SCHEMA.md` never sync. The whole `sync` block stays on its machine: a save never pushes it and a pull never takes it, so a remote that lists more files changes nothing here. To share planning docs, every machine adds the same globs, for example `["podium/**", "*.md", "domain-stories/**"]`. A save carries the files its lists leave out as the last synced tree had them, so a machine that shares fewer files drops none of the others'; a machine whose lists widen gets the files they now cover from that tree on its next save or pull. `orchestrator.extension` is each machine's own too: the run carries the value its first save seeded, no save changes it after, and only the first pull or merge on a machine that has none sets it, so a joiner runs the run's extension until `podium init` registers its own. A machine that synced before the run had an extension never takes one: it runs `podium init` itself. The rest of the `orchestrator` block syncs.
 
 Results, one line each:
 
@@ -152,7 +152,7 @@ With sync on, every command, core or extension, that appended a major event (see
 When both machines changed the run since their common save (saved or not), files merge one by one against it, and nothing is overwritten:
 
 - `podium.json`: a three-way merge as concurrent commands do. Items with an `id` (epics, milestones, stories) pair up by id; where both sides changed one value, the local one wins. A milestone both sides gave a new owner keeps the remote's: the first claim to reach the remote wins.
-- `events.jsonl` and `*.progress`: the union of their lines, ordered by `at`.
+- `events.jsonl` and `*.progress`: the union of their lines, ordered by `at`. A progress file of a milestone you own is yours alone: a merge or pull keeps it exactly as it is here and never takes the other side's lines, nor deletes it.
 - Any other text: `git merge-file`. On a conflict the local file stays, the other side is written beside it as `<file>.remote`, and a line is added to your `needsYou`. A file that exists locally but not at the common save, and arrives with other content, is handled the same way.
 
 ### Deletion

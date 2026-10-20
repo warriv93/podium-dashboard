@@ -135,6 +135,14 @@ class Link(Run):
         self.assertNotIn("asana", self.milestone())
         self.assertEqual(self.events(), [])
 
+    def test_refuses_a_link_whose_id_is_not_ascii_digits(self):
+        for url in ("https://app.asana.com/1/9/task/\u0661\u0662", "https://app.asana.com/0/\u00b2/list",
+                    "https://app.asana.com/projects/" + "1" * 33, "https://app.asana.com/1/9/task/1%2F2"):
+            self.assertIsNone(asana.parse(url), url)
+            self.assertIn("not an Asana project or task link", self.podium("asana", "link", url)[1])
+        self.assertEqual(asana.parse("https://app.asana.com/projects/" + "1" * 32), ("project", "1" * 32))
+        self.assertNotIn("asana", self.state()["project"])
+
     def test_a_new_link_drops_what_the_old_task_left_and_the_same_one_keeps_it(self):
         self.data["project"]["asana"] = {"gid": "200", "keep": True, "assignee": "Ann", "syncedAt": "2026-10-01T00:00:00+00:00"}
         self.podium("asana", "link", "https://app.asana.com/0/100/200")
@@ -201,11 +209,11 @@ class Refresh(Run):
         self.assertEqual(self.podium("asana", "refresh"), (["ASANA 2 tasks read, no changes"], 0))
 
     def test_refreshes_a_linked_project(self):
-        self.data["project"]["asana"] = {"kind": "project", "gid": "p", "syncedAt": "2026-10-01T00:00:00+00:00", "url": "old"}
-        self.projects["p"] = {"gid": "p", "name": "P", "permalink_url": "https://app.asana.com/0/p/p", "owner": {"name": "Bo"}, "custom_fields": []}
+        self.data["project"]["asana"] = {"kind": "project", "gid": "300", "syncedAt": "2026-10-01T00:00:00+00:00", "url": "old"}
+        self.projects["300"] = {"gid": "300", "name": "P", "permalink_url": "https://app.asana.com/0/300/300", "owner": {"name": "Bo"}, "custom_fields": []}
         self.assertEqual(self.podium("asana", "refresh"),
-                         (["ASANA project url https://app.asana.com/0/p/p, assignee Bo, fields, completed False"], 0))
-        self.assertEqual((self.state()["project"]["asana"]["assignee"], self.calls), ("Bo", [("/projects/p", "t")]))
+                         (["ASANA project url https://app.asana.com/0/300/300, assignee Bo, fields, completed False"], 0))
+        self.assertEqual((self.state()["project"]["asana"]["assignee"], self.calls), ("Bo", [("/projects/300", "t")]))
 
     def test_an_older_run_without_a_kind_reads_each_link_as_its_url_says_else_as_a_task(self):
         self.data["project"]["asana"] = {"gid": "200", "url": "https://app.asana.com/0/200/200"}
@@ -227,6 +235,19 @@ class Refresh(Run):
         self.fetch = lambda path, token, **params: [task("10", "Feat", completed=True)] if path.endswith("/subtasks") else fetch(path, token, **params)
         self.assertEqual(self.podium("asana", "refresh")[0], ["COMPLETED M1 in Asana, not landed: the Podium asks Done?"])
 
+    def test_a_link_whose_gid_is_not_an_asana_id_is_skipped_as_an_error_and_never_read(self):
+        self.data["project"]["asana"] = {"kind": "project", "gid": "../users/me"}
+        self.data["epics"][0]["asana"] = {"kind": "task", "url": "https://app.asana.com/1/9/task/\u0661\u0662"}
+        self.data["epics"][0]["milestones"][0]["asana"] = {"kind": "task", "gid": "1" * 33}
+        self.assertEqual(self.podium("asana", "refresh"), (["ASANA-ERROR epic e: not an Asana id", "ASANA-ERROR project: not an Asana id",
+                                                            "ASANA-ERROR M1: not an Asana id"], 1))
+        self.assertEqual(self.calls, [])
+        self.data = self.state()
+        self.data["epics"][0]["milestones"][0]["asana"]["gid"] = "1" * 32
+        self.tasks["1" * 32] = task("1" * 32, "Feat", subtasks=[])
+        self.assertEqual(self.podium("asana", "refresh")[0][-1], "ASANA-ERROR project: not an Asana id")
+        self.assertEqual(self.calls, [(f"/tasks/{'1' * 32}", "t")])
+
     def test_an_unreadable_task_is_an_error_that_exits_1_and_the_rest_still_refreshes(self):
         self.data["epics"][0]["asana"] = {"kind": "task", "gid": "9"}
         self.data["epics"][0]["milestones"][0]["asana"] = {"kind": "task", "gid": "10"}
@@ -238,24 +259,24 @@ class Refresh(Run):
 class Hook(Run):
     def test_the_extension_sees_each_task_with_its_subtasks_first_and_can_finish_research(self):
         self.extension(HOOK)
-        self.data["project"]["asana"] = {"kind": "task", "gid": "q"}
+        self.data["project"]["asana"] = {"kind": "task", "gid": "40"}
         ms = self.data["epics"][0]["milestones"]
         ms[0]["asana"] = {"kind": "task", "gid": "30"}
         ms.append({"id": "R1", "kind": "research", "title": "Old", "status": "todo", "asana": {"kind": "task", "gid": "20"}})
-        self.tasks.update({"q": task("q", "Quest", subtasks=[task("20", "US1: Old question", completed=True), task("21", "US1: New")]),
+        self.tasks.update({"40": task("40", "Quest", subtasks=[task("20", "US1: Old question", completed=True), task("21", "US1: New")]),
                            "20": task("20", "US1: Old question", completed=True, subtasks=[]),
                            "30": task("30", "Feat", completed=True, subtasks=[task("31", "Sub")])})
         lines, code = self.podium("asana", "refresh")
         self.assertEqual((lines, code), (["COMPLETED M1 in Asana, not landed: the Podium asks Done?"], 0))
         s = self.state()
-        self.assertEqual(s["hooked"], [["q", ["20", "21"], False], ["30", ["31"], False], ["20", [], False]])
+        self.assertEqual(s["hooked"], [["40", ["20", "21"], False], ["30", ["31"], False], ["20", [], False]])
         self.assertEqual((self.milestone("R1")["status"], self.milestone("R1")["asana"]["completed"]), ("done", True))
         self.assertTrue(s["project"]["asana"]["syncedAt"])
 
     def test_an_extension_that_does_not_load_is_an_error_but_the_links_still_refresh(self):
         self.extension("raise RuntimeError('broken')\n")
-        self.data["project"]["asana"] = {"kind": "task", "gid": "q"}
-        self.tasks["q"] = task("q", "Quest", subtasks=[])
+        self.data["project"]["asana"] = {"kind": "task", "gid": "40"}
+        self.tasks["40"] = task("40", "Quest", subtasks=[])
         lines, code = self.podium("asana", "refresh")
         self.assertEqual((len(lines), code), (1, 1))
         self.assertRegex(lines[0], r"^ASANA-ERROR extension .*orch\.py not loadable: RuntimeError: broken$")

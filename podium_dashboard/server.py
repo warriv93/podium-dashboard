@@ -8,7 +8,8 @@ the run's orchestrator extension.
 It answers only requests whose Host is 127.0.0.1:<port> or localhost:<port>, and any but a GET or HEAD only when its
 Origin, if any, is that same server: a page elsewhere can't reach it through DNS rebinding or a cross-site form. Only
 a POST, a DELETE or a visible tab's poll from its own page counts as use (below); a HEAD or an OPTIONS never does.
-GET /repo/<path> serves a file of the run dir's git toplevel, else of the run dir, never one outside it. Everything
+GET /repo/<path> serves a file of the run dir's git toplevel, else of the run dir, never one outside it; any other
+path a file of the run dir, never a folder, nor one whose real path (past any symlink) is outside it. Everything
 it serves but the page itself comes sandboxed (Content-Security-Policy): a synced HTML file runs in an origin of its
 own, whose POSTs say `Origin: null` and are refused. The page's own policy lets it load and fetch only from this
 server.
@@ -354,6 +355,14 @@ def make_handler(root):
                 with open(PAGE, "rb") as f:
                     return self.send(200, "text/html; charset=utf-8", f.read())
             super().do_GET()
+
+        def send_head(self):
+            """A file of the run dir, by its real path: never a folder, nor one a symlink leads outside the run dir."""
+            full = os.path.realpath(self.translate_path(self.path))
+            if not contains(os.path.realpath(root), full) or not os.path.isfile(full):
+                self.send_error(404)
+                return None
+            return super().send_head()
 
         def repo_file(self, rel):
             """A file of the repo the run dir sits in, read-only: a mock kept outside the run dir."""
