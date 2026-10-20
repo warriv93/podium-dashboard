@@ -130,13 +130,13 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
 
 ### Asana
 
-`asana` on a project, epic or milestone: `{kind: "project"|"task", url, assignee, fields, completed, syncedAt}`. Written by `podium asana link` and `podium asana refresh`.
+`asana` on a project, epic or milestone: `{kind: "project"|"task", gid, url, assignee, fields, completed, syncedAt}`. Written by `podium asana link` and `podium asana refresh`. Every link stores its `gid`, which refresh reads (a link from before `gid` is read from its `url`). `link` writes only `{kind, gid, url}`; the first refresh fills in the rest, and `assignee` is a project's owner. Keys a run added to the object, such as `keep`, survive a refresh and a relink to the same `gid`; a relink to another `gid` starts over.
 
 ## events.jsonl
 
 One JSON object per line, appended in time order: `{"at": "<ISO time>", "type": "<type>", "milestone": "M2", "story": "S4", ...}`. `milestone` and `story` are present when the event concerns one. `by` holds `me` and is added in runs with per-person state.
 
-`podium set <target> ... --event TYPE key=value` appends one, filling `at`, `milestone` and `story` from the target. Core commands write `assumed`, `settled`, `owner` (`owner` is null on release) and `handover` (`from`, `to`). The rest are the orchestrator's vocabulary; the Podium draws a timeline from these:
+`podium set <target> ... --event TYPE key=value` appends one, filling `at`, `milestone` and `story` from the target. Core commands write `assumed`, `settled`, `owner` (`owner` is null on release), `handover` (`from`, `to`) and `asana` (`text`, the line the command printed: written on `asana link` and for each change an `asana refresh` reports). The rest are the orchestrator's vocabulary; the Podium draws a timeline from these:
 
 `planned`, `grilled`, `phase` (`phase`), `status` (`text`), `dispatched` (`backend`, `model`), `commit` (`sha`, `subject`), `merged` (`into`, `wave`), `conflict`, `retry` (`attempt`, `reason`), `failed` (`reason`), `approval` (`tool`), `landed` (`sha`, `repo`, `subject`).
 

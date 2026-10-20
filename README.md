@@ -45,13 +45,23 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 | `assume`, `assumptions`, `settle` | record, list and settle assumptions made while you were away |
 | `claim <milestone>`, `release <milestone>`, `whoami [name]` | ownership in a shared run |
 | `sync on\|off\|save\|pull\|status` | share the run through git |
-| `asana link\|refresh` | link a run to an Asana project or task and read its progress back |
+| `asana link\|refresh` | link a run to an Asana project or task and read its progress back, see Linking Asana |
 | `hours`, `human` | your working hours and availability, per machine |
 | `requests` | the button presses nobody has handled yet |
 | `server`, `watch` | the dashboard, and the watcher an orchestrator listens to |
 | `init` | name the run's orchestrator and its extension |
 
 `podium --help` has the full reference. Targets are `.` (the project), `me`, `epic:<id>`, `milestone:<id>`, `<story>` of the active milestone, or `<milestone>/<story>`.
+
+## Linking Asana
+
+`podium asana link <url> [. | epic:<id> | milestone:<id>]` links the project, an epic or a milestone to an Asana project or task, and `podium asana refresh` reads every link back: assignee, custom fields, completion, and the subtasks of a linked task as milestones. Refresh needs a personal access token, from `$ASANA_TOKEN` or the macOS keychain:
+
+```
+security add-generic-password -s podium-asana -a "$USER" -w
+```
+
+Without a token `refresh` prints `NO_TOKEN` and exits 3; a failed read prints `ASANA-ERROR` and exits 1. The output lines are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ## Writing an orchestrator extension
 

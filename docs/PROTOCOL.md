@@ -21,7 +21,7 @@ The module may define any of these:
 | `COMMANDS` | `{verb: fn(p, args)}`: `podium <verb> ...` calls `fn` with a `Podium` and the remaining arguments. The first line of the docstring appears in `podium --help`. |
 | `ACTIONS` | A set of extra request actions the server accepts. The core's are `assign plan build-all stop confirm reverse domain-story claim`. |
 | `prompt(p, kind, target_id)` | Returns the text for the server's prompt endpoints, or None. |
-| `on_asana_refresh(p, task_json)` | Called for each linked Asana task `podium asana refresh` re-reads, before it writes the generic fields. `task_json["subtasks"]` holds its subtasks. |
+| `on_asana_refresh(p, task_json)` | Called for each linked Asana task a refresh re-reads, before it writes the generic fields; never for a project. Runs from `podium asana refresh` and when an extension calls `asana.refresh(p)`, for example in `turn`. `task_json["subtasks"]` holds the subtasks of a task read on its own and is absent for an epic's subtask taken from its parent's list. |
 | `SYNC_MAJOR(event)` | Returns whether an event saves the run when sync is on. Replaces the default rule. |
 
 ### prompt kinds
@@ -80,7 +80,7 @@ Every request must carry a `Host` of `127.0.0.1:<port>` or `localhost:<port>`; a
 | `GET /podium/...` | the run's own files |
 | `POST /<action>/<id>` | queue a request line, 202 `{"queued": {...}}`; `<action>` is a core action or one of `ACTIONS`; `confirm` and `reverse` take an assumption number or `all`, and `?note=` |
 | `POST /build-all/<milestone>`, `POST /stop/<milestone>` | the same, per milestone |
-| `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; 400 for a link that is not `https://app.asana.com/...` |
+| `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; it takes any `https://app.asana.com/...` link, 400 for any other and 404 for an unknown epic. `podium asana link` later refuses a link that is not a project or task |
 | `POST /asana-done/<milestone>?choice=<drop\|keep>` | queue the answer, 202 |
 | `POST /handoff/<story>` | record the story in `handoffs.json` and return the `handoff` prompt; `DELETE /handoff/<story>` takes it back |
 | `POST /human/<available\|mobile\|unavailable\|auto>[?until=HH:MM]` | set the availability toggle |
@@ -108,6 +108,26 @@ A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. Progress lines that arrive with a pull belong to the other person's stories and are not printed.
 
 `podium requests` prints the requests nobody has passed on yet, as `ACT <confirm|reverse|asana|asana-done> <id> [note=...]` (the user's answers, to act on at once) and `LIST <action> <id> [note=...]` (the rest). It moves the cursor in `cursor.json`; lines the running watcher already printed are skipped.
+
+## Asana
+
+`podium asana link <url> [. | epic:<id> | milestone:<id>]` links the project (`.`, the default), an epic or a milestone to an Asana project or task. It exits 1 for anything else than a project or task link, and when another object already holds that `gid`. It prints `LINKED <target> to Asana <kind> <gid>`.
+
+`podium asana refresh` re-reads every link over the Asana REST API with a personal access token: `$ASANA_TOKEN`, else the macOS keychain item `podium-asana`. A linked task is an epic and its subtasks are that epic's milestones. Each line below is also an `asana` event, except `ASK`.
+
+| Line | Meaning |
+|---|---|
+| `NO_TOKEN` | no token; the command exits 3, even when nothing is linked |
+| `ASANA nothing linked` | no object has an `asana` link |
+| `ASANA <n> tasks read, no changes` | |
+| `ASANA <label> <key> <value>, ...` (label `epic <id>`, `project` or a milestone id) | `url`, `assignee`, `completed` or `fields` changed since the last refresh |
+| `LINKED <milestone> to subtask "<name>"` | a new subtask matched one unlinked milestone of the epic, by title or id |
+| `NEW <milestone> <draft\|done> "<title>" in <epic>` | a new subtask with no unlinked milestone to take it became one |
+| `ASK <subtask gid> "<name>" → <milestone ids> new` | only the user can place the subtask: one of the candidates, or a new milestone |
+| `COMPLETED <milestone> in Asana, not landed: the Podium asks Done?` | the subtask was completed and its milestone is not `done` or `dropped` |
+| `ASANA-ERROR <gid>: <why>` | a read failed; the command exits 1. `ASANA-ERROR <why>` is the extension failing to load |
+
+An extension calling `asana.refresh(p)` gets the same lines as a list, `[]` when nothing is linked and `["ASANA NO_TOKEN"]` without a token, and prints and saves them itself.
 
 ## Sync
 
