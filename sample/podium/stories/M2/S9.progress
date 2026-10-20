@@ -1,0 +1,5 @@
+2026-10-08T14:05:32+00:00 STARTED attempt 1
+2026-10-08T14:22:32+00:00 RED expiry tests
+2026-10-08T14:30:32+00:00 FAILED npm test red
+2026-10-08T14:34:32+00:00 STARTED attempt 2 with failure context
+2026-10-08T15:01:32+00:00 FAILED still red: UTC vs local midnight

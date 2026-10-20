@@ -1,0 +1,2 @@
+2026-10-08T14:51:32+00:00 STARTED worktree story/S5
+2026-10-08T14:59:32+00:00 RED 4 failing tests in sender.spec.ts — backoff schedule

@@ -1,0 +1,113 @@
+{
+  "title": "Team invites - Invite a teammate",
+  "scope": {
+    "granularity": "coarse-grained",
+    "time": "TO-BE",
+    "purity": "digitalized"
+  },
+  "description": "Starts from the epic's Invite a teammate story. The role check is M1's and runs today; the invite steps M2 adds are in green. Drawn from the milestone's brief, not checked with anyone who does the work.",
+  "actors": [
+    {
+      "name": "Admin",
+      "icon": "Person"
+    },
+    {
+      "name": "Invitee",
+      "icon": "Person"
+    },
+    {
+      "name": "Workspace",
+      "icon": "System"
+    },
+    {
+      "name": "Mailer",
+      "icon": "System"
+    }
+  ],
+  "sentences": [
+    {
+      "n": 1,
+      "from": "Admin",
+      "verb": "invites",
+      "object": {
+        "name": "Email address",
+        "icon": "Email"
+      },
+      "prep": "in",
+      "to": "Workspace",
+      "changed": true
+    },
+    {
+      "n": 2,
+      "from": "Workspace",
+      "verb": "checks",
+      "object": {
+        "name": "Role",
+        "icon": "Key"
+      },
+      "prep": "of",
+      "to": "Admin",
+      "note": "Only owners and admins may invite."
+    },
+    {
+      "n": 3,
+      "from": "Workspace",
+      "verb": "sends",
+      "object": {
+        "name": "Invite link",
+        "icon": "Document"
+      },
+      "prep": "via",
+      "to": "Mailer",
+      "changed": true
+    },
+    {
+      "n": 4,
+      "from": "Mailer",
+      "verb": "delivers",
+      "object": {
+        "name": "Invite email",
+        "icon": "Email"
+      },
+      "prep": "to",
+      "to": "Invitee",
+      "changed": true
+    },
+    {
+      "n": 5,
+      "from": "Invitee",
+      "verb": "accepts",
+      "object": {
+        "name": "Invite link",
+        "icon": "Document"
+      },
+      "prep": "in",
+      "to": "Workspace",
+      "changed": true
+    },
+    {
+      "n": 6,
+      "from": "Workspace",
+      "verb": "adds",
+      "object": {
+        "name": "Membership",
+        "icon": "Group"
+      },
+      "prep": "for",
+      "to": "Invitee",
+      "changed": true
+    },
+    {
+      "n": 6,
+      "from": "Workspace",
+      "verb": "clears",
+      "object": {
+        "name": "Pending invite",
+        "icon": "View-List"
+      },
+      "prep": "for",
+      "to": "Admin",
+      "changed": true
+    }
+  ]
+}

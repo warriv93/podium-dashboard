@@ -1,0 +1,5 @@
+2026-10-08T14:44:32+00:00 STARTED worktree story/S4 from feat/team-invites
+2026-10-08T14:48:32+00:00 RED 6 failing tests in invites/api.spec.ts
+2026-10-08T15:00:32+00:00 GREEN 6/6 passing
+2026-10-08T15:06:32+00:00 CONTRACT typecheck ✓ lint ✓ test ✓
+2026-10-08T15:11:32+00:00 GREEN adding revoke edge case: already accepted

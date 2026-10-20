@@ -1,0 +1,10 @@
+2026-10-08T13:38:32+00:00 STARTED worktree story/S3 from feat/team-invites
+2026-10-08T13:47:32+00:00 RED 8 failing tests in roles/can.spec.ts
+2026-10-08T13:56:32+00:00 GREEN 8/8 passing
+2026-10-08T13:58:32+00:00 FIX bug an admin could demote the owner
+2026-10-08T14:04:32+00:00 GREEN 9/9 passing
+2026-10-08T14:05:32+00:00 FIX bug a member's role leaked through invite accept
+2026-10-08T14:09:32+00:00 GREEN 10/10 passing
+2026-10-08T14:11:32+00:00 REFACTOR one can() table instead of nested ifs
+2026-10-08T14:14:32+00:00 CONTRACT typecheck ✓ lint ✓ test ✓
+2026-10-08T14:16:32+00:00 COMMITTED api:c4d7710 api:e01b9c3

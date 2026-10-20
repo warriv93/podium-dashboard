@@ -1,0 +1,72 @@
+{
+  "title": "Team workspace - Bill a seat",
+  "scope": {
+    "granularity": "coarse-grained",
+    "time": "TO-BE",
+    "purity": "digitalized"
+  },
+  "description": "Paying the invoice runs today; seat billing is in green. Drawn from the epic's brief, not checked with anyone who does the work.",
+  "actors": [
+    {
+      "name": "Owner",
+      "icon": "Person"
+    },
+    {
+      "name": "Workspace",
+      "icon": "System"
+    },
+    {
+      "name": "Billing",
+      "icon": "System"
+    }
+  ],
+  "sentences": [
+    {
+      "n": 1,
+      "from": "Workspace",
+      "verb": "reports",
+      "object": {
+        "name": "Seat count",
+        "icon": "Sum"
+      },
+      "prep": "to",
+      "to": "Billing",
+      "changed": true
+    },
+    {
+      "n": 2,
+      "from": "Billing",
+      "verb": "prorates",
+      "object": {
+        "name": "Seat charge",
+        "icon": "Dollar"
+      },
+      "prep": "for",
+      "to": "Owner",
+      "changed": true
+    },
+    {
+      "n": 3,
+      "from": "Owner",
+      "verb": "pays",
+      "object": {
+        "name": "Invoice",
+        "icon": "Receipt"
+      },
+      "prep": "in",
+      "to": "Billing"
+    },
+    {
+      "n": 4,
+      "from": "Billing",
+      "verb": "unlocks",
+      "object": {
+        "name": "Seat",
+        "icon": "Key"
+      },
+      "prep": "in",
+      "to": "Workspace",
+      "changed": true
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{"at": "2026-09-18T09:00:00+00:00", "type": "planned", "milestone": "O1"}
+{"at": "2026-09-20T15:00:00+00:00", "type": "landed", "milestone": "O1", "sha": "0a1b2c3", "subject": "docs: land O1"}
+{"at": "2026-09-22T09:00:00+00:00", "type": "planned", "milestone": "O2"}
+{"at": "2026-09-24T15:00:00+00:00", "type": "landed", "milestone": "O2", "sha": "0b1c2d3", "subject": "docs: land O2"}
+{"at": "2026-10-01T09:00:00+00:00", "type": "planned", "milestone": "M1"}
+{"at": "2026-10-01T14:00:00+00:00", "type": "commit", "milestone": "M1", "story": "S1", "sha": "1111aaa", "subject": "feat(auth): role model"}
+{"at": "2026-10-02T10:00:00+00:00", "type": "commit", "milestone": "M1", "story": "S2", "sha": "2222bbb", "subject": "feat(auth): can() guard"}
+{"at": "2026-10-02T12:00:00+00:00", "type": "commit", "milestone": "M1", "story": "S3", "sha": "3333ccc", "subject": "feat(ui): role badges"}
+{"at": "2026-10-02T16:00:00+00:00", "type": "landed", "milestone": "M1", "sha": "a1b2c3d4e5", "subject": "docs: land M1"}
+{"at": "2026-10-03T09:00:00+00:00", "type": "status", "milestone": "M4", "text": "parked: waiting on the first enterprise customer"}
+{"at": "2026-10-08T12:14:32+00:00", "type": "planned", "milestone": "M2"}
+{"at": "2026-10-08T13:34:32+00:00", "type": "phase", "phase": "stories", "milestone": "M2"}
+{"at": "2026-10-08T13:37:32+00:00", "type": "phase", "phase": "build", "milestone": "M2"}
+{"at": "2026-10-08T13:38:32+00:00", "type": "dispatched", "story": "S1", "backend": "paseo", "model": "sonnet", "milestone": "M2"}
+{"at": "2026-10-08T13:38:32+00:00", "type": "dispatched", "story": "S2", "backend": "paseo", "model": "sonnet", "milestone": "M2"}
+{"at": "2026-10-08T13:38:32+00:00", "type": "dispatched", "story": "S3", "backend": "paseo", "model": "opus", "milestone": "M2"}
+{"at": "2026-10-08T13:53:32+00:00", "type": "commit", "story": "S2", "sha": "8b21e0f4", "subject": "feat(email): invite and reminder templates", "milestone": "M2"}
+{"at": "2026-10-08T13:54:32+00:00", "type": "merged", "story": "S2", "into": "feat/team-invites", "milestone": "M2"}
+{"at": "2026-10-08T14:02:32+00:00", "type": "commit", "story": "S1", "sha": "3f9a2c1d", "subject": "feat(invites): add invite model and migration", "milestone": "M2"}
+{"at": "2026-10-08T14:03:32+00:00", "type": "merged", "story": "S1", "into": "feat/team-invites", "milestone": "M2"}
+{"at": "2026-10-08T14:04:32+00:00", "type": "dispatched", "story": "S9", "backend": "paseo", "model": "sonnet", "milestone": "M2"}
+{"at": "2026-10-08T14:14:32+00:00", "type": "conflict", "story": "S3", "milestone": "M2"}
+{"at": "2026-10-08T14:16:32+00:00", "type": "merged", "story": "S3", "into": "feat/team-invites", "milestone": "M2"}
+{"at": "2026-10-08T14:33:32+00:00", "type": "retry", "story": "S9", "attempt": 2, "reason": "npm test red: timezone", "milestone": "M2"}
+{"at": "2026-10-08T14:43:32+00:00", "type": "dispatched", "story": "S4", "backend": "paseo", "model": "opus", "milestone": "M2"}
+{"at": "2026-10-08T14:50:32+00:00", "type": "dispatched", "story": "S5", "backend": "paseo", "model": "sonnet", "milestone": "M2"}
+{"at": "2026-10-08T14:55:32+00:00", "type": "dispatched", "story": "S8", "backend": "paseo", "model": "sonnet", "milestone": "M2"}
+{"at": "2026-10-08T15:02:32+00:00", "type": "failed", "story": "S9", "reason": "2/2 attempts \u2014 contract red", "milestone": "M2"}
+{"at": "2026-10-08T15:10:32+00:00", "type": "approval", "story": "S8", "tool": "Bash: npm run db:migrate", "milestone": "M2"}
+{"at": "2026-10-08T15:12:00+00:00", "type": "owner", "milestone": "M3", "text": "sam claimed M3", "by": "sam"}
+{"at": "2026-10-08T15:13:00+00:00", "type": "landed", "milestone": "O1", "sha": "0a1b2c3d", "repo": "api", "subject": "Onboarding", "by": "ann"}

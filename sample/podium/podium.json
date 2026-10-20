@@ -1,0 +1,722 @@
+{
+  "project": {
+    "title": "Acme",
+    "summary": "A team workspace product."
+  },
+  "epics": [
+    {
+      "id": "team-workspace",
+      "title": "Team workspace",
+      "summary": "Teams with roles, invites, analytics, SSO and seat billing.",
+      "spec": "spec-brief.md",
+      "milestones": [
+        {
+          "id": "M1",
+          "title": "Team roles",
+          "summary": "owner / admin / member roles and a can() guard",
+          "status": "done",
+          "phase": "land",
+          "deps": [],
+          "brief": "spec-brief-m1.md",
+          "spec": "specs/001-team-roles/",
+          "archive": "archive/m1/state.md",
+          "branch": "feat/team-roles",
+          "landedSha": "a1b2c3d4e5",
+          "shippedAt": "2026-10-02",
+          "covers": [
+            "A1 roles",
+            "A2 guard"
+          ],
+          "stories": [
+            {
+              "id": "S1",
+              "title": "Role model and migration",
+              "status": "done",
+              "deps": [],
+              "commits": [
+                {
+                  "sha": "1111aaa",
+                  "subject": "feat(auth): role model",
+                  "plus": 120,
+                  "minus": 4
+                }
+              ]
+            },
+            {
+              "id": "S2",
+              "title": "can() guard",
+              "status": "done",
+              "deps": [
+                "S1"
+              ],
+              "commits": [
+                {
+                  "sha": "2222bbb",
+                  "subject": "feat(auth): can() guard",
+                  "plus": 88,
+                  "minus": 10
+                }
+              ]
+            },
+            {
+              "id": "S3",
+              "title": "Role badges in member list",
+              "status": "done",
+              "deps": [
+                "S1"
+              ],
+              "commits": [
+                {
+                  "sha": "3333ccc",
+                  "subject": "feat(ui): role badges",
+                  "plus": 64,
+                  "minus": 2
+                }
+              ]
+            }
+          ],
+          "quality": {
+            "contract": [],
+            "gate": {
+              "findings": 5,
+              "fixed": 4,
+              "skipped": 1,
+              "note": "PASS, 1 LOW skipped",
+              "file": "archive/m1/findings-phase-3.md"
+            },
+            "criteria": [
+              {
+                "text": "Members cannot change roles",
+                "pass": true
+              }
+            ]
+          },
+          "owner": "sam"
+        },
+        {
+          "id": "M2",
+          "title": "Team invites",
+          "summary": "Owners and admins invite people to a team by email; invitees accept through a token link.",
+          "status": "working",
+          "phase": "build",
+          "buildAll": false,
+          "deps": [
+            "M1"
+          ],
+          "brief": "spec-brief-m2.md",
+          "spec": "specs/002-team-invites/",
+          "branch": "feat/team-invites",
+          "covers": [
+            "B1 invite by email",
+            "B2 accept link",
+            "B3 pending list"
+          ],
+          "stories": [
+            {
+              "id": "S1",
+              "title": "Invite data model and migration",
+              "summary": "invites table, token, expiry, status enum",
+              "deps": [],
+              "files": [
+                "db/migrations/0042_invites.sql",
+                "src/invites/model.ts"
+              ],
+              "status": "done",
+              "model": "sonnet",
+              "attempts": 1,
+              "startedAt": "2026-10-08T13:38:32+00:00",
+              "finishedAt": "2026-10-08T14:03:32+00:00",
+              "commits": [
+                {
+                  "sha": "3f9a2c1d",
+                  "subject": "feat(invites): add invite model and migration",
+                  "plus": 142,
+                  "minus": 3
+                }
+              ],
+              "brief": "podium/stories/M2/S1.md",
+              "branch": "story/S1",
+              "agent": {
+                "backend": "paseo",
+                "id": "907acf"
+              },
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S2",
+              "title": "Invite email templates",
+              "summary": "MJML templates for invite and reminder",
+              "deps": [],
+              "files": [
+                "emails/invite.mjml",
+                "emails/reminder.mjml"
+              ],
+              "status": "done",
+              "model": "sonnet",
+              "attempts": 1,
+              "startedAt": "2026-10-08T13:38:32+00:00",
+              "finishedAt": "2026-10-08T13:54:32+00:00",
+              "commits": [
+                {
+                  "sha": "8b21e0f4",
+                  "subject": "feat(email): invite and reminder templates",
+                  "plus": 96,
+                  "minus": 0
+                }
+              ],
+              "brief": "podium/stories/M2/S2.md",
+              "branch": "story/S2",
+              "agent": {
+                "backend": "paseo",
+                "id": "3f465d"
+              },
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S3",
+              "title": "Team roles and permission checks",
+              "summary": "owner / admin / member with a can() guard",
+              "deps": [],
+              "files": [
+                "src/auth/roles.ts",
+                "src/auth/can.ts"
+              ],
+              "status": "done",
+              "model": "opus",
+              "attempts": 1,
+              "startedAt": "2026-10-08T13:38:32+00:00",
+              "finishedAt": "2026-10-08T14:16:32+00:00",
+              "commits": [
+                {
+                  "sha": "c4d7710a",
+                  "subject": "feat(auth): team roles and can() guard",
+                  "plus": 211,
+                  "minus": 18
+                },
+                {
+                  "sha": "e01b9c33",
+                  "subject": "refactor(auth): collapse role table",
+                  "plus": 12,
+                  "minus": 30
+                }
+              ],
+              "brief": "podium/stories/M2/S3.md",
+              "branch": "story/S3",
+              "agent": {
+                "backend": "paseo",
+                "id": "f7eb7d"
+              },
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S4",
+              "title": "Create and revoke invites API",
+              "summary": "POST/DELETE /teams/:id/invites behind can('invite')",
+              "deps": [
+                "S1",
+                "S3"
+              ],
+              "files": [
+                "src/invites/api.ts",
+                "src/invites/service.ts"
+              ],
+              "status": "working",
+              "model": "opus",
+              "attempts": 1,
+              "startedAt": "2026-10-08T14:43:32+00:00",
+              "brief": "podium/stories/M2/S4.md",
+              "branch": "story/S4",
+              "agent": {
+                "backend": "paseo",
+                "id": "0a238a"
+              },
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S5",
+              "title": "Email sender with retries",
+              "summary": "queue-backed sender, exponential backoff",
+              "deps": [
+                "S2"
+              ],
+              "files": [
+                "src/email/sender.ts",
+                "src/queue/jobs.ts"
+              ],
+              "status": "working",
+              "model": "sonnet",
+              "attempts": 1,
+              "startedAt": "2026-10-08T14:50:32+00:00",
+              "brief": "podium/stories/M2/S5.md",
+              "branch": "story/S5",
+              "agent": {
+                "backend": "paseo",
+                "id": "eec3d4"
+              },
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S8",
+              "title": "Audit log for invite events",
+              "summary": "append-only audit rows for create, revoke, accept",
+              "deps": [
+                "S3"
+              ],
+              "files": [
+                "src/audit/log.ts",
+                "db/migrations/0043_audit.sql"
+              ],
+              "status": "approval",
+              "model": "sonnet",
+              "attempts": 1,
+              "startedAt": "2026-10-08T14:55:32+00:00",
+              "approval": {
+                "tool": "Bash",
+                "detail": "npm run db:migrate -- --env test"
+              },
+              "brief": "podium/stories/M2/S8.md",
+              "branch": "story/S8",
+              "agent": {
+                "backend": "paseo",
+                "id": "a41e56"
+              },
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S9",
+              "title": "Invite expiry job",
+              "summary": "nightly job expires invites older than 7 days",
+              "deps": [
+                "S1"
+              ],
+              "files": [
+                "src/jobs/expire-invites.ts"
+              ],
+              "status": "failed",
+              "model": "sonnet",
+              "attempts": 2,
+              "startedAt": "2026-10-08T14:04:32+00:00",
+              "finishedAt": "2026-10-08T15:02:32+00:00",
+              "failure": "Contract `npm test` red after 2 attempts: expire-invites.spec.ts expects UTC midnight, job uses server local time.",
+              "brief": "podium/stories/M2/S9.md",
+              "branch": "story/S9",
+              "agent": {
+                "backend": "paseo",
+                "id": "cd076c"
+              },
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S11",
+              "title": "Invite rate limiting",
+              "summary": "max 20 invites per team per hour",
+              "deps": [
+                "S3"
+              ],
+              "files": [
+                "src/invites/rate-limit.ts"
+              ],
+              "status": "todo",
+              "model": "sonnet",
+              "attempts": 0,
+              "brief": "podium/stories/M2/S11.md",
+              "branch": "story/S11",
+              "repos": [
+                "api"
+              ]
+            },
+            {
+              "id": "S6",
+              "title": "Accept-invite page",
+              "summary": "token landing page, sign-in or sign-up, join team",
+              "deps": [
+                "S4"
+              ],
+              "files": [
+                "web/routes/invite/[token].tsx",
+                "src/invites/service.ts"
+              ],
+              "status": "todo",
+              "model": "sonnet",
+              "attempts": 0,
+              "brief": "podium/stories/M2/S6.md",
+              "branch": "story/S6",
+              "repos": [
+                "web"
+              ]
+            },
+            {
+              "id": "S7",
+              "title": "Pending invites admin list",
+              "summary": "list, resend and revoke pending invites",
+              "deps": [
+                "S4",
+                "S5"
+              ],
+              "overlapAfter": [
+                "S6"
+              ],
+              "files": [
+                "web/routes/team/invites.tsx",
+                "src/invites/service.ts"
+              ],
+              "status": "todo",
+              "model": "sonnet",
+              "attempts": 0,
+              "brief": "podium/stories/M2/S7.md",
+              "branch": "story/S7",
+              "repos": [
+                "web"
+              ]
+            },
+            {
+              "id": "S10",
+              "title": "Expiry reminder email",
+              "summary": "remind 24 h before an invite expires",
+              "deps": [
+                "S9",
+                "S2"
+              ],
+              "files": [
+                "src/jobs/remind-invites.ts"
+              ],
+              "status": "blocked",
+              "model": "sonnet",
+              "attempts": 0,
+              "brief": "podium/stories/M2/S10.md",
+              "branch": "story/S10"
+            }
+          ],
+          "quality": {
+            "contract": [
+              {
+                "cmd": "npm run typecheck",
+                "ok": true,
+                "at": "2026-10-08T15:05:32+00:00"
+              },
+              {
+                "cmd": "npm run lint",
+                "ok": true,
+                "at": "2026-10-08T15:05:32+00:00"
+              },
+              {
+                "cmd": "npm test",
+                "ok": false,
+                "at": "2026-10-08T15:02:32+00:00"
+              }
+            ],
+            "gate": null,
+            "criteria": [
+              {
+                "text": "An admin can invite by email and the invitee receives it within a minute",
+                "pass": null
+              },
+              {
+                "text": "A revoked or expired token shows a clear error and cannot join",
+                "pass": null
+              },
+              {
+                "text": "Members cannot invite; the API returns 403",
+                "pass": null
+              }
+            ]
+          },
+          "artifacts": [
+            {
+              "name": "Recon note",
+              "path": "recon-note.md",
+              "phase": "recon"
+            },
+            {
+              "name": "Spec brief",
+              "path": "spec-brief.md",
+              "phase": "spec"
+            },
+            {
+              "name": "Architecture",
+              "path": "architecture.md",
+              "phase": "architecture"
+            },
+            {
+              "name": "Spec",
+              "path": "spec.md",
+              "phase": "spec"
+            },
+            {
+              "name": "Tasks",
+              "path": "tasks.md",
+              "phase": "stories"
+            }
+          ],
+          "domainStories": {
+            "status": "ready",
+            "at": "2026-10-09T10:05:00+02:00",
+            "stories": [
+              {
+                "title": "Invite a teammate",
+                "path": "domain-stories/M2/Team invites - Invite a teammate.egn.svg",
+                "spec": "domain-stories/M2/Team invites - Invite a teammate.story.json"
+              }
+            ]
+          },
+          "owner": "ann",
+          "repos": {
+            "api": {
+              "path": "repos/api",
+              "branch": "feat/team-invites",
+              "base": "main",
+              "pr": {
+                "number": 128,
+                "state": "draft",
+                "url": "https://github.com/example/api/pull/128"
+              }
+            },
+            "web": {
+              "path": "repos/web",
+              "branch": "feat/team-invites",
+              "base": "main"
+            }
+          }
+        },
+        {
+          "id": "M3",
+          "title": "Invite analytics",
+          "summary": "how many invites are sent, accepted and expire",
+          "status": "draft",
+          "deps": [
+            "M2"
+          ],
+          "brief": "spec-brief-m3.md",
+          "covers": [
+            "C1 funnel"
+          ],
+          "open": [
+            "Count per team or per inviter?",
+            "Keep 30 or 90 days of history?"
+          ]
+        },
+        {
+          "id": "M4",
+          "title": "SSO sign-in",
+          "summary": "SAML and Google Workspace sign-in",
+          "status": "parked",
+          "deps": [
+            "M1"
+          ],
+          "note": "Parked 2026-10-03: waiting on the first enterprise customer",
+          "covers": [
+            "D1 SSO"
+          ]
+        },
+        {
+          "id": "M5",
+          "title": "Seat billing",
+          "summary": "charge per accepted seat",
+          "status": "later",
+          "deps": [
+            "M2",
+            "M4"
+          ],
+          "covers": [
+            "E1 seats"
+          ]
+        },
+        {
+          "id": "M6",
+          "title": "Magic-link invites",
+          "summary": "invite without email, via a shareable link",
+          "status": "dropped",
+          "deps": [
+            "M1"
+          ],
+          "note": "Dropped by the owner after the mock: links leak"
+        }
+      ],
+      "uncovered": [
+        "F1 audit export"
+      ],
+      "domainStories": {
+        "status": "ready",
+        "at": "2026-10-08T15:20:00+02:00",
+        "stories": [
+          {
+            "title": "Invite a teammate",
+            "path": "domain-stories/team-workspace/Team workspace - Invite a teammate.egn.svg",
+            "spec": "domain-stories/team-workspace/Team workspace - Invite a teammate.story.json"
+          },
+          {
+            "title": "Bill a seat",
+            "path": "domain-stories/team-workspace/Team workspace - Bill a seat.egn.svg",
+            "spec": "domain-stories/team-workspace/Team workspace - Bill a seat.story.json"
+          }
+        ]
+      }
+    },
+    {
+      "id": "onboarding",
+      "title": "Onboarding",
+      "summary": "First-run tour and sample data for new teams.",
+      "spec": "spec-brief-onboarding.md",
+      "milestones": [
+        {
+          "id": "O1",
+          "title": "Welcome tour",
+          "summary": "three-step tour on first sign-in",
+          "status": "done",
+          "phase": "land",
+          "deps": [],
+          "shippedAt": "2026-09-20",
+          "landedSha": {
+            "api": "0a1b2c3d",
+            "web": "9f8e7d6c"
+          },
+          "stories": [
+            {
+              "id": "S1",
+              "title": "Tour shell",
+              "status": "done",
+              "deps": [],
+              "commits": [
+                {
+                  "sha": "0a0a0a1",
+                  "subject": "feat(onboarding): tour shell",
+                  "plus": 90,
+                  "minus": 0
+                }
+              ]
+            },
+            {
+              "id": "S2",
+              "title": "Tour steps",
+              "status": "done",
+              "deps": [
+                "S1"
+              ],
+              "commits": [
+                {
+                  "sha": "0a0a0a2",
+                  "subject": "feat(onboarding): tour steps",
+                  "plus": 140,
+                  "minus": 6
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "O2",
+          "title": "Sample data",
+          "summary": "seed a demo team on request",
+          "status": "done",
+          "phase": "land",
+          "deps": [
+            "O1"
+          ],
+          "shippedAt": "2026-09-24",
+          "landedSha": "0b1c2d3",
+          "stories": [
+            {
+              "id": "S1",
+              "title": "Seeder",
+              "status": "done",
+              "deps": [],
+              "commits": [
+                {
+                  "sha": "0b0b0b1",
+                  "subject": "feat(onboarding): demo seeder",
+                  "plus": 75,
+                  "minus": 2
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "active": {
+    "epic": "team-workspace",
+    "milestone": "M2"
+  },
+  "needsYou": {
+    "reason": "S8 wants to run a migration against the test database",
+    "story": "S8"
+  },
+  "assumptions": [
+    {
+      "at": "2026-10-08T18:20:00+00:00",
+      "milestone": "M2",
+      "story": "S6",
+      "question": "Invite links expire after?",
+      "choice": "7 days",
+      "why": "matches the password-reset links in the reuse list",
+      "status": "open"
+    },
+    {
+      "at": "2026-10-08T18:05:00+00:00",
+      "milestone": "M2",
+      "question": "Resend an invite to an address that already has one pending?",
+      "choice": "Replace the old invite",
+      "why": "one live link per address keeps revocation simple",
+      "status": "confirmed"
+    }
+  ],
+  "dispatcher": "paseo",
+  "repoUrl": "https://github.com/example/acme",
+  "updatedAt": "2026-10-08T15:14:32+00:00",
+  "orchestrator": {
+    "name": "minimal",
+    "command": "/minimal",
+    "extension": "../../examples/minimal_extension.py",
+    "phases": [
+      "recon",
+      "spec",
+      "mock",
+      "architecture",
+      "stories",
+      "build",
+      "gate",
+      "verify",
+      "land"
+    ]
+  },
+  "people": {
+    "ann": {
+      "active": {
+        "epic": "team-workspace",
+        "milestone": "M2"
+      },
+      "assumptions": [
+        {
+          "status": "open",
+          "milestone": "M2",
+          "story": "S3",
+          "question": "Cap invites per hour?",
+          "short": "Invite rate cap",
+          "choice": "20 per hour",
+          "why": "matches the email provider limit"
+        }
+      ]
+    },
+    "sam": {
+      "active": {
+        "epic": "team-workspace",
+        "milestone": "M3"
+      }
+    }
+  }
+}
