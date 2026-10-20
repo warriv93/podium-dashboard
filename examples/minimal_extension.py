@@ -1,4 +1,4 @@
-from podium_dashboard.state import require_owner
+from podium_dashboard.commands import require_owner
 
 ACTIONS = {"hello"}
 

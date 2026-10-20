@@ -24,23 +24,21 @@ import re
 import subprocess
 import sys
 import tempfile
-import time
 from datetime import datetime, timezone
 
 from podium_dashboard import extension
-from podium_dashboard.state import person_of, rebase
+from podium_dashboard.files import MACHINE_FILES, SHARED_FILES, write_atomic
+from podium_dashboard.merge import rebase
+from podium_dashboard.state import person_of, watcher_running
 
 MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner"}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
-STATE = ["podium.json", "events.jsonl", "handoffs.json", "stories/**"]
 MACHINE = ("enabled", "remote", "ref")
-LOCAL = ["cursor.json", "requests.jsonl", "watcher.json", "server.log", "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth",
-         "repos/**", "worktrees/**", "**/*.logs/**", "*.logs/**"]
+LOCAL = [*MACHINE_FILES, "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth", "repos/**", "worktrees/**", "**/*.logs/**", "*.logs/**"]
 IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 APPEND_ONLY = ["events.jsonl", "*.progress"]
 CACHE = "~/.podium/sync"
-WATCHER_LIVE = 30
 USAGE = "sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status"
 
 
@@ -155,7 +153,6 @@ def open_git(p, remote=None, ref=None):
     return Git(["git", "-C", top.stdout.strip()], remote, ref), None
 
 
-# --- the synced files ------------------------------------------------------------
 def podium_json(p):
     return os.path.relpath(p.path, p.root).replace(os.sep, "/")
 
@@ -165,7 +162,7 @@ def includes(p, block=None):
     if isinstance(found, list):
         return [str(g) for g in found]
     prefix = os.path.relpath(p.dir, p.root).replace(os.sep, "/")
-    return [g if prefix == "." else f"{prefix}/{g}" for g in STATE]
+    return [g if prefix == "." else f"{prefix}/{g}" for g in SHARED_FILES]
 
 
 def glob_pattern(pattern):
@@ -192,7 +189,7 @@ def restorable(p, rel, block=None):
             and not any(git_dir_name(x) for x in parts) and not local_only(p, rel, block))
 
 
-def inside(p, rel):
+def inside_run(p, rel):
     """Whether the run dir's `rel` lands inside the run dir without passing through a symlink."""
     path = p.root
     for part in rel.split("/"):
@@ -213,7 +210,7 @@ def synced_files(p):
     for pattern in includes(p):
         for path in glob.glob(os.path.join(glob.escape(p.root), pattern), recursive=True):
             rel = os.path.relpath(path, p.root).replace(os.sep, "/")
-            if os.path.isfile(path) and inside(p, rel) and restorable(p, rel):
+            if os.path.isfile(path) and inside_run(p, rel) and restorable(p, rel):
                 found.add(rel)
     return sorted(found)
 
@@ -325,13 +322,13 @@ def apply(p, files, gone):
         files[pj] = with_machine_keys(p, files[pj])
     with p.locked():
         for rel in sorted(set(gone) - set(files) - {pj}):
-            if inside(p, rel):
+            if inside_run(p, rel):
                 try:
                     os.remove(os.path.join(p.root, *rel.split("/")))
                 except FileNotFoundError:
                     pass
         for rel, content in files.items():
-            if not inside(p, rel):
+            if not inside_run(p, rel):
                 continue
             path = os.path.join(p.root, *rel.split("/"))
             try:
@@ -344,13 +341,9 @@ def apply(p, files, gone):
             if here == content:
                 continue
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            tmp = f"{path}.{os.getpid()}.tmp"
-            with open(tmp, "wb") as f:
-                f.write(content)
-            os.replace(tmp, path)
+            write_atomic(path, content)
 
 
-# --- merging two machines' saves ---------------------------------------------------
 def instant(text):
     try:
         t = datetime.fromisoformat(str(text).replace("Z", "+00:00"))
@@ -520,7 +513,6 @@ def merge_into(p, g, head, remote, message, mine=None):
     return g.commit(tree, [head, remote], message)
 
 
-# --- the API -------------------------------------------------------------------
 def is_major(p, event):
     """Whether an event changes what the run is, so sync saves after it: the extension's SYNC_MAJOR(event) when it
     defines one."""
@@ -530,6 +522,14 @@ def is_major(p, event):
         return bool(override(event))
     kind = event.get("type")
     return kind in MAJOR or (kind == "phase" and event.get("phase") in MAJOR_PHASES) or (kind == "merged" and bool(event.get("wave")))
+
+
+def autosave(p):
+    if not enabled(p):
+        return
+    major = [e for e in p.new_events if is_major(p, e)]
+    if major:
+        print(save(p, "; ".join(describe(e) for e in major)))
 
 
 def describe(event):
@@ -583,14 +583,6 @@ def _save(p, g, message):
     return f"SAVED {head[:7]} {message} (not pushed: {err})"
 
 
-def watcher_running(p):
-    try:
-        with open(os.path.join(p.dir, "watcher.json")) as f:
-            return time.time() - json.load(f)["at"] < WATCHER_LIVE
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
-
-
 def pull(p, from_watcher=False):
     """Bring this machine's run state up to the remote's saves, merging them with changes made here since the last
     save, which stay unsaved until the next save unless the two sides had diverged (then the merge commit holds
@@ -627,7 +619,7 @@ def _pull(p, g, from_watcher):
             if not local or g.ancestor(local, remote):
                 g.update_ref(remote, local)
             return "UP-TO-DATE"
-        if not from_watcher and watcher_running(p):
+        if not from_watcher and watcher_running(p.dir):
             return "KEPT the watcher is running"
         if tree and not local:
             head = merge_into(p, g, g.commit(tree, [], "podium: save"), remote, "podium: merge")

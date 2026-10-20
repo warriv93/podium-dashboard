@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from podium_dashboard import extension
+from podium_dashboard import extension, sync
 from podium_dashboard.state import NOW
 
 API = "https://app.asana.com/api/1.0"
@@ -132,7 +132,7 @@ def refresh(p, token=None):
         return ["ASANA NO_TOKEN"]
     module, why = extension.load(p)
     hook = extension.on_asana_refresh(module)
-    lines, seen, events = [f"ASANA-ERROR {why}"] if why else [], set(), len(p.fresh)
+    lines, seen, events = [f"ASANA-ERROR {why}"] if why else [], set(), len(p.new_events)
     title = lambda t: " ".join(t.get("name", "").split())
 
     def note(line, milestone=None):
@@ -217,11 +217,10 @@ def refresh(p, token=None):
         kind, t = read(m["asana"])
         if t:
             refresh_milestone(m, t, kind)
-    return lines or ([] if len(p.fresh) > events else [f"ASANA {len(seen)} tasks read, no changes"])
+    return lines or ([] if len(p.new_events) > events else [f"ASANA {len(seen)} tasks read, no changes"])
 
 
 def cmd_asana(p, args):
-    """asana link <url> [<target>] | asana refresh"""
     if args[:1] == ["link"] and len(args) in (2, 3):
         print(link(p, *args[1:]))
         p.save()
@@ -237,6 +236,5 @@ def cmd_asana(p, args):
     for line in lines:
         print(line)
     if any(line.startswith("ASANA-ERROR") for line in lines):
-        from podium_dashboard.cli import autosave
-        autosave(p)
+        sync.autosave(p)
         sys.exit(1)

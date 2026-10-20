@@ -12,7 +12,8 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from podium_dashboard import sync  # noqa: E402
-from podium_dashboard.state import Podium, rebase, require_owner  # noqa: E402
+from podium_dashboard.commands import require_owner  # noqa: E402
+from podium_dashboard.state import Podium, rebase  # noqa: E402
 
 DATA = {"project": {"title": "T"}, "active": {"epic": "e", "milestone": "M1"}, "needsYou": {"reason": "old"},
         "assumptions": [{"question": "q0", "choice": "c", "why": "w", "status": "open"}],
@@ -300,7 +301,7 @@ class TwoMachines(Case):
         orchestrator's verbs do, and share it with b."""
         ext = os.path.join(self.tmp, "ext.py")
         with open(ext, "w") as f:
-            f.write("from podium_dashboard.state import require_owner\n\n\n"
+            f.write("from podium_dashboard.commands import require_owner\n\n\n"
                     "def launch(p, args):\n"
                     "    require_owner(p, args[0])\n"
                     "    p.milestone(args[0])['launched'] = p.me\n"

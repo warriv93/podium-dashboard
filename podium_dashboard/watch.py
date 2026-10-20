@@ -30,15 +30,16 @@ nothing is lost between runs, and `podium requests` skips the requests it printe
 """
 import argparse
 import fcntl
-import glob
 import json
 import os
 import time
 
 from podium_dashboard import sync
+from podium_dashboard.files import watched, write_atomic
+from podium_dashboard.human import availability
 from podium_dashboard.plugins import paseo
-from podium_dashboard.server import load_podium, load_run, run_dir  # one reader for podium.json, shared with the server
-from podium_dashboard.state import availability, podium_dir
+from podium_dashboard.server import load_podium, load_run, run_dir
+from podium_dashboard.state import podium_dir
 
 SYNC_EVERY = 60
 
@@ -53,7 +54,7 @@ def busy(p):
     except OSError:
         return True
     finally:
-        os.close(fd)  # releases the lock
+        os.close(fd)
     return False
 
 
@@ -110,10 +111,6 @@ def main(argv=None):
     args = ap.parse_args(argv)
     root = run_dir(args.dir)
 
-    def watched():
-        pod = podium_dir(root)
-        return [os.path.join(pod, "requests.jsonl"), *glob.glob(os.path.join(pod, "stories", "*", "*.progress"))]
-
     def human():
         return availability()["mode"]
 
@@ -124,29 +121,24 @@ def main(argv=None):
     except (OSError, ValueError):
         last = {}
     if time.time() - last.get("at", 0) < 600 and "offsets" in last:
-        # the previous watcher stopped moments ago: carry on from where it read to; files new since then from the top
         offsets, mode = dict(last["offsets"]), last.get("mode") or human()
         waiting, idle = set(last.get("waiting", [])), set(last.get("idle", []))
         since = dict(last.get("since") or {})
-        for path in watched():
+        for path in watched(podium_dir(root)):
             offsets.setdefault(path, 0)
     else:
-        # start at the end: only new lines are events
-        offsets = {path: os.path.getsize(path) for path in watched() if os.path.exists(path)}
+        offsets = {path: os.path.getsize(path) for path in watched(podium_dir(root)) if os.path.exists(path)}
         mode, waiting, idle = human(), set(), set()
         since = dict(offsets)
 
     def needed():
-        """The user is available, or a story is being built."""
         return mode == "available" or any(s.get("status") == "working" for m in load_run(root)[0] for s in m.get("stories", []))
 
     def save():
         os.makedirs(os.path.dirname(beat), exist_ok=True)
-        with open(beat + ".tmp", "w") as f:
-            json.dump({"pid": os.getpid(), "at": time.time(), "offsets": offsets, "mode": mode,
-                       "since": {path: since.get(path, 0) for path in offsets},
-                       "waiting": sorted(waiting), "idle": sorted(idle)}, f)
-        os.replace(beat + ".tmp", beat)
+        write_atomic(beat, json.dumps({"pid": os.getpid(), "at": time.time(), "offsets": offsets, "mode": mode,
+                                       "since": {path: since.get(path, 0) for path in offsets},
+                                       "waiting": sorted(waiting), "idle": sorted(idle)}))
 
     first = None
     def emit(line):
@@ -169,7 +161,7 @@ def main(argv=None):
                 emit(f"LAPSE {mode}, nothing building")
                 return
 
-        for path in watched():
+        for path in watched(podium_dir(root)):
             if not os.path.exists(path):
                 continue
             with open(path) as f:
@@ -195,7 +187,7 @@ def main(argv=None):
             if p and sync.enabled(p) and not busy(p):
                 synced = pull(p)
                 if synced:
-                    for path in watched()[1:]:
+                    for path in watched(podium_dir(root))[1:]:
                         offsets[path] = os.path.getsize(path)
                     emit(synced)
 

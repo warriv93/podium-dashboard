@@ -123,10 +123,11 @@ import os
 import sys
 
 from podium_dashboard import __version__, extension, sync
+from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
+                                       cmd_init, cmd_log, cmd_ready, cmd_release, cmd_requests, cmd_set, cmd_settle,
+                                       cmd_status, cmd_whoami)
 from podium_dashboard.plugins import asana
-from podium_dashboard.state import (Podium, cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours,
-                                    cmd_human, cmd_init, cmd_log, cmd_ready, cmd_release, cmd_requests, cmd_set,
-                                    cmd_settle, cmd_status, cmd_whoami)
+from podium_dashboard.state import Podium, find_run
 
 COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_batch, "ready": cmd_ready,
             "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
@@ -134,19 +135,7 @@ COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_b
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
             "asana": asana.cmd_asana}
 SUBCOMMANDS = ("server", "watch")
-NO_PODIUM = {"hours", "human", "whoami"}  # the user's, one per machine
-
-
-def find_run(d):
-    """The nearest run dir at or above d: one holding podium/podium.json, or a repo's .deep-plan run (podium.json
-    in .deep-plan/podium/, or at its top in a run from before podium/)."""
-    while True:
-        for run in (d, os.path.join(d, ".deep-plan")):
-            if os.path.isfile(os.path.join(run, "podium", "podium.json")) or (run != d and os.path.isfile(os.path.join(run, "podium.json"))):
-                return run
-        if os.path.dirname(d) == d:
-            return None
-        d = os.path.dirname(d)
+NO_PODIUM = {"hours", "human", "whoami"}
 
 
 def usage(root):
@@ -206,7 +195,7 @@ def main(argv=None):
     p = Podium(root or os.curdir)
     if verb in COMMANDS:
         COMMANDS[verb](p, args)
-        autosave(p)
+        sync.autosave(p)
         return
     module, why = extension.load(p)
     if why:
@@ -215,12 +204,5 @@ def main(argv=None):
     if not command:
         fail(f"unknown command {verb!r}; `podium` lists them")
     command(p, args)
-    autosave(p)
+    sync.autosave(p)
 
-
-def autosave(p):
-    if not sync.enabled(p):
-        return
-    major = [e for e in p.fresh if sync.is_major(p, e)]
-    if major:
-        print(sync.save(p, "; ".join(sync.describe(e) for e in major)))

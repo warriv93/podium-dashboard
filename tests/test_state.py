@@ -305,6 +305,22 @@ class Log(Run):
     def test_asks_which_story_outside_a_story_branch(self):
         self.podium("log", "STARTED", "go", code=1)
 
+    def test_appends_only_while_it_holds_the_runs_lock(self):
+        folder = os.path.join(self.run_dir, "podium", "stories", "M1")
+        with state.Podium(self.run_dir).locked():
+            other = subprocess.Popen([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "log", "M1/S1", "STARTED", "go"],
+                                     env=self.env, cwd=self.tmp, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.addCleanup(other.kill)
+            deadline = time.time() + 10
+            while not os.path.isdir(folder) and time.time() < deadline:
+                time.sleep(0.05)
+            time.sleep(0.5)
+            self.assertIsNone(other.poll())
+            self.assertFalse(os.path.exists(os.path.join(folder, "S1.progress")))
+        out, _ = other.communicate(timeout=30)
+        self.assertEqual(other.returncode, 0, out)
+        self.assertEqual(self.progress()[0].split(" ", 1)[1], "STARTED go")
+
 
 class Writes(Run):
     def test_a_write_waits_for_the_lock_and_neither_loses_the_other(self):

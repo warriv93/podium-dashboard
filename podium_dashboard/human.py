@@ -4,10 +4,10 @@ import os
 import subprocess
 from datetime import datetime, time, timedelta
 
+from podium_dashboard.files import write_atomic
+
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 HOURS = {"days": "Mon-Fri", "from": "07:00", "to": "17:00"}
-# The user is one person: their hours and the toggle are one file per machine, read by every Podium,
-# watcher and orchestrator.
 HUMAN_FILE = os.path.expanduser(os.environ.get("PODIUM_HUMAN", "~/.podium/human.json"))
 
 
@@ -71,10 +71,7 @@ def write_human(**changes):
     """Change HUMAN_FILE atomically; a None value drops its key."""
     state = {k: v for k, v in {**human_state(), **changes}.items() if v is not None}
     os.makedirs(os.path.dirname(HUMAN_FILE), exist_ok=True)
-    tmp = f"{HUMAN_FILE}.{os.getpid()}.tmp"
-    with open(tmp, "w") as f:
-        json.dump(state, f)
-    os.replace(tmp, HUMAN_FILE)
+    write_atomic(HUMAN_FILE, json.dumps(state))
 
 
 def availability(t=None):
@@ -83,7 +80,7 @@ def availability(t=None):
     source `toggle` while the toggle's override holds, else `hours`. Times are naive local."""
     t = t or datetime.now()
     o = human_state()
-    hours = {**HOURS, **(o.get("hours") or {})}
+    hours = human_hours()
     if o.get("mode") in ("available", "mobile", "unavailable") and o.get("until") and local(o["until"]) > t:
         return {"mode": o["mode"], "until": local(o["until"]).isoformat(timespec="minutes"), "source": "toggle", "hours": hours}
     nxt = next_change(hours, t)

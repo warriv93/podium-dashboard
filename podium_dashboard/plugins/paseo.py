@@ -8,7 +8,6 @@ SERVER_ID = "~/.paseo/server-id"
 
 
 def server_id():
-    """The local Paseo daemon's server id, or None."""
     try:
         with open(os.path.expanduser(SERVER_ID)) as f:
             return f.read().strip() or None

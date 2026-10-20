@@ -73,27 +73,22 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from podium_dashboard import extension
+from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, progress_files, write_atomic
+from podium_dashboard.human import availability, human_hours, human_state, next_change, write_human
 from podium_dashboard.plugins import paseo
-from podium_dashboard.state import Podium, availability, human_hours, human_state, next_change, podium_dir, write_human
-
-# Run files that are normal to lack early on: an empty answer instead of a 404 on every poll.
-EMPTY_WHEN_MISSING = {"handoffs.json": {}, "events.jsonl": "", "requests.jsonl": ""}
+from podium_dashboard.state import ACT_ON, NOW, Podium, find_run, podium_dir, watcher_running
 
 STORY_ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-# The user settling an assumption: an answer, kept until an orchestrator runs, so it needs no watcher.
 SETTLE = {"confirm", "reverse"}
-# Linking Asana is the user's own request too: queued for the orchestrator, watcher or not.
-QUEUED = SETTLE | {"asana", "asana-done"}
 MILESTONE_ACTIONS = {"plan", "build-all", "stop", "claim"}
 NO_PROMPT = "no orchestrator extension prompt"
 PORTS = 20
 STARTED = time.time()
 PACKAGE = os.path.dirname(os.path.abspath(__file__))
-ARGV = []  # the arguments to restart with, set by main()
+ARGV = []
 
 
 def stale():
-    """Whether this server's code changed on disk after it started."""
     sources = glob.glob(os.path.join(PACKAGE, "*.py")) + glob.glob(os.path.join(PACKAGE, "plugins", "*.py"))
     return any(os.path.getmtime(f) > STARTED for f in sources if os.path.exists(f))
 
@@ -109,7 +104,6 @@ ASANA_URL = re.compile(r"^https://app\.asana\.com/[\w/?=&.-]{1,300}$")
 
 def run_dir(given):
     """The run dir: `given`, else $PODIUM_DIR, else the nearest run at or above the cwd; exits when there is none."""
-    from podium_dashboard.cli import find_run
     found = given or os.environ.get("PODIUM_DIR") or find_run(os.getcwd())
     if not found:
         sys.exit("podium: no run dir at or above here: pass --dir <run dir>, or set PODIUM_DIR")
@@ -117,7 +111,6 @@ def run_dir(given):
 
 
 def load_podium(root):
-    """The run's Podium, or None while podium.json doesn't parse."""
     try:
         return Podium(root)
     except ValueError:
@@ -161,21 +154,12 @@ def info(root):
     p = load_podium(root)
     data = p.data if p else {}
     people = data.get("people") if isinstance(data.get("people"), dict) else {}
-    return {"runDir": root, "repoDir": repo_dir(root), "watching": watching(root),
+    return {"runDir": root, "repoDir": repo_dir(root), "watching": watcher_running(podium_dir(root)),
             "orchestrator": orchestrator_of(data),
             "me": p.me if p else None,
             "people": {name: {"active": who.get("active")} for name, who in people.items() if isinstance(who, dict)},
             "paseoServer": paseo.server_id(),
             "lastUse": {"ago": round(time.time() - SEEN["at"]), "by": SEEN["by"]}, "stale": stale()}
-
-
-def watching(root):
-    """Whether an orchestrator's watcher is running: its heartbeat in watcher.json is under 30 s old."""
-    try:
-        with open(os.path.join(podium_dir(root), "watcher.json")) as f:
-            return time.time() - json.load(f)["at"] < 30
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
 
 
 def handoffs(root):
@@ -188,13 +172,10 @@ def handoffs(root):
 
 
 def write_toggle(mode, end):
-    """The availability override, until `end` (naive local)."""
-    write_human(mode=mode, until=end.astimezone().isoformat(timespec="minutes"),
-                at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    write_human(mode=mode, until=end.astimezone().isoformat(timespec="minutes"), at=NOW())
 
 
-# The orchestrator's own files: machine-local run state, kept out of git.
-RUN_FILES = ["podium.json", "events.jsonl", "requests.jsonl", "human.json", "watcher.json", "handoffs.json", "server.log", "stories/"]
+RUN_FILES = [f.replace("**", "") for f in SHARED_FILES + MACHINE_FILES]
 
 
 def exclude_run_files(root):
@@ -209,7 +190,6 @@ def exclude_run_files(root):
     rel = os.path.relpath(pd, os.path.realpath(repo))
     if rel == "." or rel.startswith(".."):
         return
-    # a run with its own podium/ folder excludes the folder; an older run lists the files
     want = [f"/{rel}/"] if pd != os.path.realpath(root) else [f"/{rel}/{n}" for n in RUN_FILES]
     try:
         with open(path) as f:
@@ -223,7 +203,6 @@ def exclude_run_files(root):
             f.write("\n# orchestrator run state (machine-local; added by the Podium server)\n" + "\n".join(missing) + "\n")
 
 
-# Each repo's distance from origin, refreshed by watch_git; GET /git serves it.
 GIT = {"repos": [], "at": None}
 
 
@@ -263,18 +242,16 @@ def repo_state(name, path):
 def watch_git(root, minutes):
     while True:
         GIT["repos"] = [repo_state(n, p) for n, p in repos_of(root).items()]
-        GIT["at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        GIT["at"] = NOW()
         time.sleep(minutes * 60)
 
 
-# The last time someone used the Podium; the idle check reads it.
 SEEN = {"at": time.time(), "by": "start"}
 
 
 def last_activity(root):
-    """The latest of the last Podium use and the last change to the run's files."""
     pd = podium_dir(root)
-    paths = [os.path.join(pd, "podium.json"), os.path.join(pd, "events.jsonl")] + glob.glob(os.path.join(pd, "stories", "*", "*.progress"))
+    paths = [os.path.join(pd, "podium.json"), os.path.join(pd, "events.jsonl")] + progress_files(pd)
     mtimes = [os.path.getmtime(p) for p in paths if os.path.exists(p)]
     return max([SEEN["at"]] + mtimes)
 
@@ -288,7 +265,7 @@ def stop_when_idle(server, root, minutes):
             return
 
 
-def inside(base, path):
+def contains(base, path):
     """Whether `path` is `base` or below it, both already resolved."""
     return os.path.commonpath([base, path]) == base
 
@@ -356,28 +333,17 @@ def make_handler(root):
                 return self.repo_file(self.path[len("/repo/"):].split("?")[0])
             if self.path.split("?")[0] in ("/", "/index.html", "/podium.html"):
                 with open(PAGE, "rb") as f:
-                    data = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-                return
+                    return self.send(200, "text/html; charset=utf-8", f.read())
             super().do_GET()
 
         def repo_file(self, rel):
             """A file of the repo the run dir sits in, read-only: a mock kept outside the run dir."""
             base = os.path.realpath(repo_dir(root))
             full = os.path.realpath(os.path.join(base, urllib.parse.unquote(rel)))
-            if not inside(base, full) or not os.path.isfile(full):
+            if not contains(base, full) or not os.path.isfile(full):
                 return self.send_error(404)
             with open(full, "rb") as f:
-                data = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", mimetypes.guess_type(full)[0] or "application/octet-stream")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
+                self.send(200, mimetypes.guess_type(full)[0] or "application/octet-stream", f.read())
 
         def do_POST(self):
             url = urlparse(self.path)
@@ -385,7 +351,7 @@ def make_handler(root):
             if url.path == "/restart":
                 threading.Thread(target=restart, daemon=True).start()
                 return self.reply(202, {"restarting": True})
-            if not url.path.startswith("/human/") and first not in QUEUED and not watching(root):
+            if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
                 return self.reply(409, {"error": "no orchestrator is watching"})
             if url.path.startswith("/handoff/"):
                 return self.handoff(url.path[len("/handoff/"):], take=True)
@@ -397,21 +363,20 @@ def make_handler(root):
                 return self.link_asana(parts[1] if len(parts) > 1 else None, parse_qs(url.query).get("url", [""])[0].strip())
             if action == "asana-done":
                 return self.asana_done(parts[1] if len(parts) > 1 else "", parse_qs(url.query).get("choice", [""])[0])
-            story = "/".join(parts[1:]) or None  # an assigned story can be <milestone>/<story>
-            if action in ("build-all", "stop") and not story:  # an older page's button: the active milestone's
+            story = "/".join(parts[1:]) or None
+            if action in ("build-all", "stop") and not story:
                 story = (load_run(root)[1] or {}).get("id")
             p = load_podium(root)
             if not p or action not in extension.actions(extension.load(p)[0]) or not story:
                 return self.reply(404, {"error": "unknown action"})
-            if action in SETTLE and story == "all":  # Confirm all: one request for every open id not yet answered
+            if action in SETTLE and story == "all":
                 answered = self.answered()
                 story = ",".join(i for i in self.known_ids(p, action) if i not in answered)
                 if not story:
                     return self.reply(404, {"error": f"nothing to {action}"})
             elif not all(STORY_ID.match(x) for x in story.split("/")) or story not in self.known_ids(p, action):
                 return self.reply(404, {"error": "unknown id"})
-            line = {"action": action, "story": story,
-                    "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+            line = {"action": action, "story": story, "at": NOW()}
             note = (parse_qs(url.query).get("note", [""])[0] or "").strip()[:500]
             if action in SETTLE and note:
                 line["note"] = note
@@ -434,12 +399,10 @@ def make_handler(root):
                     return
             taken = handoffs(root)
             if take:
-                taken[key] = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+                taken[key] = {"at": NOW()}
             else:
                 taken.pop(key, None)
-            with open(path + ".tmp", "w") as f:
-                json.dump(taken, f, indent=1)
-            os.replace(path + ".tmp", path)
+            write_atomic(path, json.dumps(taken, indent=1))
             if not take:
                 return self.reply(200, {"released": key})
             self.text(text)
@@ -466,12 +429,7 @@ def make_handler(root):
             return text
 
         def text(self, text):
-            data = (text if text.endswith("\n") else text + "\n").encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
+            self.send(200, "text/plain; charset=utf-8", (text if text.endswith("\n") else text + "\n").encode())
 
         def prompt(self, kind, id_):
             if kind == "plan":
@@ -516,8 +474,7 @@ def make_handler(root):
             if epic is not None:
                 if not STORY_ID.match(epic) or epic not in self.epic_ids():
                     return self.reply(404, {"error": "unknown epic"})
-            self.queue({"action": "asana", "story": epic, "note": link,
-                        "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+            self.queue({"action": "asana", "story": epic, "note": link, "at": NOW()})
 
         def asana_done(self, mid, choice):
             """POST /asana-done/<milestone>?choice=<drop|keep>: the user's answer for a milestone
@@ -525,8 +482,7 @@ def make_handler(root):
             milestones, _ = load_run(root)
             if choice not in ("drop", "keep") or mid not in {m.get("id") for m in milestones}:
                 return self.reply(404, {"error": "unknown milestone or choice"})
-            self.queue({"action": "asana-done", "story": mid, "note": choice,
-                        "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+            self.queue({"action": "asana-done", "story": mid, "note": choice, "at": NOW()})
 
         def queue(self, line):
             os.makedirs(podium_dir(root), exist_ok=True)
@@ -566,17 +522,16 @@ def make_handler(root):
             return stories if action == "assign" else stories | milestones | epics
 
         def empty(self, body):
-            data = json.dumps(body).encode() if isinstance(body, dict) else body.encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json" if isinstance(body, dict) else "text/plain")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
+            if isinstance(body, dict):
+                return self.reply(200, body)
+            self.send(200, "text/plain", body.encode())
 
         def reply(self, code, body):
-            data = json.dumps(body).encode()
+            self.send(code, "application/json", json.dumps(body).encode())
+
+        def send(self, code, content_type, data):
             self.send_response(code)
-            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -609,7 +564,7 @@ def main(argv=None):
     print(f"http://127.0.0.1:{port}/", flush=True)
     if args.detach:
         if os.fork():
-            os._exit(0)  # the port is bound; the child serves it
+            os._exit(0)
         os.setsid()
         os.makedirs(podium_dir(root), exist_ok=True)
         log = open(os.path.join(podium_dir(root), "server.log"), "a")

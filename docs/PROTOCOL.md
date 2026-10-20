@@ -37,10 +37,11 @@ The module may define any of these:
 ### Importing the tool
 
 ```python
-from podium_dashboard.state import Podium, require_owner, rebase, parse_value, assign, pairs, NOW
+from podium_dashboard.commands import require_owner
+from podium_dashboard.state import Podium, rebase, parse_value, assign, pairs, NOW
 ```
 
-`podium_dashboard.state` exports: `ACT_ON DAYS HOURS HUMAN_FILE NOW Podium STAGES apply_set assign availability building cascade_block claimed_first cmd_* day_set http human_hours human_line human_state in_hours local me next_change pairs parse_value person_of personal podium_dir podium_url queued_requests rebase require_owner requests_seen set_requests_seen story_target watcher_span write_human`.
+`podium_dashboard.state` exports: `ACT_ON DAYS HOURS HUMAN_FILE NOW Podium STAGES WATCHER_LIVE assign availability building day_set find_run http human_hours human_line human_state in_hours local me next_change pairs parse_value person_of podium_dir podium_url queued_requests rebase requests_seen set_requests_seen watcher_running watcher_span write_human`. `podium_dashboard.commands` holds the core verbs (`cmd_*`), `require_owner` and `claim_milestone`.
 
 `Podium(run_dir)` reads `podium.json`. The methods an extension needs:
 

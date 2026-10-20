@@ -59,7 +59,6 @@ def commands(module):
 
 
 def actions(module):
-    """The request actions the server accepts: the core's and the extension's ACTIONS."""
     extra = getattr(module, "ACTIONS", None)
     return CORE_ACTIONS | (set(extra) if isinstance(extra, (set, frozenset, list, tuple)) else set())
 
