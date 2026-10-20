@@ -1,10 +1,13 @@
 """podium [--dir <run dir>] <command> ...
 
 The run dir is --dir, else $PODIUM_DIR, else the nearest directory at or above the cwd holding
-podium/podium.json or .deep-plan/podium/podium.json. hours, human, init and --version need no run.
+podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, init and --version need no run.
 
 TARGETS
-    .                  the project (top level)
+    .                  the project (top level); in a run with one state per person, its
+                       active and needsYou are yours (people.<you>)
+    me                 your own state, people.<you>, in a run that syncs or has a `people`
+                       block; the project in any other run
     epic:<id>          an epic
     milestone:<id>     a milestone; `milestone:` alone is the active one
     <story>            a story of the active milestone
@@ -12,10 +15,11 @@ TARGETS
 
 COMMANDS
     status [--all] [--milestone ID]
-        Compact view: active milestone, needsYou, each epic's milestone counts,
-        then the stories of the named milestone, else of the active one and
-        every other milestone building (status working, phase build), each
-        with its buildAll and its ready ones. --all lists every milestone.
+        Compact view: your active milestone and needsYou, each person's active
+        milestone, each epic's milestone counts and owners, then the stories of
+        the named milestone, else of the active one and every other milestone
+        building (status working, phase build), each with its buildAll and its
+        ready ones. --all lists every milestone.
     get <target>
         The target as compact JSON (a milestone without its stories).
     set <target> [key=value ...] [--event TYPE [key=value ...]]
@@ -43,6 +47,19 @@ COMMANDS
     hours [<days> <HH:MM>-<HH:MM>]
         Print the user's hours, or set them for every run: `hours Mon-Fri 07:00-17:00`
         (days as `Mon-Fri` or `Mon,Wed,Fri-Sun`).
+    whoami [<name>]
+        Who you are in a shared run: $PODIUM_ME, else the name `whoami <name>` keeps
+        in ~/.podium/human.json, else the local part of `git config user.email`,
+        else $USER. In a run that syncs or has a `people` block, your active,
+        needsYou and assumptions live in podium.json's people.<you>.
+    claim <milestone> [--force]
+        Make the milestone yours (milestones[].owner) with an `owner` event,
+        pulling first when the run syncs, and pushing at once. Refused (exit 1)
+        while someone else owns it, unless --force, which records a `handover`
+        event. When another claim reached the remote first, it keeps the
+        milestone and this one exits 1.
+    release <milestone>
+        Give up your milestone; refused (exit 1) when it is someone else's.
     assume <question> <choice> <why> [--story [<milestone>/]ID] [--short TEXT]
         Record an assumption made while the user is unavailable: appends
         {at, milestone, story, question, choice, why, short, status: open} to the
@@ -87,15 +104,16 @@ import os
 import sys
 
 from podium_dashboard import __version__, extension, sync
-from podium_dashboard.state import (Podium, cmd_assume, cmd_assumptions, cmd_batch, cmd_get, cmd_hours, cmd_human,
-                                    cmd_init, cmd_log, cmd_ready, cmd_requests, cmd_set, cmd_settle, cmd_status)
+from podium_dashboard.state import (Podium, cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours,
+                                    cmd_human, cmd_init, cmd_log, cmd_ready, cmd_release, cmd_requests, cmd_set,
+                                    cmd_settle, cmd_status, cmd_whoami)
 
 COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_batch, "ready": cmd_ready,
             "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
             "settle": cmd_settle, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
-            "sync": sync.cmd_sync}
+            "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release}
 SUBCOMMANDS = ("server", "watch")
-NO_PODIUM = {"hours", "human"}  # the user's, one per machine
+NO_PODIUM = {"hours", "human", "whoami"}  # the user's, one per machine
 
 
 def find_run(d):

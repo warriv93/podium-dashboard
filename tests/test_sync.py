@@ -333,7 +333,7 @@ class Merge(SyncCase):
         self.assertRegex(sync.save(b), r"^SAVED ")
         self.assertEqual(self.read(os.path.join(b.dir, notes)), "plan from b\n")
         self.assertEqual(self.read(os.path.join(b.dir, notes + ".remote")), "plan from a\n")
-        self.assertEqual(b.data["needsYou"], {"reason": "sync conflict in podium/stories/M1/notes.md"})
+        self.assertEqual(b.needs_you(), {"reason": "sync conflict in podium/stories/M1/notes.md"})
         self.assertNotIn("podium/stories/M1/notes.md.remote", self.remote_files())
 
     def test_a_text_change_on_each_side_of_one_file_merges_cleanly(self):
@@ -347,7 +347,7 @@ class Merge(SyncCase):
         self.write(os.path.join(b.dir, notes), "one\ntwo\nthree\nfour\nFIVE\n")
         sync.save(b)
         self.assertEqual(self.read(os.path.join(b.dir, notes)), "ONE\ntwo\nthree\nfour\nFIVE\n")
-        self.assertIsNone(b.data["needsYou"])
+        self.assertIsNone(b.needs_you())
 
 
 class Major(SyncCase):

@@ -23,11 +23,12 @@ from datetime import datetime, timezone
 
 from podium_dashboard import human
 from podium_dashboard.human import (DAYS, HOURS, HUMAN_FILE, availability, day_set, human_hours,  # noqa: F401
-                                    human_line, human_state, in_hours, local, next_change, write_human)
+                                    human_line, human_state, in_hours, local, me, next_change, write_human)
 
 NOW = lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
 STAGES = ("STARTED", "RED", "GREEN", "REFACTOR", "FIX", "CONTRACT", "COMMITTED", "FAILED")
 ACT_ON = {"confirm", "reverse", "asana", "asana-done"}  # the user's own answers: acted on whenever they arrive
+PERSONAL = ("active", "needsYou")
 
 
 def podium_dir(root):
@@ -47,6 +48,7 @@ class Podium:
         self.held = None  # events a batch holds back until its one write
         self.fresh = []  # the events this command appended at the current time: a backdated one is history
         self.lock_fd, self.lock_depth = None, 0
+        self._me = None
         self.load()
 
     def read(self):
@@ -91,7 +93,7 @@ class Podium:
     def adopt_build_all(self):
         """Build-all is per milestone: a top-level `buildAll` becomes the active milestone's (none: it is dropped)."""
         if "buildAll" in self.data:
-            flag, mid = self.data.pop("buildAll"), (self.data.get("active") or {}).get("milestone")
+            flag, mid = self.data.pop("buildAll"), self.active().get("milestone")
             for m in self.milestones():
                 if m.get("id") == mid:
                     m["buildAll"] = flag
@@ -133,6 +135,47 @@ class Podium:
                 f.writelines(json.dumps(line, ensure_ascii=False) + "\n" for line in held)
         return len(held)
 
+    # --- this person's state ------------------------------------------------
+    @property
+    def me(self):
+        if self._me is None:
+            self._me = me()
+        return self._me
+
+    def synced(self):
+        s = self.data.get("sync")
+        return isinstance(s, dict) and bool(s.get("enabled"))
+
+    def per_person(self):
+        """Whether each person's active, needsYou and assumptions are written to `people.<me>`: in a run that syncs or
+        has a `people` block. Any other run keeps them at the top level."""
+        return self.synced() or isinstance(self.data.get("people"), dict)
+
+    def person(self):
+        """`people.<me>` as it is, {} when absent."""
+        people = self.data.get("people")
+        found = people.get(self.me) if isinstance(people, dict) else None
+        return found if isinstance(found, dict) else {}
+
+    def own(self):
+        """The object this person's active, needsYou and assumptions are written to."""
+        return person_of(self.data, self.me) if self.per_person() else self.data
+
+    def mine(self, key, default=None):
+        """This person's `key`: people.<me>'s, else the top-level one of a run from before `people`."""
+        found = self.person()
+        return found[key] if key in found else self.data.get(key, default)
+
+    def active(self):
+        return self.mine("active") or {}
+
+    def needs_you(self):
+        return self.mine("needsYou")
+
+    def assumptions_list(self):
+        found = self.mine("assumptions")
+        return found if isinstance(found, list) else []
+
     # --- lookup -------------------------------------------------------------
     def epics(self):
         return self.data.get("epics", [])
@@ -141,7 +184,7 @@ class Podium:
         return [m for e in self.epics() for m in e.get("milestones", [])]
 
     def milestone(self, mid=None):
-        mid = mid or (self.data.get("active") or {}).get("milestone")
+        mid = mid or self.active().get("milestone")
         m = next((m for m in self.milestones() if m.get("id") == mid), None)
         if not m:
             sys.exit(f"no milestone {mid!r}" if mid else "no active milestone")
@@ -157,7 +200,9 @@ class Podium:
     def resolve(self, target):
         """(object, milestone id, story id) for a target."""
         if target == ".":
-            return self.data, (self.data.get("active") or {}).get("milestone"), None
+            return self.data, self.active().get("milestone"), None
+        if target == "me":
+            return self.own(), self.active().get("milestone"), None
         if target.startswith("epic:"):
             e = next((e for e in self.epics() if e.get("id") == target[5:]), None)
             if not e:
@@ -186,10 +231,21 @@ class Podium:
                 and set(s.get("deps", []) + s.get("overlapAfter", [])) <= done]
 
 
+def person_of(data, name):
+    """`people.<name>` of a podium.json's data, created when absent."""
+    people = data.get("people")
+    if not isinstance(people, dict):
+        people = data["people"] = {}
+    if not isinstance(people.get(name), dict):
+        people[name] = {}
+    return people[name]
+
+
 def rebase(base, mine, theirs):
     """`theirs`, podium.json as other commands left it, with this command's changes since it read `base` on top:
     values it set, keys it added or removed, list items it changed, added or removed. List items with an `id`
-    (epics, milestones, stories) pair up by id, others by position. Where both changed one value, this command's wins."""
+    (epics, milestones, stories) pair up by id, others by position. An object both added merges key by key. Where both
+    changed one value, this command's wins."""
     if mine == base:
         return theirs
     if theirs == base:
@@ -201,6 +257,8 @@ def rebase(base, mine, theirs):
                 out.pop(k, None)
             elif k in base and k in theirs:
                 out[k] = rebase(base[k], mine[k], theirs[k])
+            elif k in theirs and isinstance(mine[k], dict) and isinstance(theirs[k], dict):
+                out[k] = rebase({}, mine[k], theirs[k])
             elif k not in base or mine[k] != base[k]:  # added here, or changed here and removed there
                 out[k] = mine[k]
         return out
@@ -274,30 +332,35 @@ def cmd_status(p, args):
     all_ = "--all" in args
     named = args[args.index("--milestone") + 1] if "--milestone" in args else None
     d = p.data
-    act = d.get("active") or {}
+    act = p.active()
+    owned = lambda m: f" · owner {m['owner']}" if m.get("owner") else ""
     print(f"{(d.get('project') or {}).get('title', '?')} · active {act.get('epic', '-')}/{act.get('milestone', '-')}"
           f" · dispatcher {d.get('dispatcher', '-')}")
     print(f"human: {human_line(availability())}")
-    if d.get("needsYou"):
-        print(f"needsYou: {json.dumps(d['needsYou'], ensure_ascii=False)}")
-    open_ = [a for a in d.get("assumptions", []) if a.get("status") == "open"]
+    if p.needs_you():
+        print(f"needsYou: {json.dumps(p.needs_you(), ensure_ascii=False)}")
+    open_ = [a for a in p.assumptions_list() if a.get("status") == "open"]
     if open_:
         print(f"assumptions: {len(open_)} open")
+    people = {name: x for name, x in (d["people"] if isinstance(d.get("people"), dict) else {}).items() if isinstance(x, dict)}
+    if people:
+        print("people: " + " · ".join(f"{name} → {(x.get('active') or {}).get('milestone') or '-'}" for name, x in people.items()))
     for e in p.epics():
         ms = e.get("milestones", [])
         counts = {}
         for m in ms:
             counts[m.get("status")] = counts.get(m.get("status"), 0) + 1
-        print(f"epic {e['id']}: " + ", ".join(f"{n} {s}" for s, n in counts.items()))
+        owners = ", ".join(f"{m['id']} {m['owner']}" for m in ms if m.get("owner"))
+        print(f"epic {e['id']}: " + ", ".join(f"{n} {s}" for s, n in counts.items()) + (f" · owners {owners}" if owners else ""))
         if all_:
             for m in ms:
                 print(f"  {m['id']} {m.get('status')} {m.get('phase', '')} {m.get('title', '')}"
-                      f" ({len(m.get('stories', []))} stories)")
+                      f" ({len(m.get('stories', []))} stories){owned(m)}")
     shown = [named] if named else [act.get("milestone")] + [m["id"] for m in p.milestones() if building(m)]
     for mid in dict.fromkeys(x for x in shown if x):
         m = p.milestone(mid)
         print(f"\n{m['id']} {m.get('title', '')} · {m.get('status')} · phase {m.get('phase')} · branch {m.get('branch', '-')}"
-              f" · buildAll {'on' if m.get('buildAll') else 'off'}")
+              f" · buildAll {'on' if m.get('buildAll') else 'off'}{owned(m)}")
         for name, r in (m.get("repos") or {}).items():
             pr = r.get("pr")
             print(f"  repo {name} {r.get('branch', '-')} → {r.get('base', '-')} · " + (f"PR #{pr.get('number')} {pr.get('state')}" if pr else "no PR"))
@@ -347,13 +410,20 @@ def apply_set(p, args):
         sys.exit("--event needs a TYPE")
     obj, mid, sid = p.resolve(target)
     for item in rest[:ev]:
-        assign(obj, item)
+        assign(p.own() if target == "." and personal(p, item) else obj, item)
     if sid and obj.get("status") == "failed":
         blocked = cascade_block(p.milestone(mid), sid)
         if blocked:
             print(f"blocked: {' '.join(blocked)}")
     if rest[ev:]:
         p.event(rest[ev + 1], mid, sid, **pairs(rest[ev + 2:]))
+
+
+def personal(p, item):
+    """Whether `set .`'s key=value is this person's own in a run that keeps one per person: active and needsYou, and
+    assumptions once they have a list of their own."""
+    key = item.partition("=")[0].rstrip("+").split(".")[0]
+    return p.per_person() and (key in PERSONAL or key == "assumptions" and key in p.person())
 
 
 def cmd_set(p, args):
@@ -403,16 +473,17 @@ def cmd_assume(p, args):
         sys.exit("assume <question> <choice> <why> [--story [<milestone>/]ID] [--short TEXT]")
     question, choice, why = rest
     mid, _, story = (story or "").rpartition("/")  # a story of another milestone than the active one comes as <milestone>/<story>
-    mid, story = mid or (p.data.get("active") or {}).get("milestone"), story or None
+    mid, story = mid or p.active().get("milestone"), story or None
     a = {"at": NOW(), "milestone": mid, "story": story, "question": question, "choice": choice, "why": why, "short": short, "status": "open"}
-    p.data.setdefault("assumptions", []).append({k: v for k, v in a.items() if v is not None})
+    assumed = p.own().setdefault("assumptions", [])
+    assumed.append({k: v for k, v in a.items() if v is not None})
     p.event("assumed", mid, story, question=question, choice=choice)
     p.save()
-    print(f"assumption {len(p.data['assumptions']) - 1}")
+    print(f"assumption {len(assumed) - 1}")
 
 
 def cmd_assumptions(p, _):
-    for i, a in enumerate(p.data.get("assumptions", [])):
+    for i, a in enumerate(p.assumptions_list()):
         if a.get("status") == "open":
             where = "/".join(x for x in (a.get("milestone"), a.get("story")) if x)
             print(f"{i} [{where}] {a['question']} → {a['choice']} ({a['why']})")
@@ -421,7 +492,7 @@ def cmd_assumptions(p, _):
 def cmd_settle(p, args):
     if len(args) != 2 or args[1] not in ("confirmed", "reversed"):
         sys.exit("settle <n>[,<n>...] <confirmed|reversed>")
-    assumed = p.data.get("assumptions", [])
+    assumed = p.assumptions_list()
     try:
         ids = [int(i) for i in args[0].split(",") if i]
     except ValueError:
@@ -435,6 +506,84 @@ def cmd_settle(p, args):
             **({"question": one["question"]} if len(ids) == 1 else {"count": len(ids)}))
     p.save()
     print(f"{len(ids)} {args[1]}")
+
+
+def cmd_whoami(p, args):
+    if len(args) > 1 or args and not re.fullmatch(r"\S+", args[0]):
+        sys.exit("whoami [<name>]")
+    if args:
+        write_human(me=args[0])
+    print(me() + (" ($PODIUM_ME)" if os.environ.get("PODIUM_ME") else ""))
+
+
+# --- ownership ----------------------------------------------------------------
+def require_owner(p, milestone_id, force=False):
+    """Exit 1 unless this person may change milestone `milestone_id` (None: the active one): it is theirs, or nobody
+    owns it in a run that doesn't sync, or no milestone has an owner and the run doesn't sync. A synced run's
+    milestone without an owner must be claimed first. `force` skips the check."""
+    if force:
+        return
+    m = p.milestone(milestone_id)
+    if not p.synced() and not any(x.get("owner") for x in p.milestones()):
+        return
+    owner = m.get("owner")
+    if owner and owner != p.me:
+        sys.exit(f"podium: milestone {m['id']} is owned by {owner}")
+    if not owner and p.synced():
+        sys.exit(f"podium: milestone {m['id']} has no owner: podium claim {m['id']}")
+
+
+def cmd_claim(p, args):
+    from podium_dashboard import sync
+    force, rest = "--force" in args, [a for a in args if a != "--force"]
+    if len(rest) != 1:
+        sys.exit("claim <milestone> [--force]")
+    if p.synced():
+        sync.pull(p)
+    m = p.milestone(rest[0])
+    mid, owner = m["id"], m.get("owner")
+    if owner and owner != p.me and not force:
+        sys.exit(f"podium: milestone {mid} is owned by {owner}")
+    if owner != p.me:
+        m["owner"] = p.me
+        p.save()
+        if p.synced():
+            claimed_first(p, mid)
+        if owner:
+            p.event("handover", mid, **{"from": owner, "to": p.me})
+        p.event("owner", mid, owner=p.me)
+    print(f"claimed {mid}")
+
+
+def claimed_first(p, mid):
+    """Push this claim; when another one reached the remote first, the sync merge keeps theirs and this exits 1."""
+    from podium_dashboard import sync
+    out = sync.save(p, f"{mid} claimed by {p.me}")
+    if out == "BEHIND":
+        sync.pull(p)
+        out = sync.save(p, f"{mid} claimed by {p.me}")
+    if not out.startswith(("SAVED", "UNCHANGED")) or "(not pushed" in out:
+        print(out)
+    owner = p.milestone(mid).get("owner")
+    if owner != p.me:
+        sys.exit(f"podium: milestone {mid} is owned by {owner}")
+
+
+def cmd_release(p, args):
+    from podium_dashboard import sync
+    if len(args) != 1:
+        sys.exit("release <milestone>")
+    if p.synced():
+        sync.pull(p)
+    m = p.milestone(args[0])
+    owner = m.get("owner")
+    if owner and owner != p.me:
+        sys.exit(f"podium: milestone {m['id']} is owned by {owner}")
+    if owner:
+        del m["owner"]
+        p.event("owner", m["id"], owner=None)
+        p.save()
+    print(f"released {m['id']}")
 
 
 def story_target(p, args):
@@ -564,7 +713,7 @@ def queued_requests(p):
         end = data.rfind(b"\n", start) + 1 or start  # whole lines only: one being written waits for the next call
         set_requests_seen(p, end)
     lines, at = [], start
-    open_ = {str(i) for i, a in enumerate(p.data.get("assumptions", [])) if a.get("status") == "open"}
+    open_ = {str(i) for i, a in enumerate(p.assumptions_list()) if a.get("status") == "open"}
     for raw in data[start:end].splitlines(keepends=True):
         at, here = at + len(raw), at
         if since <= here < to:

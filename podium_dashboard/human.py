@@ -1,6 +1,7 @@
 """The user's availability: their hours and the Podium's toggle, one file per machine."""
 import json
 import os
+import subprocess
 from datetime import datetime, time, timedelta
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -51,6 +52,19 @@ def human_state():
 
 def human_hours():
     return {**HOURS, **(human_state().get("hours") or {})}
+
+
+def me():
+    """Who this machine's user is in a shared run: $PODIUM_ME, else `me` in HUMAN_FILE (`podium whoami <name>`), else
+    the local part of `git config user.email`, else $USER."""
+    named = os.environ.get("PODIUM_ME") or human_state().get("me")
+    if named:
+        return named
+    try:
+        email = subprocess.run(["git", "config", "user.email"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        email = ""
+    return email.partition("@")[0] or os.environ.get("USER") or "me"
 
 
 def write_human(**changes):

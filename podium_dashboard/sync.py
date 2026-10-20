@@ -6,9 +6,10 @@ commits live in a private bare cache per run under ~/.podium/sync, so a run outs
 globs (relative to the run dir) pick the files; this machine's own files never go: the request queue and its cursor,
 the watcher's heartbeat, the server log. `enabled`, `remote` and `ref` are this machine's and stay out of the synced
 podium.json; `include` and `exclude` sync with the run. Two machines that both moved merge per file against their
-common save: podium.json as concurrent commands do (rebase), events.jsonl and *.progress as the union of their lines
+common save: podium.json as concurrent commands do (rebase), except that a milestone both gave an owner keeps the
+remote's, the claim that reached it first; events.jsonl and *.progress as the union of their lines
 in time order, any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
-it as `<file>.remote`, and sets needsYou. A pull or merge deletes only a file that common save had.
+it as `<file>.remote`, and sets this person's needsYou. A pull or merge deletes only a file that common save had.
 """
 import fnmatch
 import glob
@@ -24,9 +25,9 @@ import time
 from datetime import datetime, timezone
 
 from podium_dashboard import extension
-from podium_dashboard.state import rebase
+from podium_dashboard.state import person_of, rebase
 
-MAJOR = {"status", "grilled", "failed", "landed", "settled"}
+MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner"}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE, REF = "origin", "refs/heads/podium"
 STATE = ["podium.json", "events.jsonl", "handoffs.json", "stories/**"]
@@ -111,7 +112,7 @@ def settings(p):
 
 
 def enabled(p):
-    return bool(settings(p).get("enabled"))
+    return p.synced()
 
 
 def is_url(remote):
@@ -313,12 +314,31 @@ def union(mine, theirs, when):
     return "".join(line + "\n" for _, line in keyed).encode(errors="surrogateescape")
 
 
+def owners(data):
+    """{milestone id: owner} of a podium.json's data."""
+    epics = data.get("epics") if isinstance(data, dict) else None
+    return {m.get("id"): m.get("owner") for e in epics or [] if isinstance(e, dict)
+            for m in e.get("milestones") or [] if isinstance(m, dict)}
+
+
+def first_claim(base, mine, theirs, out):
+    """`out`, the rebase of `mine` onto `theirs`, with the remote's owner kept for each milestone both gave a new one."""
+    b, m, t = owners(base), owners(mine), owners(theirs)
+    for e in (out.get("epics") if isinstance(out, dict) else None) or []:
+        for ms in (e.get("milestones") if isinstance(e, dict) else None) or []:
+            mid = ms.get("id") if isinstance(ms, dict) else None
+            if t.get(mid) and t[mid] != b.get(mid) and m.get(mid) != b.get(mid):
+                ms["owner"] = t[mid]
+    return out
+
+
 def merge_file(p, rel, base, mine, theirs):
     """(merged content, whether it merged cleanly) of a file both sides changed."""
     name = posixpath.basename(rel)
     if rel == podium_json(p):
         try:
-            return dump(rebase(json.loads(base) if base else {}, json.loads(mine), json.loads(theirs))), True
+            b, m, t = json.loads(base) if base else {}, json.loads(mine), json.loads(theirs)
+            return dump(first_claim(b, m, t, rebase(b, m, t))), True
         except ValueError:
             pass
     if any(fnmatch.fnmatchcase(name, pattern) for pattern in APPEND_ONLY):
@@ -356,7 +376,7 @@ def merged(p, g, base, mine, theirs):
     if conflicts:
         pj = podium_json(p)
         data = json.loads(out[pj]) if pj in out else {}
-        data["needsYou"] = {"reason": f"sync conflict in {', '.join(conflicts)}"}
+        person_of(data, p.me)["needsYou"] = {"reason": f"sync conflict in {', '.join(conflicts)}"}
         out[pj] = dump(data)
     return out, set(b) - set(out)
 
