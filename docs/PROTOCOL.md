@@ -76,7 +76,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | Request | Answer |
 |---|---|
 | `GET /` | the page |
-| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command, shareHint}, me, people, paseoServer, lastUse, stale}`; `shareHint` is the extension's `SHARE_HINT`, else null |
+| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command, shareHint}, me, people, paseoServer, lastUse, stale}`; `shareHint` is the extension's `SHARE_HINT`, else null; `people` is `{<name>: {active}}` from podium.json, and the header's avatars add everyone named in an event's `by` from `events.jsonl` |
 | `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes; a checkout path inside the run dir but outside `repos/` and `worktrees/` is skipped |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |

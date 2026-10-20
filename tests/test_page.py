@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -168,6 +169,27 @@ class Scan(HTMLParser):
         self.text.append(data)
 
 
+class Avatars(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.found = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "span" and "av" in (attrs.get("class") or "").split():
+            self.found.append({"cls": attrs["class"].split(), "title": attrs.get("title"), "text": "", "dot": False})
+        elif tag == "i" and self.found:
+            self.found[-1]["dot"] = True
+
+    def handle_data(self, data):
+        if self.found:
+            self.found[-1]["text"] += data
+
+
+def ago(**delta):
+    return (datetime.now(timezone.utc) - timedelta(**delta)).isoformat()
+
+
 @unittest.skipUnless(shutil.which("node"), "needs Node to run the page's script")
 class HostileRun(unittest.TestCase):
     def rendered(self, run=RUN, events=EVENTS, progress=PROGRESS, stories=("S1", "S2", "S4"), **files):
@@ -205,6 +227,22 @@ class HostileRun(unittest.TestCase):
         scan.feed([html for html in self.html if 'data-act="share"' in html][-1])
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
+
+    def crew(self, people, events, owners=()):
+        """The header's avatars, as the last render put them: [] when it showed none."""
+        run = json.loads(json.dumps({**CYCLIC_RUN, "people": people}))
+        for m, owner in zip(run["epics"][0]["milestones"], owners):
+            m["owner"] = owner
+        self.rendered(run, events, PROGRESS, ())
+        crews = [html for html in self.html if 'class="av ' in html]
+        if not crews:
+            return []
+        scan = Scan()
+        scan.feed(crews[-1])
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        avatars = Avatars()
+        avatars.feed(crews[-1])
+        return avatars.found
 
     def test_renders_every_string_of_the_run_as_text_and_links_only_http(self):
         scan = self.rendered()
@@ -262,6 +300,35 @@ class HostileRun(unittest.TestCase):
         run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareHint": X}, "sync": {"enabled": True, "ref": X}}
         tip = self.share_button(run)[1].splitlines()
         self.assertEqual((tip[2], tip[3]), (f"2. {X}", f"3. In a new empty folder, run /o join {X}"))
+
+    def test_the_header_shows_everyone_in_people_or_events_with_a_dot_for_recent_activity(self):
+        events = [{"type": "note", "text": "t", "by": "bob", "at": ago(hours=3)}, {"type": "note", "text": "t", "by": "bob", "at": "later"},
+                  {"type": "note", "text": "t", "by": "ann", "at": ago(minutes=4)}, {"type": "note", "text": "t", "by": "", "at": ago(minutes=1)}]
+        found = self.crew({"ann": {"active": {"epic": "e1", "milestone": "M1"}}, "dee": {}}, events, owners=("ann", "bob"))
+        self.assertEqual([(a["text"], a["dot"], "me" in a["cls"]) for a in found], [("AN", True, True), ("BO", False, False), ("DE", False, False)])
+        self.assertEqual([a["title"].splitlines() for a in found], [
+            ["ann (you) · last active 4m ago", "On M1 · Build", "Owns M1"],
+            ["bob · last active 3h ago", "Not on a milestone", "Owns M2"],
+            ["dee · no activity yet", "Not on a milestone", "Owns no milestone"]])
+
+    def test_the_header_shows_no_avatars_for_a_run_of_one(self):
+        self.assertEqual(self.crew({"ann": {"active": {"milestone": "M1"}}}, [{"type": "note", "by": "ann", "at": ago(minutes=1)}]), [])
+        self.assertEqual(self.crew({}, []), [])
+
+    def test_the_header_shows_hostile_and_prototype_key_names_as_text(self):
+        events = [{"type": "note", "by": name, "at": X} for name in [X, *KEYS]]
+        found = self.crew({X: {"active": X}, "ann": {}}, events, owners=(X,))
+        self.assertEqual(sorted(a["title"].splitlines()[0] for a in found),
+                         sorted([f"{X} · no activity yet", "ann (you) · no activity yet", *(f"{k} · no activity yet" for k in KEYS)]))
+        hostile = next(a for a in found if a["title"].startswith(X))
+        self.assertEqual(hostile["title"].splitlines()[1:], [f"On {X}", "Owns M1"])
+
+    def test_more_than_five_people_show_four_and_a_chip_naming_the_rest(self):
+        people = {name: {} for name in ("ann", "p1", "p2", "p3", "p4", "p5", "p6")}
+        found = self.crew(people, [])
+        self.assertEqual([a["text"] for a in found], ["AN", "P1", "P2", "P3", "+3"])
+        self.assertEqual((found[-1]["cls"], found[-1]["title"]), (["av", "more"], "p4\np5\np6"))
+        self.assertEqual([a["text"] for a in self.crew({name: {} for name in list(people)[:5]}, [])], ["AN", "P1", "P2", "P3", "P4"])
 
 
 if __name__ == "__main__":

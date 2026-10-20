@@ -97,6 +97,12 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .share { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; color: var(--text); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .share i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
 .share.on i { background: var(--green-dot); opacity: 1; }
+.crew { display: inline-flex; align-items: center; }
+.crew .av { position: relative; width: 26px; height: 26px; margin-left: -6px; border-radius: 50%; border: 2px solid var(--card); display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; color: #fff; cursor: default; }
+.crew .av:first-child { margin-left: 0; }
+.crew .av.me { box-shadow: 0 0 0 2px var(--accent); z-index: 1; }
+.crew .av.more { background: var(--gray-soft); color: var(--text-2); }
+.crew .av i { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--green-dot); border: 2px solid var(--card); }
 @media (max-width: 720px) { .human .until, .human .flip { display: none; } }
 .icon-btn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; display: none; }
 
@@ -632,6 +638,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
     <div class="controls">
       <div class="human" id="human" hidden></div>
       <span class="gitwarn" id="gitwarn" hidden></span>
+      <span class="crew" id="crew" hidden></span>
       <span id="share" hidden></span>
       <button class="icon-btn" id="feed-toggle">Activity</button>
     </div>
@@ -820,7 +827,7 @@ async function poll() {
     if (changed) { S.raw = raw; loadProject(); }
     try {
       const ev = await getText(S.base + "events.jsonl");
-      if (ev !== S.eventsRaw) { S.eventsRaw = ev; S.events = parseJsonl(ev); renderEvents(); }
+      if (ev !== S.eventsRaw) { S.eventsRaw = ev; S.events = parseJsonl(ev); renderEvents(); renderCrew(); }
     } catch { /* no events yet */ }
     try {
       const h = await getText(S.base + "handoffs.json");
@@ -1037,6 +1044,7 @@ function render() {
   renderAttention();
   renderPeople();
   renderShare();
+  renderCrew();
   const full = !S.epic || !S.view;
   if (S.ds && !full && S.ds.id !== S.view) S.ds = null;
   renderDs();
@@ -1710,6 +1718,47 @@ function renderShare() {
   el.innerHTML = `<button class="share ${on ? "on" : ""}" data-act="share" title="${esc(tip)}"><i></i>${on ? "Shared" : "Share"}</button>`;
 }
 
+const CREW_MAX = 5, RECENT_MS = 15 * 60000;
+function crew() {
+  const P = S.project, people = dict();
+  const person = (who) => (people[who] ||= { name: who, last: 0, active: null, owns: [] });
+  const block = P.people && typeof P.people === "object" && !Array.isArray(P.people) ? P.people : {};
+  for (const [who, p] of Object.entries(block)) person(who).active = p?.active ?? null;
+  for (const e of S.events) {
+    if (typeof e.by !== "string" || !e.by) continue;
+    const p = person(e.by), at = Date.parse(e.at);
+    if (at > p.last) p.last = at;
+  }
+  for (const E of P.epics) for (const m of E.milestones || []) if (typeof m.owner === "string" && people[m.owner]) people[m.owner].owns.push(m.id);
+  return Object.values(people).sort((a, b) => isMe(b.name) - isMe(a.name) || b.last - a.last || a.name.localeCompare(b.name));
+}
+function ago(t) {
+  const m = Math.max(0, Math.floor((Date.now() - t) / 60000));
+  return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m / 60)}h ago` : `${Math.floor(m / 1440)}d ago`;
+}
+function initials(name) {
+  const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  return (words.length > 1 ? [...words[0]][0] + [...words[1]][0] : [...(words[0] || name)].slice(0, 2).join("")).toUpperCase();
+}
+const hue = (name) => [...name].reduce((h, c) => (h * 31 + c.codePointAt(0)) >>> 0, 7) % 360;
+function crewTip(p) {
+  const ms = typeof p.active === "string" ? p.active : p.active?.milestone;
+  const m = typeof ms === "string" && S.project.epics.flatMap((E) => E.milestones || []).find((x) => x.id === ms);
+  return [
+    `${p.name}${isMe(p.name) ? " (you)" : ""} · ${p.last ? `last active ${ago(p.last)}` : "no activity yet"}`,
+    typeof ms === "string" && ms ? `On ${ms}${m?.phase ? ` · ${phaseLabel(m.phase)}` : ""}` : "Not on a milestone",
+    p.owns.length ? `Owns ${p.owns.join(", ")}` : "Owns no milestone",
+  ].join("\n");
+}
+const avatar = (p) => `<span class="av ${isMe(p.name) ? "me" : ""}" style="background:hsl(${hue(p.name)} 50% 45%)" title="${esc(crewTip(p))}">${esc(initials(p.name))}${Date.now() - p.last < RECENT_MS ? "<i></i>" : ""}</span>`;
+function renderCrew() {
+  const el = $("crew"), all = S.project ? crew() : [];
+  el.hidden = all.length < 2;
+  if (el.hidden) return void (el.innerHTML = "");
+  const shown = all.length > CREW_MAX ? all.slice(0, CREW_MAX - 1) : all, rest = all.slice(shown.length);
+  el.innerHTML = shown.map(avatar).join("") + (rest.length ? `<span class="av more" title="${esc(rest.map((p) => p.name).join("\n"))}">+${rest.length}</span>` : "");
+}
+
 function renderGit() {
   const repos = S.git?.repos || [], bad = repos.filter((r) => r.behind || r.baseBehind), el = $("gitwarn");
   el.hidden = !bad.length;
@@ -2233,7 +2282,7 @@ setFavicon("");
 poll();
 setInterval(() => { if (!document.hidden || Date.now() - lastPoll >= HIDDEN_POLL_MS) poll(); }, POLL_MS);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
-setInterval(() => { if (S.events.length) renderEvents(); }, 60000);
+setInterval(() => { if (S.events.length) { renderEvents(); renderCrew(); } }, 60000);
 setInterval(() => document.querySelectorAll("[data-since]").forEach((el) => (el.textContent = dur(Date.now() - Date.parse(el.dataset.since)))), 30000);
 </script>
 </body>

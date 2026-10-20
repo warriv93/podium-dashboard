@@ -268,8 +268,8 @@ class RequireOwner(Case):
         self.require(self.owned(M1="b"), "a", force=True)
 
 
-class TwoMachines(Case):
-    """Two clones of one repo, a and b, syncing one run through a bare remote."""
+class Machines(Case):
+    """Clones of one repo, a and b to start with, syncing one run through a bare remote."""
 
     def setUp(self):
         super().setUp()
@@ -321,6 +321,8 @@ class TwoMachines(Case):
         out = git("--git-dir", self.bare, "show", "refs/heads/podium:podium/events.jsonl")
         return [json.loads(line) for line in out.splitlines()]
 
+
+class TwoMachines(Machines):
     def test_each_claims_a_milestone_and_both_people_survive_the_merge(self):
         self.podium(self.a, "claim", "M1", me="a")
         self.podium(self.b, "claim", "M2", me="b")
@@ -389,6 +391,64 @@ class TwoMachines(Case):
         b = self.state(self.b)["epics"][0]["milestones"][2]
         self.assertEqual((b["owner"], b.get("launched")), ("a", "a"))
         self.assertEqual(self.owners(self.remote_state())["M3"], "a")
+
+
+class ThreeMachines(Machines):
+    def setUp(self):
+        super().setUp()
+        self.c = self.machine("c", None)
+        self.runs = {"a": self.a, "b": self.b, "c": self.c}
+
+    def write(self, who, rel, text):
+        with open(os.path.join(self.runs[who], rel), "w") as f:
+            f.write(text)
+
+    def read(self, who, rel):
+        with open(os.path.join(self.runs[who], rel)) as f:
+            return f.read()
+
+    def test_three_claiming_and_saving_in_turns_end_with_one_state_and_every_person(self):
+        mine = {"a": "M1", "b": "M2", "c": "M3"}
+        for who, mid in mine.items():
+            self.podium(self.runs[who], "claim", mid, me=who)
+            self.podium(self.runs[who], "set", "me", f"active.milestone={mid}", me=who)
+        for turn, who in enumerate("abcacb"):
+            self.assertRegex(self.podium(self.runs[who], "sync", "pull", me=who).stdout, r"^(PULLED |UP-TO-DATE)")
+            self.podium(self.runs[who], "set", f"milestone:{mine[who]}", f"note=turn {turn}", me=who)
+            self.assertRegex(self.podium(self.runs[who], "sync", "save", me=who).stdout, r"^SAVED ")
+        for who in "ac":
+            self.assertRegex(self.podium(self.runs[who], "sync", "pull", me=who).stdout, r"^PULLED ")
+        people = {who: {"active": {"milestone": mid}} for who, mid in mine.items()}
+        for run in self.runs.values():
+            data = self.state(run)
+            self.assertEqual(self.owners(data), {"M1": "a", "M2": "b", "M3": "c"})
+            self.assertEqual({m["id"]: m.get("note") for m in data["epics"][0]["milestones"]},
+                             {"M1": "turn 3", "M2": "turn 5", "M3": "turn 4"})
+            self.assertEqual(data["people"], people)
+            self.assertEqual(data["epics"], self.remote_state()["epics"])
+
+    @unittest.expectedFailure
+    def test_a_second_conflict_on_a_file_whose_first_is_unresolved_keeps_both_remote_versions(self):
+        story = os.path.join("podium", "stories", "M1", "S1.md")
+        os.makedirs(os.path.dirname(os.path.join(self.a, story)))
+        self.write("a", story, "plan\n")
+        self.podium(self.a, "sync", "save", me="a")
+        for who in "bc":
+            self.podium(self.runs[who], "sync", "pull", me=who)
+        for who in "abc":
+            self.write(who, story, f"{who}'s plan\n")
+        self.assertRegex(self.podium(self.a, "sync", "save", me="a").stdout, r"^SAVED ")
+        self.assertRegex(self.podium(self.b, "sync", "pull", me="b").stdout, r"^PULLED ")
+        self.assertEqual(self.read("b", story + ".remote"), "a's plan\n")
+        self.assertRegex(self.podium(self.c, "sync", "save", me="c").stdout, r"^SAVED ")
+        self.assertEqual((self.read("c", story), self.read("c", story + ".remote")), ("c's plan\n", "a's plan\n"))
+        self.assertRegex(self.podium(self.b, "sync", "pull", me="b").stdout, r"^PULLED ")
+        self.assertEqual(self.read("b", story), "b's plan\n")
+        folder = os.path.dirname(story)
+        remote_copies = [self.read("b", os.path.join(folder, name)) for name in os.listdir(os.path.join(self.b, folder))
+                         if name.endswith(".remote")]
+        self.assertIn("a's plan\n", "".join(remote_copies))
+        self.assertIn("c's plan\n", "".join(remote_copies))
 
 
 if __name__ == "__main__":
