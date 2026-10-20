@@ -1,6 +1,6 @@
 """Tests for the Podium server, run as `podium server` against a temp run: what /info says, the Host and Origin checks,
-/repo/ confined to the run's repo, checkouts read relative to the run dir, request queuing, and prompts from the run's
-extension."""
+/repo/ confined to the run's repo, the sandbox on every file it serves, checkouts read relative to the run dir and
+never one a pull could have written, request queuing, and prompts from the run's extension."""
 import http.client
 import json
 import os
@@ -94,12 +94,15 @@ class Server(unittest.TestCase):
         with open(os.path.join(self.pod, "watcher.json"), "w") as f:
             json.dump({"at": time.time()}, f)
 
-    def call(self, method, path, headers=None):
+    def response(self, method, path, headers=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         self.addCleanup(conn.close)
         conn.request(method, path, headers={"Host": f"127.0.0.1:{self.port}", **(headers or {})})
         r = conn.getresponse()
-        body = r.read().decode()
+        return r, r.read().decode()
+
+    def call(self, method, path, headers=None):
+        r, body = self.response(method, path, headers)
         return r.status, (json.loads(body) if r.getheader("Content-Type") == "application/json" else body)
 
     def requests(self):
@@ -144,6 +147,26 @@ class Hardening(Server):
         self.assertEqual(self.requests(), [])
         self.assertEqual(self.call("POST", "/plan/M1", {"Origin": f"http://localhost:{self.port}"})[0], 202)
         self.assertEqual(self.call("GET", "/info", {"Origin": "http://evil.example"})[0], 200)
+
+    def test_refuses_a_post_from_a_sandboxed_page(self):
+        self.serve()
+        self.watched()
+        for path in ("/plan/M1", "/confirm/0", "/handoff/S1", "/human/unavailable"):
+            self.assertEqual(self.call("POST", path, {"Origin": "null"})[0], 403, path)
+        self.assertEqual(self.requests(), [])
+        self.assertFalse(os.path.exists(self.env["PODIUM_HUMAN"]))
+
+    def test_sandboxes_everything_it_serves_but_the_page(self):
+        self.write("api/mock.html", "<script>fetch('/plan/M1', {method: 'POST'})</script>")
+        self.write("api/.deep-plan/podium/stories/M1/S1.html", "<script></script>")
+        self.serve()
+        for path in ("/podium/stories/M1/S1.html", "/podium/podium.json", "/repo/mock.html", "/podium/stories/",
+                     "/podium/gone.html", "/info"):
+            r, _ = self.response("GET", path)
+            self.assertEqual(r.getheader("Content-Security-Policy"), "sandbox allow-scripts allow-forms allow-popups", path)
+        for path in ("/", "/index.html", "/podium.html?x=1"):
+            r, _ = self.response("GET", path)
+            self.assertEqual((r.status, r.getheader("Content-Security-Policy")), (200, None), path)
 
     def test_serves_files_of_the_repo_and_nothing_above_it(self):
         self.write("api/mock.html", "mock")
@@ -191,6 +214,40 @@ class Checkouts(Server):
                 break
             time.sleep(0.1)
         self.assertEqual({r["name"]: r["branch"] for r in found["repos"]}.get("events"), "feat")
+
+
+class PlantedRepos(Server):
+    def plant(self, rel):
+        """A bare repository at the run dir's `rel`, as a pull could write it, whose fetch runs a command."""
+        path = os.path.join(self.run_dir, rel)
+        self.git("init", "-q", "--bare", path)
+        self.ran = os.path.join(self.tmp, "ran")
+        ssh = self.write("bin/ssh", f"#!/bin/sh\ntouch {self.ran}\n")
+        os.chmod(ssh, 0o755)
+        self.git("--git-dir", path, "config", "core.sshCommand", ssh)
+        self.git("--git-dir", path, "remote", "add", "origin", "ssh://example.invalid/x.git")
+        return path
+
+    def test_git_takes_no_folder_it_finds_for_a_bare_repository(self):
+        planted = self.plant("podium/stories/x")
+        r = subprocess.run([sys.executable, "-c", "import sys; from podium_dashboard import server; "
+                            "print(server.git(sys.argv[1], 'fetch'))", planted], capture_output=True, text=True, env=self.env)
+        self.assertEqual(r.stdout.strip(), "None", r.stderr)
+        self.assertFalse(os.path.exists(self.ran))
+
+    def test_skips_a_checkout_a_pull_could_have_written(self):
+        self.plant("podium/stories/x")
+        self.git("init", "-q", "-b", "feat", os.path.join(self.run_dir, "repos", "events"))
+        data = json.loads(json.dumps(DATA))
+        data["epics"][0]["milestones"][0]["repos"] = {"evil": {"path": "podium/stories/x"}, "events": {"path": "repos/events"}}
+        self.serve(data, git_every=1)
+        for _ in range(100):
+            found = self.call("GET", "/git")[1]
+            if found["at"]:
+                break
+            time.sleep(0.1)
+        self.assertEqual(sorted(r["name"] for r in found["repos"]), ["api", "events"])
+        self.assertFalse(os.path.exists(self.ran))
 
 
 class Requests(Server):

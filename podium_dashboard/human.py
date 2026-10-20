@@ -4,7 +4,7 @@ import os
 import subprocess
 from datetime import datetime, time, timedelta
 
-from podium_dashboard.files import write_atomic
+from podium_dashboard.files import git_argv, write_atomic
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 HOURS = {"days": "Mon-Fri", "from": "07:00", "to": "17:00"}
@@ -61,7 +61,7 @@ def me():
     if named:
         return named
     try:
-        email = subprocess.run(["git", "config", "user.email"], capture_output=True, text=True).stdout.strip()
+        email = subprocess.run(git_argv("config", "user.email"), capture_output=True, text=True).stdout.strip()
     except OSError:
         email = ""
     return email.partition("@")[0] or os.environ.get("USER") or "me"

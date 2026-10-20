@@ -59,6 +59,7 @@ class Podium:
         self.repo = os.path.dirname(self.root)
         self.held = None
         self.new_events = []
+        self.rewritten = {}
         self.lock_fd, self.lock_depth = None, 0
         self._me = None
         self.load()
@@ -256,6 +257,21 @@ def person_of(data, name):
     if not isinstance(people.get(name), dict):
         people[name] = {}
     return people[name]
+
+
+CHECKOUT_DIRS = ("repos", "worktrees")
+
+
+def checkout_path(p, path):
+    """The absolute path of a checkout podium.json names (`~` expands; a relative path is relative to the run dir), or
+    None when it resolves inside the run dir anywhere but repos/ or worktrees/, which never sync: elsewhere a pull may
+    have written it."""
+    full = os.path.normpath(os.path.join(p.root, os.path.expanduser(str(path))))
+    real, root = os.path.realpath(full), os.path.realpath(p.root)
+    below = lambda base: os.path.commonpath([base, real]) == base
+    if below(root) and not any(below(os.path.join(root, d)) for d in CHECKOUT_DIRS):
+        return None
+    return full
 
 
 def building(m):

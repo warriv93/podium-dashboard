@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from podium_dashboard import human, sync
+from podium_dashboard.files import git_argv
 from podium_dashboard.human import availability, day_set, human_hours, human_line, me, write_human
 from podium_dashboard.state import NOW, STAGES, assign, building, pairs, queued_requests
 
@@ -291,7 +292,7 @@ def story_target(p, args):
     if not target and os.environ.get("PODIUM_STORY"):
         target = "/".join(x for x in (os.environ.get("PODIUM_MILESTONE"), os.environ["PODIUM_STORY"]) if x)
     if not target:
-        branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True).stdout.strip()
+        branch = subprocess.run(git_argv("rev-parse", "--abbrev-ref", "HEAD"), capture_output=True, text=True).stdout.strip()
         target = branch[len("story/"):] if branch.startswith("story/") else None
     if not target:
         sys.exit("which story? pass [<milestone>/]<story>, or set PODIUM_STORY")

@@ -19,7 +19,8 @@ It needs watching while the user is available or a story of any milestone is wor
 the only events left are Podium buttons, which need the user at this computer.
 
 In a run that syncs it pulls every 60 s, skipping a turn while another podium command holds the run's lock. The
-progress lines a pull brings are the other machine's stories: it never prints them.
+progress lines a pull brings are the other machine's stories: it never prints them, but prints every line logged
+here, also one logged while the pull ran.
 
 --once exits after the first events (and the lines that follow within 2 s), so a
 background command returns them. It also rewrites watcher.json ({pid, at}, where
@@ -92,15 +93,51 @@ def subject(p, sha):
         return ""
 
 
-def pull(p):
-    """SYNCED <sha> <summary> when a pull brought someone else's saves, else None."""
+def news(path, offsets):
+    """The lines to print for what `path` gained past its offset, which moves to its end."""
+    with open(path) as f:
+        f.seek(offsets.get(path, 0))
+        chunk = f.read()
+        offsets[path] = f.tell()
+    return printed(path, chunk)
+
+
+def printed(path, chunk):
+    """The lines to print for a chunk of `path`: its requests, or its COMMITTED and FAILED progress lines."""
+    found = []
+    for line in chunk.splitlines():
+        if not line.strip():
+            continue
+        if path.endswith("requests.jsonl"):
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            note = f" note={r['note']}" if r.get("note") else ""
+            found.append(f"REQUEST {r.get('action')} {r.get('story') or ''}".rstrip() + note)
+        elif line.split()[1:2] in (["COMMITTED"], ["FAILED"]):
+            found.append(f"PROGRESS {os.path.basename(path)[:-len('.progress')]} {line}")
+    return found
+
+
+def pull(p, offsets):
+    """The lines to print after a pull: the progress logged here that the watcher had not read when the pull rewrote
+    its file, then SYNCED <sha> <summary> when the pull brought someone else's saves. A rewritten file's offset moves
+    past the lines the pull brought, the other machine's stories."""
     events = os.path.join(p.dir, "events.jsonl")
     before = lines_of(events)
-    out = sync.pull(p, from_watcher=True)
-    if not out.startswith("PULLED "):
-        return None
-    sha = out.split()[1]
-    return f"SYNCED {sha} {summary(before, lines_of(events)) or subject(p, sha)}".rstrip()
+    out, found = sync.pull(p, from_watcher=True), []
+    for path in watched(p.dir)[1:]:
+        here, written = p.rewritten.get(os.path.relpath(path, p.root).replace(os.sep, "/"), (None, None))
+        if written is not None:
+            found += printed(path, (here or b"")[offsets.get(path, 0):].decode(errors="replace"))
+            offsets[path] = len(written)
+    for path in [x for x in offsets if not os.path.exists(x)]:
+        del offsets[path]
+    if out.startswith("PULLED "):
+        sha = out.split()[1]
+        found.append(f"SYNCED {sha} {summary(before, lines_of(events)) or subject(p, sha)}".rstrip())
+    return found
 
 
 def main(argv=None):
@@ -162,34 +199,16 @@ def main(argv=None):
                 return
 
         for path in watched(podium_dir(root)):
-            if not os.path.exists(path):
-                continue
-            with open(path) as f:
-                f.seek(offsets.get(path, 0))
-                chunk = f.read()
-                offsets[path] = f.tell()
-            for line in chunk.splitlines():
-                if not line.strip():
-                    continue
-                if path.endswith("requests.jsonl"):
-                    try:
-                        r = json.loads(line)
-                    except ValueError:
-                        continue
-                    note = f" note={r['note']}" if r.get("note") else ""
-                    emit(f"REQUEST {r.get('action')} {r.get('story') or ''}".rstrip() + note)
-                elif line.split()[1:2] in (["COMMITTED"], ["FAILED"]):
-                    emit(f"PROGRESS {os.path.basename(path)[:-len('.progress')]} {line}")
+            if os.path.exists(path):
+                for line in news(path, offsets):
+                    emit(line)
 
         if time.time() - last_sync > SYNC_EVERY:
             last_sync = time.time()
             p = load_podium(root)
             if p and sync.enabled(p) and not busy(p):
-                synced = pull(p)
-                if synced:
-                    for path in watched(podium_dir(root))[1:]:
-                        offsets[path] = os.path.getsize(path)
-                    emit(synced)
+                for line in pull(p, offsets):
+                    emit(line)
 
         if time.time() - last_human > 15:
             last_human = time.time()

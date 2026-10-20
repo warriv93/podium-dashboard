@@ -68,13 +68,15 @@ Every verb that changes a milestone should call it and accept `--force`.
 
 `podium server [--dir D] [--port 8765] [--idle 60] [--detach] [--git-every 5]` serves the page and the run on `127.0.0.1`, on the first free port from `--port`. It stops after `--idle` minutes without use (0 never).
 
-Every request must carry a `Host` of `127.0.0.1:<port>` or `localhost:<port>`; any other answers 403 (DNS rebinding). A POST or DELETE with an `Origin` header must have `http://127.0.0.1:<port>` or `http://localhost:<port>`; any other answers 403 (cross-site forms). Without an `Origin` (curl) it passes.
+Every request must carry a `Host` of `127.0.0.1:<port>` or `localhost:<port>`; any other answers 403 (DNS rebinding). A POST or DELETE with an `Origin` header must have `http://127.0.0.1:<port>` or `http://localhost:<port>`; any other answers 403 (cross-site forms), `null` included. Without an `Origin` (curl) it passes.
+
+Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups`: a synced HTML file opened from `/podium/...` or `/repo/...` runs in an origin of its own, and its POSTs, `Origin: null`, are refused.
 
 | Request | Answer |
 |---|---|
 | `GET /` | the page |
 | `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command}, me, people, paseoServer, lastUse, stale}` |
-| `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes |
+| `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes; a checkout path inside the run dir but outside `repos/` and `worktrees/` is skipped |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
 | `GET /repo/<path>` | a file under the run's repo: the git toplevel of the run dir, else the run dir itself; the path is resolved and anything outside answers 404 |

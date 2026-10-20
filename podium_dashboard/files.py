@@ -1,4 +1,5 @@
-"""The files of a run's `podium/` folder, and the one way they are written: whole, through a temp file."""
+"""The files of a run's `podium/` folder, the one way they are written (whole, through a temp file), and the one way
+the tool runs git on folders a pull may have written."""
 import glob
 import os
 
@@ -14,6 +15,12 @@ def progress_files(folder):
 def watched(folder):
     """requests.jsonl first, then every story's progress file."""
     return [os.path.join(folder, "requests.jsonl"), *progress_files(folder)]
+
+
+def git_argv(*args):
+    """The argv of a git command that takes no folder for a bare repository unless --git-dir names it: a pull may have
+    written a bare repository's files, with config that runs commands, anywhere in the run dir."""
+    return ["git", "-c", "safe.bareRepository=explicit", *args]
 
 
 def write_atomic(path, content):

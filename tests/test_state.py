@@ -364,6 +364,21 @@ class Writes(Run):
             self.assertEqual(json.load(f)["epics"][0]["milestones"][0]["stories"][0]["note"], "x")
 
 
+class CheckoutPath(Run):
+    def test_a_checkout_inside_the_run_dir_counts_only_under_repos_or_worktrees(self):
+        p = state.Podium(self.run_dir)
+        planted = os.path.join(self.run_dir, "podium", "stories", "x")
+        os.makedirs(planted)
+        os.symlink(planted, os.path.join(self.run_dir, "repos", "link"))
+        self.assertEqual(state.checkout_path(p, "repos/api"), self.feature)
+        self.assertEqual(state.checkout_path(p, "worktrees/w/"), os.path.join(self.run_dir, "worktrees", "w"))
+        self.assertEqual(state.checkout_path(p, "~/code/api"), os.path.join(os.path.expanduser("~"), "code", "api"))
+        self.assertEqual(state.checkout_path(p, "../api"), self.main)
+        self.assertEqual(state.checkout_path(p, self.main), self.main)
+        for path in ("podium/stories/x", planted, "repos/../podium/stories/x", "repos/link", "docs", ".", ""):
+            self.assertIsNone(state.checkout_path(p, path), path)
+
+
 class Requests(Run):
     def path(self, name):
         return os.path.join(self.run_dir, "podium", name)

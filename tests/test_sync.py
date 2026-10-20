@@ -354,6 +354,25 @@ class Pull(SyncCase):
         found = sorted(os.path.relpath(os.path.join(d, n), b.root) for d, _, ns in os.walk(b.root) for n in ns)
         self.assertEqual(found, ["docs/in.md", "podium/podium.json"])
 
+    def test_the_never_synced_names_never_sync_either_way_in_any_case(self):
+        def shouted(pattern):
+            path = pattern.replace("**/", "docs/").replace("**", "x.md").replace("*", "x")
+            return (path if "/" in pattern else f"docs/{path}").upper()
+
+        never = [shouted(pattern) for pattern in sync.LOCAL] + ["podium/__pycache__/ext.cpython-39.PYC", "podium/ext.Py",
+                                                                 "__PyCache__/data.txt", "podium/stories/__pycache__/data.txt"]
+        a = self.run_in(self.clone("a"), include=["**"])
+        for rel in never + ["DOCS/NOTES.MD"]:
+            self.write(os.path.join(a.root, rel), "x\n")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertEqual(self.remote_files(), ["DOCS/NOTES.MD", "podium/podium.json"])
+        self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["**"]}}), "DOCS/NOTES.MD": "y\n",
+                        **{rel: "x\n" for rel in never}})
+        b = self.run_in(self.clone("b"), None)
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        found = sorted(os.path.relpath(os.path.join(d, n), b.root) for d, _, ns in os.walk(b.root) for n in ns)
+        self.assertEqual(found, ["DOCS/NOTES.MD", "podium/podium.json"])
+
     def test_pull_never_writes_through_a_symlink(self):
         self.push_tree({"podium/podium.json": json.dumps(DATA), "podium/stories/M1/S1.progress": "p\n"})
         for elsewhere in (os.path.join(self.tmp, "elsewhere"), os.path.join(self.tmp, "b", ".deep-plan", "elsewhere")):

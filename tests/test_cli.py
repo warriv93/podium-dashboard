@@ -177,7 +177,7 @@ class Extension(Cli):
         self.assertIn(f"extension {broken} not loadable", self.podium("--dir", run).stdout)
 
     def test_only_a_py_file_loads(self):
-        for name in ("ext.so", "ext.pyc", "ext.txt"):
+        for name in ("ext.so", "ext.pyc", "ext.txt", "ext.PY"):
             run = self.run_with(self.extension("COMMANDS = {'hello': print}\n", name=name))
             r = self.podium("--dir", run, "hello", code=2)
             self.assertEqual(r.stderr.strip(), f"podium: extension {self.tmp}/{name} not loadable: not a .py file")

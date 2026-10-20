@@ -27,7 +27,7 @@ import tempfile
 from datetime import datetime, timezone
 
 from podium_dashboard import extension
-from podium_dashboard.files import MACHINE_FILES, SHARED_FILES, write_atomic
+from podium_dashboard.files import MACHINE_FILES, SHARED_FILES, git_argv, write_atomic
 from podium_dashboard.merge import rebase
 from podium_dashboard.state import person_of, watcher_running
 
@@ -35,7 +35,8 @@ MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner"}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
 MACHINE = ("enabled", "remote", "ref")
-LOCAL = [*MACHINE_FILES, "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth", "repos/**", "worktrees/**", "**/*.logs/**", "*.logs/**"]
+LOCAL = [*MACHINE_FILES, "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth", "repos/**", "worktrees/**", "**/*.logs/**", "*.logs/**",
+         "**/__pycache__/**", "__pycache__/**"]
 IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 APPEND_ONLY = ["events.jsonl", "*.progress"]
 CACHE = "~/.podium/sync"
@@ -135,7 +136,7 @@ def open_git(p, remote=None, ref=None):
     """(Git, None) where the run's sync plumbing runs, or (None, why it can't)."""
     s = settings(p)
     remote, ref = remote or s.get("remote") or REMOTE, ref or s.get("ref") or default_ref(p)
-    if subprocess.run(["git", "check-ref-format", ref], capture_output=True).returncode or not ref.startswith("refs/"):
+    if subprocess.run(git_argv("check-ref-format", ref), capture_output=True).returncode or not ref.startswith("refs/"):
         return None, f"not a full ref name: {ref}"
     if is_url(remote):
         url = os.path.expanduser(remote) if remote.startswith("~") else remote
@@ -143,14 +144,14 @@ def open_git(p, remote=None, ref=None):
         key = hashlib.sha1(f"{url}\n{ref}\n{os.path.realpath(p.root)}".encode()).hexdigest()[:16]
         cache = os.path.join(os.path.expanduser(CACHE), key)
         if not os.path.isdir(cache):
-            r = subprocess.run(["git", "init", "--bare", "-q", cache], capture_output=True, text=True)
+            r = subprocess.run(git_argv("init", "--bare", "-q", cache), capture_output=True, text=True)
             if r.returncode:
                 return None, (r.stderr.strip().splitlines() or ["git init failed"])[0]
-        return Git(["git", "--git-dir", cache], url, ref), None
-    top = subprocess.run(["git", "-C", p.root, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+        return Git(git_argv("--git-dir", cache), url, ref), None
+    top = subprocess.run(git_argv("-C", p.root, "rev-parse", "--show-toplevel"), capture_output=True, text=True)
     if top.returncode:
         return None, "not in a git repo"
-    return Git(["git", "-C", top.stdout.strip()], remote, ref), None
+    return Git(git_argv("-C", top.stdout.strip()), remote, ref), None
 
 
 def podium_json(p):
@@ -170,17 +171,23 @@ def glob_pattern(pattern):
     return re.compile("".join({"**": ".*", "*": "[^/]*", "?": "[^/]"}.get(x, re.escape(x)) for x in parts))
 
 
+def folded(name):
+    """`name` as a case-insensitive or Unicode-folding file system compares it."""
+    return IGNORABLE.sub("", name).casefold()
+
+
 def local_only(p, rel, block=None):
-    """Whether the run dir's `rel` is this machine's alone: LOCAL or the block's exclude. A pattern with a `/` matches
-    the path from the run dir, one without it the file name."""
+    """Whether the run dir's `rel` is this machine's alone: LOCAL or the block's exclude, in any case. A pattern with a
+    `/` matches the path from the run dir, one without it the file name."""
     patterns = LOCAL + [str(g) for g in (settings(p) if block is None else block).get("exclude") or []]
-    return any(glob_pattern(pattern).fullmatch(rel) if "/" in pattern
-               else fnmatch.fnmatchcase(posixpath.basename(rel), pattern) for pattern in patterns)
+    rel = folded(rel)
+    return any(glob_pattern(folded(pattern)).fullmatch(rel) if "/" in pattern
+               else fnmatch.fnmatchcase(posixpath.basename(rel), folded(pattern)) for pattern in patterns)
 
 
 def git_dir_name(part):
     """Whether a path component names a .git folder on a case-insensitive or Unicode-folding file system."""
-    return IGNORABLE.sub("", part).rstrip(". ").lower() == ".git"
+    return folded(part).rstrip(". ") == ".git"
 
 
 def restorable(p, rel, block=None):
@@ -342,6 +349,7 @@ def apply(p, files, gone):
                 continue
             os.makedirs(os.path.dirname(path), exist_ok=True)
             write_atomic(path, content)
+            p.rewritten[rel] = (here, content)
 
 
 def instant(text):
@@ -416,7 +424,7 @@ def merge_file(p, rel, base, mine, theirs):
         for path, content in zip(paths, (mine, base or b"", theirs)):
             with open(path, "wb") as f:
                 f.write(content)
-        r = subprocess.run(["git", "merge-file", "-p", *paths], capture_output=True)
+        r = subprocess.run(git_argv("merge-file", "-p", *paths), capture_output=True)
     return (r.stdout, True) if r.returncode == 0 else (mine, False)
 
 
@@ -588,7 +596,9 @@ def pull(p, from_watcher=False):
     save, which stay unsaved until the next save unless the two sides had diverged (then the merge commit holds
     them; a pull never pushes). One line: PULLED <sha>, UP-TO-DATE, KEPT <why> (a live watcher, or the remote out of
     reach), FAILED <why>, or OFF. The watcher itself pulls `from_watcher`, past its own heartbeat. A run never saved or pulled here whose state is only the
-    skeleton `podium init` writes takes the remote's state whole, keeping this machine's `sync` keys."""
+    skeleton `podium init` writes takes the remote's state whole, keeping this machine's `sync` keys. `p.rewritten`
+    then holds {path relative to the run dir: (content before, content written)} for each file the pull rewrote."""
+    p.rewritten = {}
     if not enabled(p):
         return "OFF"
     g, why = open_git(p)

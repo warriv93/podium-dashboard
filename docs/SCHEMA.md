@@ -19,7 +19,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 | `server.log` | `podium server --detach` | never |
 | `~/.podium/human.json` | `podium hours`, `whoami`, the Podium toggle | outside any run; one per machine |
 
-Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote`, and Python code: `*.py`, `*.pyc`, `*.pth`.
+Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote`, and Python code: `*.py`, `*.pyc`, `*.pth`, `__pycache__/` folders. These names, and `sync.exclude`, match in any case: a Mac's file system ignores it.
 
 ## podium.json
 
@@ -72,7 +72,7 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | `grilled` | the spec was settled with the user |
 | `brief`, `spec`, `archive` | paths to documents |
 | `branch` | the integration branch (single-repo) |
-| `repos` | `{<repo>: {path, branch, base, pr: {number, state, url}}}` (`state` draft, open, merged or closed) for a multi-repo milestone; `path` is relative to the run dir or `~`-based |
+| `repos` | `{<repo>: {path, branch, base, pr: {number, state, url}}}` (`state` draft, open, merged or closed) for a multi-repo milestone; `path` is relative to the run dir or `~`-based, and inside the run dir only under `repos/` or `worktrees/` (`state.checkout_path` refuses any other) |
 | `landedSha` | the landing commit: a string, or `{<repo>: <sha>}` for several repos |
 | `shippedAt` | date it landed |
 | `covers` | the requirements it covers |

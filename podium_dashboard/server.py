@@ -7,7 +7,9 @@ the run's orchestrator extension.
 
 It answers only requests whose Host is 127.0.0.1:<port> or localhost:<port>, and a POST or DELETE only when its
 Origin, if any, is that same server: a page elsewhere can't reach it through DNS rebinding or a cross-site form.
-GET /repo/<path> serves a file of the folder the run dir sits in, never one outside it.
+GET /repo/<path> serves a file of the run dir's git toplevel, else of the run dir, never one outside it. Everything
+it serves but the page itself comes sandboxed (Content-Security-Policy): a synced HTML file runs in an origin of its
+own, whose POSTs say `Origin: null` and are refused.
 
 A story in a path is `<story>`, of the active milestone, or `<milestone>/<story>`, of any: two milestones can build
 at once.
@@ -73,10 +75,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from podium_dashboard import extension
-from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, progress_files, write_atomic
+from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, write_human
 from podium_dashboard.plugins import paseo
-from podium_dashboard.state import ACT_ON, NOW, Podium, find_run, podium_dir, watcher_running
+from podium_dashboard.state import ACT_ON, NOW, Podium, checkout_path, find_run, podium_dir, watcher_running
 
 STORY_ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 SETTLE = {"confirm", "reverse"}
@@ -136,6 +138,8 @@ def find_story(root, ident):
 
 
 PAGE = os.path.join(PACKAGE, "podium.html")
+PAGE_PATHS = ("/", "/index.html", "/podium.html")
+SANDBOX = "sandbox allow-scripts allow-forms allow-popups"
 
 
 def orchestrator_of(data):
@@ -209,7 +213,7 @@ GIT = {"repos": [], "at": None}
 def git(repo, *args, timeout=30):
     """A git command's output, or None when it fails or hangs (a fetch never prompts for credentials)."""
     try:
-        r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=timeout,
+        r = subprocess.run(git_argv("-C", repo, *args), capture_output=True, text=True, timeout=timeout,
                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -217,14 +221,15 @@ def git(repo, *args, timeout=30):
 
 
 def repos_of(root):
-    """{name: path} for the run's own repo and the active milestone's `repos`."""
+    """{name: path} for the run's own repo and the active milestone's `repos`, but a checkout a pull may have written."""
     out, repo = {}, git(root, "rev-parse", "--show-toplevel")
     if repo:
         out[os.path.basename(repo)] = repo
-    _, active = load_run(root)
+    p, (_, active) = load_podium(root), load_run(root)
     for name, r in ((active or {}).get("repos") or {}).items():
-        if (r or {}).get("path"):
-            out[name] = os.path.join(root, os.path.expanduser(r["path"]))
+        path = p and (r or {}).get("path") and checkout_path(p, r["path"])
+        if path:
+            out[name] = path
     return out
 
 
@@ -315,6 +320,8 @@ def make_handler(root):
 
         def end_headers(self):
             self.send_header("Cache-Control", "no-store")
+            if getattr(self, "path", "").split("?")[0] not in PAGE_PATHS:
+                self.send_header("Content-Security-Policy", SANDBOX)
             super().end_headers()
 
         def do_GET(self):
@@ -331,7 +338,7 @@ def make_handler(root):
                 return self.empty(EMPTY_WHEN_MISSING[os.path.basename(self.path.split("?")[0])])
             if self.path.startswith("/repo/"):
                 return self.repo_file(self.path[len("/repo/"):].split("?")[0])
-            if self.path.split("?")[0] in ("/", "/index.html", "/podium.html"):
+            if self.path.split("?")[0] in PAGE_PATHS:
                 with open(PAGE, "rb") as f:
                     return self.send(200, "text/html; charset=utf-8", f.read())
             super().do_GET()
