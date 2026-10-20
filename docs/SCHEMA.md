@@ -8,15 +8,16 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 
 | File | Written by | Shared by `podium sync` |
 |---|---|---|
-| `podium.json` | `podium` commands, orchestrator | yes (`sync.enabled`, `sync.remote`, `sync.ref` stay local; `orchestrator.extension` keeps the value the run's first save seeded) |
+| `podium.json` | `podium` commands, orchestrator | yes (the `sync` block stays local; `orchestrator.extension` keeps the value the run's first save seeded) |
 | `events.jsonl` | `podium set --event`, core commands | yes, merged as a union of lines |
 | `stories/<milestone>/<story>.md`, `.progress` | orchestrator, `podium log` | yes (`.progress` merged as a union) |
 | `handoffs.json` | the server | yes |
-| planning docs (`*.md`, `domain-stories/**`, ...) | orchestrator | only when `sync.include` lists them |
+| planning docs (`*.md`, `domain-stories/**`, ...) | orchestrator | only to and from a machine whose own `sync.include` lists them |
 | `requests.jsonl` | the server | never |
 | `cursor.json` | `podium requests` | never |
 | `watcher.json` | `podium watch` | never |
 | `server.log` | `podium server --detach` | never |
+| `synced.json` | `podium sync` | never |
 | `~/.podium/human.json` | `podium hours`, `whoami`, the Podium toggle | outside any run; one per machine |
 
 Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote`, and Python code: `*.py`, `*.pyc`, `*.pth`, `__pycache__/` folders. These names, and `sync.exclude`, match in any case: a Mac's file system ignores it.
@@ -118,7 +119,7 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
 
 ### sync
 
-`{enabled, remote, ref, include, exclude}`. `enabled`, `remote` and `ref` belong to this machine and are not shared; `include` and `exclude` (globs relative to the run dir) are shared. `include` defaults to `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. See `PROTOCOL.md`.
+`{enabled, remote, ref, include, exclude}`, all this machine's own: never pushed, never taken from a pull. `include` and `exclude` are globs relative to the run dir; `include` defaults to `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. To share planning docs, every machine adds the same globs. See `PROTOCOL.md`.
 
 ### Collaboration
 
@@ -166,9 +167,13 @@ The server appends one line per button press: `{"action": "assign", "story": "M2
 
 `{"requestsSeen": <byte offset>}`: how far into `requests.jsonl` this machine has read. An older run kept it in `podium.json` as `requestsSeen`; it moves here on first read.
 
+## synced.json
+
+`{include, exclude}`: the lists this machine's last save or pull used. When the lists widen, the next save or pull first writes the files they now cover from the last synced tree, so a file this machine never had is not taken for one it deleted.
+
 ## watcher.json
 
-The watcher's heartbeat, rewritten every few seconds: `{pid, at, offsets, mode, since, waiting, idle}`. The server accepts orchestrator requests only while `at` is under 30 seconds old.
+The watcher's heartbeat, rewritten every few seconds: `{pid, at, offsets, seen, mode, since, waiting, idle}`; `seen` holds each progress file's inode and digests of the lines the watcher handled. The server accepts orchestrator requests only while `at` is under 30 seconds old.
 
 ## human.json
 

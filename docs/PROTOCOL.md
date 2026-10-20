@@ -108,7 +108,7 @@ A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 | `SYNCED <sha> <summary>` | a pull brought someone else's changes: their new event types by `by`, as in `ann: status×2, owner`, else the commit subject |
 | `LAPSE <mode>, nothing building` | the last line |
 
-When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. It pulls during a build too: the pull merges the remote's saves with the unsaved changes here (see Merge), so another person's claim arrives within a minute. Progress lines that arrive with a pull belong to the other person's stories and are not printed.
+When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. It pulls during a build too: the pull merges the remote's saves with the unsaved changes here (see Merge), so another person's claim arrives within a minute. Progress lines that arrive with a pull belong to the other person's stories and are not printed; a line logged here while the pull ran is. A progress file a save's merge rewrote behind the watcher is read again whole: it prints the lines it never handled, for a story of a milestone with no owner or this person, and nothing twice.
 
 `podium requests` prints the requests nobody has passed on yet, as `ACT <confirm|reverse|asana|asana-done> <id> [note=...]` (the user's answers, to act on at once) and `LIST <action> <id> [note=...]` (the rest). It moves the cursor in `cursor.json`; lines the running watcher already printed are skipped.
 
@@ -138,7 +138,7 @@ An extension calling `asana.refresh(p)` gets the same lines as a list, `[]` when
 
 The run state is committed with git plumbing onto a ref (default `refs/heads/podium-run/<run dir name in kebab case>`) and pushed to the remote, without touching any working tree, index or HEAD. A remote name refers to a remote of the repo the run dir sits in. A URL needs no repo: the commits live in a bare cache under `~/.podium/sync/`, one per URL, ref and run dir. Every machine must use the same ref; `podium sync status` prints it first.
 
-Files: `sync.include` globs (relative to the run dir) pick them, by default `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. Add planning docs, for example `["podium/**", "*.md", "domain-stories/**"]`. `sync.exclude` and the machine-local list in `SCHEMA.md` never sync. `sync.enabled`, `sync.remote` and `sync.ref` stay on their machine. `orchestrator.extension` is each machine's own too: the run carries the value its first save seeded, no save changes it after, and a pull sets it only on a machine that has none, so a joiner runs the run's extension until `podium init` registers its own. The rest of the `orchestrator` block syncs.
+Files: this machine's `sync.include` globs (relative to the run dir) pick them, by default `podium.json`, `events.jsonl`, `handoffs.json`, `stories/**`. `sync.exclude` and the machine-local list in `SCHEMA.md` never sync. The whole `sync` block stays on its machine: a save never pushes it and a pull never takes it, so a remote that lists more files changes nothing here. To share planning docs, every machine adds the same globs, for example `["podium/**", "*.md", "domain-stories/**"]`. A save carries the files its lists leave out as the last synced tree had them, so a machine that shares fewer files drops none of the others'; a machine whose lists widen gets the files they now cover from that tree on its next save or pull. `orchestrator.extension` is each machine's own too: the run carries the value its first save seeded, no save changes it after, and a pull sets it only on a machine that has none, so a joiner runs the run's extension until `podium init` registers its own. The rest of the `orchestrator` block syncs.
 
 Results, one line each:
 
@@ -157,7 +157,7 @@ When both machines changed the run since their common save (saved or not), files
 
 ### Deletion
 
-A pull deletes a local file only when it was in the last synced tree, is unchanged here, and the remote dropped it. Files that never synced are never deleted.
+A pull deletes a local file only when it was in the last synced tree, is unchanged here, this machine's lists cover it, and the remote dropped it. Files that never synced are never deleted.
 
 ### Refs and joining
 

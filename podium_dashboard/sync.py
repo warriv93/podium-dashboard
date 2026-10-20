@@ -4,15 +4,17 @@ The state is committed onto `ref` (default refs/heads/podium-run/<run slug>) thr
 tree, index or HEAD, and pushed to `remote`: a remote name of the run's own repo (default origin), or a URL, whose
 commits live in a private bare cache per run under ~/.podium/sync, so a run outside any repo syncs too. `include`
 globs (relative to the run dir) pick the files; this machine's own files never go: the request queue and its cursor,
-the watcher's heartbeat, the server log; nor does Python code. `enabled`, `remote` and `ref` are this machine's and
-stay out of the synced podium.json; the orchestrator's `extension` is this machine's too: the run carries the value
-its first save seeded, and a pull sets it only on a machine that has none. `include` and `exclude` sync with the run.
+the watcher's heartbeat, the server log; nor does Python code. The whole `sync` block, `include` and `exclude` too,
+is this machine's and stays out of the synced podium.json: a remote's save never widens what lands here. The
+orchestrator's `extension` is this machine's too: the run carries the value its first save seeded, and a pull sets it
+only on a machine that has none.
 Two machines that both moved merge per file against their common save: podium.json as concurrent commands do
 (rebase), except that a milestone both gave an owner keeps the remote's, the claim that reached it first;
 events.jsonl and *.progress as the union of their lines in time order, any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
 it as `<file>.remote`, and adds to this person's needsYou; so does a file the run dir holds that the remote's save
-brings with other content. A pull or merge writes only files the incoming include and exclude lists carry, and
-deletes only a file that common save had, unchanged here, that those lists still carry.
+brings with other content. A pull or merge writes only files this machine's include and exclude lists carry, and
+deletes only a file that common save had, unchanged here, that those lists still carry; a save carries the files
+those lists leave out as the last save had them, so a machine that shares fewer files never drops another's.
 """
 import fnmatch
 import glob
@@ -34,7 +36,7 @@ from podium_dashboard.state import person_of, watcher_running
 MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner"}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
-MACHINE = ("enabled", "remote", "ref")
+MACHINE = ("enabled", "remote", "ref", "include", "exclude")
 LOCAL = [*MACHINE_FILES, "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth", "repos/**", "worktrees/**", "**/*.logs/**", "*.logs/**",
          "**/__pycache__/**", "__pycache__/**"]
 IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
@@ -206,9 +208,32 @@ def inside_run(p, rel):
     return os.path.realpath(path).startswith(os.path.realpath(p.root) + os.sep)
 
 
-def covered(p, rel, block):
-    """Whether the `sync` block's include and exclude lists carry the run dir's `rel`."""
+def covered(p, rel, block=None):
+    """Whether the `sync` block's include and exclude lists, by default this machine's, carry the run dir's `rel`."""
     return any(glob_pattern(g).fullmatch(rel) for g in includes(p, block)) and restorable(p, rel, block)
+
+
+def lists(p):
+    return {"include": includes(p), "exclude": [str(g) for g in settings(p).get("exclude") or []]}
+
+
+def widen(p, g):
+    """Write the files of this machine's last save or pull that its lists cover now but did not then, and that the
+    run dir lacks, then record the lists in synced.json: a file the lists start to cover is the run's, not one
+    deleted here."""
+    path = os.path.join(p.dir, "synced.json")
+    try:
+        with open(path) as f:
+            last = json.load(f)
+    except (OSError, ValueError):
+        last = None
+    now, seed = lists(p), g.rev(g.ref + "^{commit}")
+    if now == last:
+        return
+    if isinstance(last, dict) and seed:
+        apply(p, {rel: g.cat(sha) for rel, sha in g.files(p, seed).items() if rel != podium_json(p) and covered(p, rel)
+                  and not covered(p, rel, last) and on_disk(p, rel) is None}, set())
+    write_atomic(path, json.dumps(now))
 
 
 def synced_files(p):
@@ -250,9 +275,9 @@ def shared(raw, extension=None):
 
 
 def with_machine_keys(p, content):
-    """A synced podium.json with this machine's own `sync` keys and `orchestrator.extension` put back; None when the
-    save has none. A machine without an extension takes the one the save carries, once: a pull never changes the code
-    a machine runs."""
+    """A synced podium.json with this machine's own `sync` keys, and only those, and `orchestrator.extension` put
+    back; None when the save has none. A machine without an extension takes the one the save carries, once: a pull
+    never changes the code a machine runs."""
     here = p.read()
     block, orchestrator = here.get("sync"), here.get("orchestrator")
     machine = {k: v for k, v in block.items() if k in MACHINE} if isinstance(block, dict) else {}
@@ -261,11 +286,16 @@ def with_machine_keys(p, content):
         data = json.loads(content) if content is not None else None
     except ValueError:
         return content
-    if not (machine or extension) or not isinstance(data, dict):
+    if not isinstance(data, dict):
         return content
-    if machine:
-        common = data.get("sync")
-        data["sync"] = {**(common if isinstance(common, dict) else {}), **machine}
+    common = data.get("sync")
+    common = {k: v for k, v in common.items() if k not in MACHINE} if isinstance(common, dict) else {}
+    if not (machine or extension or common != data.get("sync", {})):
+        return content
+    if machine or common:
+        data["sync"] = {**common, **machine}
+    else:
+        data.pop("sync", None)
     if extension:
         common = data.get("orchestrator")
         data["orchestrator"] = {**(common if isinstance(common, dict) else {}), "extension": extension}
@@ -285,16 +315,20 @@ def seeded_extension(p, g, commit):
 
 
 def state_tree(p, g, seed=None):
-    """The tree of this machine's run state, built in a throwaway index; None when there is none. Its podium.json
-    carries the extension of `seed` (default this machine's last save), and this machine's own only when that has
-    none: the first save seeds it, and no machine changes it after."""
-    rels, blobs, paths = [], [], []
+    """The tree of this machine's run state, built in a throwaway index; None when there is none. `seed` (default this
+    machine's last save) gives the files this machine's lists leave out, as it has them, and the extension its
+    podium.json carries: this machine's own only when that has none, so the first save seeds it, and no machine
+    changes it after."""
+    seed = seed or g.rev(g.ref + "^{commit}")
+    carried = {rel: sha for rel, sha in (g.files(p, seed) if seed else {}).items()
+               if rel != podium_json(p) and not covered(p, rel)}
+    rels, blobs, paths = list(carried), list(carried.values()), []
     for rel in synced_files(p):
         if rel != podium_json(p):
             paths.append(rel)
             continue
         with open(p.path, "rb") as f:
-            content = shared(f.read(), seeded_extension(p, g, seed or g.rev(g.ref + "^{commit}")))
+            content = shared(f.read(), seeded_extension(p, g, seed))
         if content is not None:
             rels.append(rel)
             blobs.append(g.blob(content))
@@ -428,15 +462,6 @@ def merge_file(p, rel, base, mine, theirs):
     return (r.stdout, True) if r.returncode == 0 else (mine, False)
 
 
-def sync_block(content):
-    try:
-        data = json.loads(content) if content is not None else None
-    except ValueError:
-        return {}
-    block = data.get("sync") if isinstance(data, dict) else None
-    return block if isinstance(block, dict) else {}
-
-
 def flag(p, data, conflicts):
     """Add the conflicts to this person's needsYou in podium.json's `data`, after any reason already pending."""
     person = person_of(data, p.me)
@@ -473,16 +498,14 @@ def skeleton(p):
 
 
 def merged(p, g, base, mine, theirs):
-    """(the files of commits `mine` and `theirs` merged against `base` (None: no common save), only those the merged
-    include and exclude lists carry, with a `<file>.remote` beside each conflict; the files to delete). A file the run
+    """(the files of commits `mine` and `theirs` merged against `base` (None: no common save), only those this
+    machine's include and exclude lists carry, with a `<file>.remote` beside each conflict; the files to delete). A file the run
     dir holds with content neither `mine` nor the merge has is a conflict too: it stays as it is."""
     b, m, t = (g.files(p, c) if c else {} for c in (base, mine, theirs))
-    pj, out, conflicts, block = podium_json(p), {}, [], None
+    pj, out, conflicts = podium_json(p), {}, []
     for rel in sorted(set(m) | set(t), key=lambda x: x != pj):
-        if rel != pj:
-            block = sync_block(out.get(pj)) if block is None else block
-            if not covered(p, rel, block):
-                continue
+        if rel != pj and not covered(p, rel):
+            continue
         bs, ms, ts = b.get(rel), m.get(rel), t.get(rel)
         if ms == ts or ts == bs:
             chosen = ms
@@ -507,8 +530,7 @@ def merged(p, g, base, mine, theirs):
         data = json.loads(out[pj]) if pj in out else json.loads(on_disk(p, pj) or b"{}")
         flag(p, data, conflicts)
         out[pj] = dump(data)
-    block = sync_block(out.get(pj))
-    gone = {rel for rel in set(b) - set(out) - set(conflicts) if covered(p, rel, block)
+    gone = {rel for rel in set(b) - set(out) - set(conflicts) if covered(p, rel)
             and on_disk(p, rel) in (None, g.cat(b[rel]), g.cat(m[rel]) if rel in m else None)}
     return out, gone
 
@@ -565,6 +587,7 @@ def _save(p, g, message):
     for _ in range(3):
         remote, err = g.remote_tip()
         with p.locked():
+            widen(p, g)
             local, tree = g.rev(g.ref + "^{commit}"), state_tree(p, g)
             if not tree:
                 return "UNCHANGED"
@@ -620,6 +643,7 @@ def _pull(p, g, from_watcher):
     if not remote:
         return "UP-TO-DATE"
     with p.locked():
+        widen(p, g)
         local, tree = g.rev(g.ref + "^{commit}"), state_tree(p, g)
         if not local and skeleton(p):
             tree = None

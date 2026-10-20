@@ -20,17 +20,21 @@ the only events left are Podium buttons, which need the user at this computer.
 
 In a run that syncs it pulls every 60 s, skipping a turn while another podium command holds the run's lock. The
 progress lines a pull brings are the other machine's stories: it never prints them, but prints every line logged
-here, also one logged while the pull ran.
+here, also one logged while the pull ran. A progress file a save's merge rewrote behind it (a new inode, or shorter
+than where it read to) is read whole: it prints the lines it never handled, and only for a story of a milestone with
+no owner or this person.
 
 --once exits after the first events (and the lines that follow within 2 s), so a
 background command returns them. It also rewrites watcher.json ({pid, at}, where
-it has read up to, and `since`, where this chain of runs started reading) every few
+it has read up to, `seen`, each progress file's inode and digests of the lines it
+handled, and `since`, where this chain of runs started reading) every few
 seconds, its heartbeat: the Podium server takes requests only while it is fresh, a
 watcher started within 10 minutes of the last one resumes where that one stopped, so
 nothing is lost between runs, and `podium requests` skips the requests it printed.
 """
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 import time
@@ -93,13 +97,48 @@ def subject(p, sha):
         return ""
 
 
-def news(path, offsets):
-    """The lines to print for what `path` gained past its offset, which moves to its end."""
+def digest(line):
+    return hashlib.sha1(line.encode(errors="surrogateescape")).hexdigest()[:12]
+
+
+def handled(path, upto):
+    """{ino, lines}: the inode of `path` and the digests of its lines before byte `upto`."""
+    with open(path, "rb") as f:
+        return {"ino": os.fstat(f.fileno()).st_ino, "lines": {digest(x) for x in f.read(upto).decode(errors="replace").splitlines()}}
+
+
+def fresh(folder):
+    """(offsets, seen) of a watcher starting anew: every watched file read to its end."""
+    offsets = {path: os.path.getsize(path) for path in watched(folder) if os.path.exists(path)}
+    return offsets, {path: handled(path, at) for path, at in offsets.items() if path.endswith(".progress")}
+
+
+def built_here(root, path):
+    """Whether a progress file's story is of a milestone with no owner or this person."""
+    p = load_podium(root)
+    mid = os.path.basename(os.path.dirname(path))
+    owner = next((m.get("owner") for m in p.milestones() if m.get("id") == mid), None) if p else None
+    return not owner or owner == p.me
+
+
+def news(path, offsets, seen, mine):
+    """The lines to print for what `path` gained since the watcher read it; `offsets` and, for a progress file,
+    `seen` move to its end. A progress file rewritten behind the watcher is read whole, and of the lines it never
+    handled prints those of a story `mine(path)` says is built here."""
+    known = seen.get(path) if path.endswith(".progress") else None
+    st = os.stat(path)
+    rewritten = known is not None and (st.st_ino != known["ino"] or st.st_size < offsets.get(path, 0))
     with open(path) as f:
-        f.seek(offsets.get(path, 0))
+        f.seek(0 if rewritten else offsets.get(path, 0))
         chunk = f.read()
         offsets[path] = f.tell()
-    return printed(path, chunk)
+    if not path.endswith(".progress"):
+        return printed(path, chunk)
+    lines = chunk.splitlines()
+    done = known["lines"] if known else set()
+    unread = [x for x in lines if digest(x) not in done] if rewritten else lines
+    seen[path] = {"ino": st.st_ino, "lines": done | {digest(x) for x in lines}}
+    return printed(path, "\n".join(unread)) if not rewritten or mine(path) else []
 
 
 def printed(path, chunk):
@@ -120,7 +159,7 @@ def printed(path, chunk):
     return found
 
 
-def pull(p, offsets):
+def pull(p, offsets, seen):
     """The lines to print after a pull: the progress logged here that the watcher had not read when the pull rewrote
     its file, then SYNCED <sha> <summary> when the pull brought someone else's saves. A rewritten file's offset moves
     past the lines the pull brought, the other machine's stories."""
@@ -132,8 +171,11 @@ def pull(p, offsets):
         if written is not None:
             found += printed(path, (here or b"")[offsets.get(path, 0):].decode(errors="replace"))
             offsets[path] = len(written)
+            seen[path] = {"ino": os.stat(path).st_ino,
+                          "lines": {digest(x) for x in written.decode(errors="replace").splitlines()}}
     for path in [x for x in offsets if not os.path.exists(x)]:
         del offsets[path]
+        seen.pop(path, None)
     if out.startswith("PULLED "):
         sha = out.split()[1]
         found.append(f"SYNCED {sha} {summary(before, lines_of(events)) or subject(p, sha)}".rstrip())
@@ -161,10 +203,13 @@ def main(argv=None):
         offsets, mode = dict(last["offsets"]), last.get("mode") or human()
         waiting, idle = set(last.get("waiting", [])), set(last.get("idle", []))
         since = dict(last.get("since") or {})
+        seen = {path: {"ino": v["ino"], "lines": set(v["lines"])} for path, v in (last.get("seen") or {}).items()}
         for path in watched(podium_dir(root)):
             offsets.setdefault(path, 0)
+            if path.endswith(".progress") and path not in seen and os.path.exists(path):
+                seen[path] = handled(path, offsets[path])
     else:
-        offsets = {path: os.path.getsize(path) for path in watched(podium_dir(root)) if os.path.exists(path)}
+        offsets, seen = fresh(podium_dir(root))
         mode, waiting, idle = human(), set(), set()
         since = dict(offsets)
 
@@ -175,6 +220,7 @@ def main(argv=None):
         os.makedirs(os.path.dirname(beat), exist_ok=True)
         write_atomic(beat, json.dumps({"pid": os.getpid(), "at": time.time(), "offsets": offsets, "mode": mode,
                                        "since": {path: since.get(path, 0) for path in offsets},
+                                       "seen": {path: {"ino": v["ino"], "lines": sorted(v["lines"])} for path, v in seen.items()},
                                        "waiting": sorted(waiting), "idle": sorted(idle)}))
 
     first = None
@@ -200,14 +246,14 @@ def main(argv=None):
 
         for path in watched(podium_dir(root)):
             if os.path.exists(path):
-                for line in news(path, offsets):
+                for line in news(path, offsets, seen, lambda x: built_here(root, x)):
                     emit(line)
 
         if time.time() - last_sync > SYNC_EVERY:
             last_sync = time.time()
             p = load_podium(root)
             if p and sync.enabled(p) and not busy(p):
-                for line in pull(p, offsets):
+                for line in pull(p, offsets, seen):
                     emit(line)
 
         if time.time() - last_human > 15:

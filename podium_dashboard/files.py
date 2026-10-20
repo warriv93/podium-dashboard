@@ -4,7 +4,7 @@ import glob
 import os
 
 SHARED_FILES = ["podium.json", "events.jsonl", "handoffs.json", "stories/**"]
-MACHINE_FILES = ["cursor.json", "requests.jsonl", "watcher.json", "server.log"]
+MACHINE_FILES = ["cursor.json", "requests.jsonl", "watcher.json", "server.log", "synced.json"]
 EMPTY_WHEN_MISSING = {"handoffs.json": {}, "events.jsonl": "", "requests.jsonl": ""}
 
 

@@ -188,7 +188,7 @@ class Synced(Watcher):
         self.assertRegex(sync.save(self.ann), r"^SAVED ")
         self.assertRegex(sync.pull(self.bob), r"^PULLED ")
         self.append(s2, "2026-01-01T00:00:00+00:00 STARTED")
-        offsets = {path: os.path.getsize(path) for path in watch.watched(self.bob.dir) if os.path.exists(path)}
+        offsets, seen = watch.fresh(self.bob.dir)
         self.append(self.pod("stories", "M1", "S1.progress", run_dir=self.ann.root), "2026-01-01T00:03:00+00:00 COMMITTED ann")
         self.append(self.pod("stories", "M2", "T1.progress", run_dir=self.ann.root), "2026-01-01T00:04:00+00:00 FAILED ann")
         self.assertRegex(sync.save(self.ann), r"^SAVED ")
@@ -201,14 +201,38 @@ class Synced(Watcher):
             return fetch(g)
 
         with unittest.mock.patch.object(sync.Git, "remote_tip", fetch_while_logging):
-            printed = watch.pull(self.bob, offsets)
-        printed += [line for path in watch.watched(self.bob.dir) if os.path.exists(path) for line in watch.news(path, offsets)]
+            printed = watch.pull(self.bob, offsets, seen)
+        printed += [line for path in watch.watched(self.bob.dir) if os.path.exists(path)
+                    for line in watch.news(path, offsets, seen, lambda path: True)]
         self.assertEqual([line for line in printed if not line.startswith("SYNCED ")],
                          ["PROGRESS S1 2026-01-01T00:02:00+00:00 COMMITTED before",
                           "PROGRESS S1 2026-01-01T00:05:00+00:00 COMMITTED during",
                           "PROGRESS S2 2026-01-01T00:05:00+00:00 FAILED during"])
         self.assertEqual(printed[2], f"SYNCED {self.tip()} podium: save")
         self.assertIn("COMMITTED ann", "".join(watch.lines_of(s1)))
+
+    def test_after_a_save_merged_behind_it_prints_each_line_logged_here_once_and_none_it_brought(self):
+        mine = self.pod("stories", "M1", "S1.progress", run_dir=self.bob.root)
+        theirs = self.pod("stories", "M2", "T1.progress", run_dir=self.ann.root)
+        self.ann.milestone("M1")["owner"], self.ann.milestone("M2")["owner"] = "bob", "ann"
+        self.ann.save()
+        self.append(self.pod("stories", "M1", "S1.progress", run_dir=self.ann.root), "2026-01-01T00:00:00+00:00 STARTED")
+        self.append(theirs, "2026-01-01T00:00:00+00:00 STARTED")
+        self.assertRegex(sync.save(self.ann), r"^SAVED ")
+        self.assertRegex(sync.pull(self.bob), r"^PULLED ")
+        w = self.start(run_dir=self.bob.root)
+        self.started(run_dir=self.bob.root)
+        self.append(mine, "2026-01-01T00:01:00+00:00 COMMITTED one")
+        self.assertEqual(self.lines(w), ["PROGRESS S1 2026-01-01T00:01:00+00:00 COMMITTED one"])
+        self.append(self.pod("stories", "M1", "S1.progress", run_dir=self.ann.root), "2026-01-01T00:02:00+00:00 GREEN ann")
+        self.append(theirs, "2026-01-01T00:03:00+00:00 COMMITTED ann")
+        self.assertRegex(sync.save(self.ann), r"^SAVED ")
+        self.append(mine, "2026-01-01T00:04:00+00:00 COMMITTED two")
+        self.assertRegex(sync.save(self.bob), r"^SAVED ")
+        self.assertIn("GREEN ann", "".join(watch.lines_of(mine)))
+        self.append(mine, "2026-01-01T00:05:00+00:00 COMMITTED three")
+        self.assertEqual(self.lines(self.start(run_dir=self.bob.root)), ["PROGRESS S1 2026-01-01T00:04:00+00:00 COMMITTED two",
+                                                                        "PROGRESS S1 2026-01-01T00:05:00+00:00 COMMITTED three"])
 
     def test_skips_a_pull_while_another_podium_command_holds_the_lock(self):
         self.assertFalse(watch.busy(self.bob))

@@ -90,9 +90,9 @@ COMMANDS
         (relative to the run dir) pick the files; the request queue, its
         cursor, the watcher's heartbeat, the server log, repos/, worktrees/ and
         *.logs/ folders never sync.
-        sync.include and sync.exclude travel with the run; enabled, remote and
-        ref are this machine's. While on, every command that appends a major
-        event saves on its own.
+        The sync block, include and exclude too, is this machine's: a save
+        never pushes it and a pull never takes it. While on, every command
+        that appends a major event saves on its own.
           save: SAVED <sha> <message>[ (not pushed: <why>)] | UNCHANGED | BEHIND | FAILED <why>
           pull: PULLED <sha> | UP-TO-DATE | KEPT <why> | FAILED <why>
         Two machines that both saved merge: podium.json as concurrent commands
