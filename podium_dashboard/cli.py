@@ -102,6 +102,16 @@ COMMANDS
         To join a shared run on another machine: `podium --dir <run dir> sync on
         --remote <URL> --ref <ref>` in a dir with no run yet (or only what `init`
         writes), then `sync pull`.
+    asana link <url> [. | epic:<id> | milestone:<id>] | asana refresh
+        link: link the project (default), an epic or a milestone to the Asana
+        project or task the URL names (asana.kind). refresh: re-read every link
+        over the Asana REST API with $ASANA_TOKEN, else the keychain item
+        podium-asana: a line and an `asana` event per change, LINKED or NEW for
+        a linked task's new subtask, `ASK <subtask gid> "<name>" → <candidates>`
+        for one only you can place, COMPLETED for a milestone completed in Asana
+        but not landed. The orchestrator extension's on_asana_refresh sees each
+        task first. Without a token it prints NO_TOKEN and exits 3; an
+        ASANA-ERROR line exits 1.
     init --name <name> --command </command> --extension <path to .py> [--phases a,b,c]
         Name the run's orchestrator and its extension module in podium.json's
         `orchestrator` block, creating podium/podium.json when absent.
@@ -113,6 +123,7 @@ import os
 import sys
 
 from podium_dashboard import __version__, extension, sync
+from podium_dashboard.plugins import asana
 from podium_dashboard.state import (Podium, cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours,
                                     cmd_human, cmd_init, cmd_log, cmd_ready, cmd_release, cmd_requests, cmd_set,
                                     cmd_settle, cmd_status, cmd_whoami)
@@ -120,7 +131,8 @@ from podium_dashboard.state import (Podium, cmd_assume, cmd_assumptions, cmd_bat
 COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_batch, "ready": cmd_ready,
             "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
             "settle": cmd_settle, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
-            "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release}
+            "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
+            "asana": asana.cmd_asana}
 SUBCOMMANDS = ("server", "watch")
 NO_PODIUM = {"hours", "human", "whoami"}  # the user's, one per machine
 
