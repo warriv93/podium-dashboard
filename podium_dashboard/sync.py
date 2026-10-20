@@ -1,6 +1,6 @@
 """Opt-in git sync of the run state, podium.json's `sync` block: {enabled, remote, ref, include, exclude}.
 
-The state is committed onto `ref` (default refs/heads/podium/<run slug>) through a throwaway index, never touching a working
+The state is committed onto `ref` (default refs/heads/podium-run/<run slug>) through a throwaway index, never touching a working
 tree, index or HEAD, and pushed to `remote`: a remote name of the run's own repo (default origin), or a URL, whose
 commits live in a private bare cache per run under ~/.podium/sync, so a run outside any repo syncs too. `include`
 globs (relative to the run dir) pick the files; this machine's own files never go: the request queue and its cursor,
@@ -121,11 +121,11 @@ def enabled(p):
 
 
 def default_ref(p):
-    """refs/heads/podium/<the run dir's name, or its repo's for a hidden run dir like .deep-plan, in kebab case>."""
+    """refs/heads/podium-run/<the run dir's name, or its repo's for a hidden run dir like .deep-plan, in kebab case>."""
     name = os.path.basename(p.root)
     if name.startswith("."):
         name = os.path.basename(os.path.dirname(p.root))
-    return "refs/heads/podium/" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "run")
+    return "refs/heads/podium-run/" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "run")
 
 
 def is_url(remote):
@@ -577,19 +577,21 @@ def _pull(p, g, from_watcher):
 
 
 def status(p):
+    """`ref <ref>` first, so another machine can pass it to `sync on --ref`, then OFF or ON and the last save here."""
+    ref = settings(p).get("ref") or default_ref(p)
     if not enabled(p):
-        return "OFF"
+        return f"ref {ref} OFF"
     g, why = open_git(p)
     if not g:
-        return f"OFF ({why})"
+        return f"ref {ref} OFF ({why})"
     local = g.rev(g.ref + "^{commit}")
     if not local:
-        return f"ON {g.remote} {g.ref}, never saved here"
+        return f"ref {ref} ON {g.remote}, never saved here"
     try:
         changed = state_tree(p, g) != g.tree_of(local)
     except SyncError as e:
-        return f"ON {g.remote} {g.ref}, last save {local[:7]}; FAILED {e}"
-    return f"ON {g.remote} {g.ref}, last save {local[:7]}" + ("; changed since" if changed else "")
+        return f"ref {ref} ON {g.remote}, last save {local[:7]}; FAILED {e}"
+    return f"ref {ref} ON {g.remote}, last save {local[:7]}" + ("; changed since" if changed else "")
 
 
 def cmd_sync(p, args):
@@ -605,7 +607,7 @@ def cmd_sync(p, args):
             sys.exit(f"podium: sync on refused: {why}")
         p.data["sync"] = {**s, "enabled": True, "remote": remote, "ref": ref}
         p.save()
-        print(f"ON {remote} {ref}")
+        print(f"ON {remote} ref {ref}")
     elif verb == "off" and not rest:
         p.data["sync"] = {**settings(p), "enabled": False}
         p.save()

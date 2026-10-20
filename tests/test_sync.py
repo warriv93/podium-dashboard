@@ -14,7 +14,7 @@ sys.path.insert(0, ROOT)
 from podium_dashboard import sync  # noqa: E402
 from podium_dashboard.state import Podium  # noqa: E402
 
-REF = "refs/heads/podium/api"
+REF = "refs/heads/podium-run/api"
 DATA = {"project": {"title": "T"}, "active": {"epic": "e", "milestone": "M1"}, "needsYou": None,
         "epics": [{"id": "e", "milestones": [
             {"id": "M1", "status": "working", "phase": "build", "stories": [{"id": "S1", "status": "todo", "deps": []}]},
@@ -494,7 +494,7 @@ class Ref(SyncCase):
         hidden = self.run_in(os.path.join(self.tmp, "My Repo"))
         named = self.run_in(os.path.join(self.tmp, "Feature_X 2"), hidden=False)
         self.assertEqual((sync.default_ref(hidden), sync.default_ref(named)),
-                         ("refs/heads/podium/my-repo", "refs/heads/podium/feature-x-2"))
+                         ("refs/heads/podium-run/my-repo", "refs/heads/podium-run/feature-x-2"))
 
     def test_sync_on_sets_the_runs_default_ref(self):
         repo = self.clone("api")
@@ -502,7 +502,21 @@ class Ref(SyncCase):
         self.write(os.path.join(run, "podium", "podium.json"), json.dumps(DATA))
         r = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", run, "sync", "on"], capture_output=True,
                            text=True, env={**os.environ, "PYTHONPATH": ROOT})
-        self.assertEqual(r.stdout, "ON origin refs/heads/podium/api\n", r.stderr)
+        self.assertEqual(r.stdout, "ON origin ref refs/heads/podium-run/api\n", r.stderr)
+
+    def test_the_default_ref_lives_beside_an_existing_podium_branch(self):
+        git("--git-dir", self.bare, "update-ref", "refs/heads/podium", git("--git-dir", self.bare, "rev-parse", "main").strip())
+        repo = self.clone("api")
+        run = os.path.join(repo, ".deep-plan")
+        self.write(os.path.join(run, "podium", "podium.json"), json.dumps({**DATA, "sync": {"enabled": True}}))
+        p = Podium(run)
+        self.assertRegex(sync.save(p), r"^SAVED [0-9a-f]{7} save$")
+        self.assertEqual(sync.status(p).split(" ON ")[0], "ref refs/heads/podium-run/api")
+        self.assertTrue(git("--git-dir", self.bare, "rev-parse", "refs/heads/podium-run/api").strip())
+
+    def test_sync_status_names_the_ref_even_when_off(self):
+        p = self.run_in(os.path.join(self.tmp, "plain"), enabled=False, ref="refs/heads/podium")
+        self.assertEqual(sync.status(p), "ref refs/heads/podium OFF")
 
     def test_the_ref_moves_only_from_the_value_this_machine_last_saw(self):
         p = self.run_in(self.clone("a"))
@@ -571,9 +585,9 @@ class AutoSave(SyncCase):
                            text=True, env={**os.environ, "PYTHONPATH": ROOT})
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("not in a git repo", r.stderr)
-        self.assertEqual(self.podium(p, "sync", "on", "--remote", self.bare), f"ON {self.bare} {REF}\n")
+        self.assertEqual(self.podium(p, "sync", "on", "--remote", self.bare), f"ON {self.bare} ref {REF}\n")
         self.assertRegex(self.podium(p, "sync", "save"), r"^SAVED ")
-        self.assertRegex(self.podium(p, "sync", "status"), r"^ON .* last save [0-9a-f]{7}\n$")
+        self.assertRegex(self.podium(p, "sync", "status"), rf"^ref {REF} ON .* last save [0-9a-f]{{7}}\n$")
 
 
 if __name__ == "__main__":
