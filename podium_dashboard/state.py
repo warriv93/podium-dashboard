@@ -173,8 +173,18 @@ class Podium:
         return self.mine("needsYou")
 
     def assumptions_list(self):
-        found = self.mine("assumptions")
-        return found if isinstance(found, list) else []
+        return [a for _, a in self.numbered_assumptions()]
+
+    def numbered_assumptions(self):
+        """[(number, assumption)]: in a per-person run this person's own, numbered `<n>`, then the top-level ones from
+        before `people`, numbered `t<n>`; in any other run the top-level ones, numbered `<n>`."""
+        top = self.data.get("assumptions")
+        top = top if isinstance(top, list) else []
+        if not self.per_person():
+            return [(str(i), a) for i, a in enumerate(top)]
+        own = self.person().get("assumptions")
+        own = own if isinstance(own, list) else []
+        return [(str(i), a) for i, a in enumerate(own)] + [(f"t{i}", a) for i, a in enumerate(top)]
 
     # --- lookup -------------------------------------------------------------
     def epics(self):
@@ -483,7 +493,7 @@ def cmd_assume(p, args):
 
 
 def cmd_assumptions(p, _):
-    for i, a in enumerate(p.assumptions_list()):
+    for i, a in p.numbered_assumptions():
         if a.get("status") == "open":
             where = "/".join(x for x in (a.get("milestone"), a.get("story")) if x)
             print(f"{i} [{where}] {a['question']} → {a['choice']} ({a['why']})")
@@ -492,12 +502,9 @@ def cmd_assumptions(p, _):
 def cmd_settle(p, args):
     if len(args) != 2 or args[1] not in ("confirmed", "reversed"):
         sys.exit("settle <n>[,<n>...] <confirmed|reversed>")
-    assumed = p.assumptions_list()
-    try:
-        ids = [int(i) for i in args[0].split(",") if i]
-    except ValueError:
-        ids = []
-    if not ids or any(not 0 <= i < len(assumed) for i in ids):
+    assumed = dict(p.numbered_assumptions())
+    ids = [i for i in args[0].split(",") if i]
+    if not ids or any(i not in assumed for i in ids):
         sys.exit(f"no assumption {args[0]!r}")
     for i in ids:
         assumed[i]["status"] = args[1]
@@ -713,7 +720,7 @@ def queued_requests(p):
         end = data.rfind(b"\n", start) + 1 or start  # whole lines only: one being written waits for the next call
         set_requests_seen(p, end)
     lines, at = [], start
-    open_ = {str(i) for i, a in enumerate(p.assumptions_list()) if a.get("status") == "open"}
+    open_ = {i for i, a in p.numbered_assumptions() if a.get("status") == "open"}
     for raw in data[start:end].splitlines(keepends=True):
         at, here = at + len(raw), at
         if since <= here < to:

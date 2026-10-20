@@ -139,14 +139,24 @@ class PersonalState(Case):
     def test_assumptions_are_the_persons_own_once_they_made_one(self):
         run = self.run_at(os.path.join(self.tmp, "run"), {**DATA, "people": {}})
         self.assertEqual(self.podium(run, "assume", "q", "c", "w", "--story", "S1").stdout, "assumption 0\n")
-        self.assertEqual(self.podium(run, "assumptions").stdout, "0 [M1/S1] q → c (w)\n")
-        self.assertEqual(self.podium(run, "assumptions", me="b").stdout, "0 [] q0 → c (w)\n")
+        self.assertEqual(self.podium(run, "assumptions").stdout, "0 [M1/S1] q → c (w)\nt0 [] q0 → c (w)\n")
+        self.assertEqual(self.podium(run, "assumptions", me="b").stdout, "t0 [] q0 → c (w)\n")
         self.podium(run, "settle", "0", "confirmed")
         self.podium(run, "set", ".", "assumptions.0.why=w2")
         data = self.state(run)
         self.assertEqual((data["people"]["a"]["assumptions"][0]["status"], data["people"]["a"]["assumptions"][0]["why"]),
                          ("confirmed", "w2"))
         self.assertEqual(data["assumptions"][0]["status"], "open")
+
+    def test_settle_reaches_the_persons_own_and_the_older_top_level_assumptions(self):
+        run = self.run_at(os.path.join(self.tmp, "run"), {**DATA, "people": {}})
+        self.podium(run, "assume", "q", "c", "w")
+        self.assertEqual(self.podium(run, "settle", "0,t0", "reversed").stdout, "2 reversed\n")
+        data = self.state(run)
+        self.assertEqual((data["people"]["a"]["assumptions"][0]["status"], data["assumptions"][0]["status"]),
+                         ("reversed", "reversed"))
+        self.assertEqual(self.podium(run, "assumptions").stdout, "")
+        self.podium(run, "settle", "t1", "confirmed", code=1)
 
     def test_build_all_set_on_the_project_goes_to_the_persons_active_milestone(self):
         run = self.run_at(os.path.join(self.tmp, "run"), {**DATA, "people": {"a": {"active": {"milestone": "M2"}}}})
@@ -270,7 +280,7 @@ class TwoMachines(Case):
     def machine(self, name, data):
         clone = os.path.join(self.tmp, name)
         git("clone", "-q", self.bare, clone)
-        run = self.run_at(os.path.join(clone, ".deep-plan"), {**(data or {}), "sync": {"enabled": True}})
+        run = self.run_at(os.path.join(clone, ".deep-plan"), {**(data or {}), "sync": {"enabled": True, "ref": "refs/heads/podium"}})
         p = Podium(run)
         self.assertRegex(sync.save(p) if data else sync.pull(p), r"^(SAVED|PULLED) ")
         return run

@@ -80,11 +80,13 @@ COMMANDS
         The cursor lives in podium/cursor.json, local to this machine.
     sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status
         Opt-in git sync of the run state (podium.json's `sync` block), committed
-        onto <ref> (default refs/heads/podium) without touching a working tree,
+        onto <ref> (default refs/heads/podium/<run dir name, or the repo's for
+        .deep-plan>; each machine must use the same) without touching a working tree,
         index or HEAD, and pushed to <remote>: a remote of the run's repo
         (default origin), or a URL, which needs no repo. sync.include globs
         (relative to the run dir) pick the files; the request queue, its
-        cursor, the watcher's heartbeat and the server log never sync.
+        cursor, the watcher's heartbeat, the server log, repos/, worktrees/ and
+        *.logs/ folders never sync.
         sync.include and sync.exclude travel with the run; enabled, remote and
         ref are this machine's. While on, every command that appends a major
         event saves on its own.
@@ -92,7 +94,8 @@ COMMANDS
           pull: PULLED <sha> | UP-TO-DATE | KEPT <why> | FAILED <why>
         Two machines that both saved merge: podium.json as concurrent commands
         do, events and progress lines as their union; a text conflict keeps this
-        machine's file, writes the other as <file>.remote, and sets needsYou.
+        machine's file, writes the other as <file>.remote, and adds to your
+        needsYou. So does a local file the remote's save brings with other content.
     init --name <name> --command </command> --extension <path to .py> [--phases a,b,c]
         Name the run's orchestrator and its extension module in podium.json's
         `orchestrator` block, creating podium/podium.json when absent.

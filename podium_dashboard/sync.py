@@ -1,6 +1,6 @@
 """Opt-in git sync of the run state, podium.json's `sync` block: {enabled, remote, ref, include, exclude}.
 
-The state is committed onto `ref` (default refs/heads/podium) through a throwaway index, never touching a working
+The state is committed onto `ref` (default refs/heads/podium/<run slug>) through a throwaway index, never touching a working
 tree, index or HEAD, and pushed to `remote`: a remote name of the run's own repo (default origin), or a URL, whose
 commits live in a private bare cache per run under ~/.podium/sync, so a run outside any repo syncs too. `include`
 globs (relative to the run dir) pick the files; this machine's own files never go: the request queue and its cursor,
@@ -9,7 +9,9 @@ podium.json; `include` and `exclude` sync with the run. Two machines that both m
 common save: podium.json as concurrent commands do (rebase), except that a milestone both gave an owner keeps the
 remote's, the claim that reached it first; events.jsonl and *.progress as the union of their lines
 in time order, any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
-it as `<file>.remote`, and sets this person's needsYou. A pull or merge deletes only a file that common save had.
+it as `<file>.remote`, and adds to this person's needsYou; so does a file the run dir holds that the remote's save
+brings with other content. A pull or merge writes only files the incoming include and exclude lists carry, and
+deletes only a file that common save had, unchanged here, that those lists still carry.
 """
 import fnmatch
 import glob
@@ -29,10 +31,12 @@ from podium_dashboard.state import person_of, rebase
 
 MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner"}
 MAJOR_PHASES = {"spec", "architecture", "build"}
-REMOTE, REF = "origin", "refs/heads/podium"
+REMOTE = "origin"
 STATE = ["podium.json", "events.jsonl", "handoffs.json", "stories/**"]
 MACHINE = ("enabled", "remote", "ref")
-LOCAL = ["cursor.json", "requests.jsonl", "watcher.json", "server.log", "*.tmp", "*.remote"]
+LOCAL = ["cursor.json", "requests.jsonl", "watcher.json", "server.log", "*.tmp", "*.remote",
+         "repos/**", "worktrees/**", "**/*.logs/**", "*.logs/**"]
+IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 APPEND_ONLY = ["events.jsonl", "*.progress"]
 CACHE = "~/.podium/sync"
 WATCHER_LIVE = 30
@@ -72,8 +76,9 @@ class Git:
     def commit(self, tree, parents, message):
         return self.out("commit-tree", tree, *[a for c in parents for a in ("-p", c)], "-m", message).strip()
 
-    def update_ref(self, sha):
-        self.out("update-ref", self.ref, sha)
+    def update_ref(self, sha, old):
+        """Move the ref to `sha` only while it is still at `old` (None: absent)."""
+        self.out("update-ref", self.ref, sha, old or "")
 
     def blob(self, data):
         return self.out("hash-object", "-w", "--stdin", input=data, text=False).decode().strip()
@@ -86,7 +91,7 @@ class Git:
         found = {}
         for entry in self.out("ls-tree", "-r", "-z", "--full-tree", commit).split("\0"):
             meta, _, rel = entry.partition("\t")
-            if meta.split()[:2] in (["100644", "blob"], ["100755", "blob"]) and restorable(p, rel):
+            if meta.split()[:2] in (["100644", "blob"], ["100755", "blob"]) and restorable(p, rel, {}):
                 found[rel] = meta.split()[2]
         return found
 
@@ -115,6 +120,14 @@ def enabled(p):
     return p.synced()
 
 
+def default_ref(p):
+    """refs/heads/podium/<the run dir's name, or its repo's for a hidden run dir like .deep-plan, in kebab case>."""
+    name = os.path.basename(p.root)
+    if name.startswith("."):
+        name = os.path.basename(os.path.dirname(p.root))
+    return "refs/heads/podium/" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "run")
+
+
 def is_url(remote):
     return "://" in remote or remote.startswith(("/", "~", ".")) or bool(re.match(r"[^/:]+@[^/:]+:", remote))
 
@@ -122,7 +135,7 @@ def is_url(remote):
 def open_git(p, remote=None, ref=None):
     """(Git, None) where the run's sync plumbing runs, or (None, why it can't)."""
     s = settings(p)
-    remote, ref = remote or s.get("remote") or REMOTE, ref or s.get("ref") or REF
+    remote, ref = remote or s.get("remote") or REMOTE, ref or s.get("ref") or default_ref(p)
     if subprocess.run(["git", "check-ref-format", ref], capture_output=True).returncode or not ref.startswith("refs/"):
         return None, f"not a full ref name: {ref}"
     if is_url(remote):
@@ -154,26 +167,43 @@ def includes(p, block=None):
     return [g if prefix == "." else f"{prefix}/{g}" for g in STATE]
 
 
-def local_only(p, rel, block=None):
-    """Whether the run dir's `rel` is this machine's alone; a pattern without `/` matches the file name."""
-    patterns = LOCAL + [str(g) for g in (settings(p) if block is None else block).get("exclude") or []]
-    return ".git" in rel.split("/") or any(
-        fnmatch.fnmatchcase(rel if "/" in pattern else posixpath.basename(rel), pattern) for pattern in patterns)
-
-
-def restorable(p, rel):
-    parts = rel.split("/")
-    return bool(rel) and not rel.startswith("/") and not {"", ".", ".."} & set(parts) and not local_only(p, rel)
-
-
 def glob_pattern(pattern):
     parts = re.split(r"(\*\*|\*|\?)", pattern)
     return re.compile("".join({"**": ".*", "*": "[^/]*", "?": "[^/]"}.get(x, re.escape(x)) for x in parts))
 
 
+def local_only(p, rel, block=None):
+    """Whether the run dir's `rel` is this machine's alone: LOCAL or the block's exclude. A pattern with a `/` matches
+    the path from the run dir, one without it the file name."""
+    patterns = LOCAL + [str(g) for g in (settings(p) if block is None else block).get("exclude") or []]
+    return any(glob_pattern(pattern).fullmatch(rel) if "/" in pattern
+               else fnmatch.fnmatchcase(posixpath.basename(rel), pattern) for pattern in patterns)
+
+
+def git_dir_name(part):
+    """Whether a path component names a .git folder on a case-insensitive or Unicode-folding file system."""
+    return IGNORABLE.sub("", part).rstrip(". ").lower() == ".git"
+
+
+def restorable(p, rel, block=None):
+    parts = rel.split("/")
+    return (bool(rel) and not rel.startswith("/") and not {"", ".", ".."} & set(parts)
+            and not any(git_dir_name(x) for x in parts) and not local_only(p, rel, block))
+
+
+def inside(p, rel):
+    """Whether the run dir's `rel` lands inside the run dir without passing through a symlink."""
+    path = p.root
+    for part in rel.split("/"):
+        path = os.path.join(path, part)
+        if os.path.islink(path):
+            return False
+    return os.path.realpath(path).startswith(os.path.realpath(p.root) + os.sep)
+
+
 def covered(p, rel, block):
     """Whether the `sync` block's include and exclude lists carry the run dir's `rel`."""
-    return any(glob_pattern(g).fullmatch(rel) for g in includes(p, block)) and not local_only(p, rel, block)
+    return any(glob_pattern(g).fullmatch(rel) for g in includes(p, block)) and restorable(p, rel, block)
 
 
 def synced_files(p):
@@ -182,7 +212,7 @@ def synced_files(p):
     for pattern in includes(p):
         for path in glob.glob(os.path.join(glob.escape(p.root), pattern), recursive=True):
             rel = os.path.relpath(path, p.root).replace(os.sep, "/")
-            if os.path.isfile(path) and not os.path.islink(path) and restorable(p, rel):
+            if os.path.isfile(path) and inside(p, rel) and restorable(p, rel):
                 found.add(rel)
     return sorted(found)
 
@@ -209,11 +239,11 @@ def shared(raw):
 
 
 def with_machine_keys(p, content):
-    """A synced podium.json, None when the save has none, with this machine's own `sync` keys put back."""
+    """A synced podium.json with this machine's own `sync` keys put back; None when the save has none."""
     block = p.read().get("sync")
     machine = {k: v for k, v in block.items() if k in MACHINE} if isinstance(block, dict) else {}
     try:
-        data = json.loads(content) if content is not None else {}
+        data = json.loads(content) if content is not None else None
     except ValueError:
         return content
     if not machine or not isinstance(data, dict):
@@ -247,27 +277,32 @@ def state_tree(p, g):
         return g.out("write-tree", env=env).strip()
 
 
+def on_disk(p, rel):
+    """The run dir's `rel` as it would sync, None when absent."""
+    try:
+        with open(os.path.join(p.root, *rel.split("/")), "rb") as f:
+            raw = f.read()
+    except OSError:
+        return None
+    return shared(raw) if rel == podium_json(p) else raw
+
+
 def apply(p, files, gone):
     """Write each of `files` ({path relative to the run dir: content}) that differs, with this machine's own `sync`
-    keys kept in podium.json, and delete the files in `gone` (synced before, and dropped since) that the incoming
-    include and exclude lists still carry: a file they no longer carry stops syncing and stays."""
+    keys kept in podium.json, and delete the files in `gone`. podium.json is written only when `files` has it."""
     files, pj = dict(files), podium_json(p)
-    try:
-        incoming = json.loads(files[pj]).get("sync") if pj in files else None
-    except (ValueError, AttributeError):
-        incoming = None
-    block = incoming if isinstance(incoming, dict) else {}
-    gone = {rel for rel in gone if covered(p, rel, block)}
-    content = with_machine_keys(p, files.get(pj))
-    if content is not None:
-        files[pj] = content
+    if pj in files:
+        files[pj] = with_machine_keys(p, files[pj])
     with p.locked():
-        for rel in sorted(set(gone) - set(files)):
-            try:
-                os.remove(os.path.join(p.root, *rel.split("/")))
-            except FileNotFoundError:
-                pass
+        for rel in sorted(set(gone) - set(files) - {pj}):
+            if inside(p, rel):
+                try:
+                    os.remove(os.path.join(p.root, *rel.split("/")))
+                except FileNotFoundError:
+                    pass
         for rel, content in files.items():
+            if not inside(p, rel):
+                continue
             path = os.path.join(p.root, *rel.split("/"))
             try:
                 with open(path, "rb") as f:
@@ -352,12 +387,39 @@ def merge_file(p, rel, base, mine, theirs):
     return (r.stdout, True) if r.returncode == 0 else (mine, False)
 
 
+def sync_block(content):
+    try:
+        data = json.loads(content) if content is not None else None
+    except ValueError:
+        return {}
+    block = data.get("sync") if isinstance(data, dict) else None
+    return block if isinstance(block, dict) else {}
+
+
+def flag(p, data, conflicts):
+    """Add the conflicts to this person's needsYou in podium.json's `data`, after any reason already pending."""
+    person = person_of(data, p.me)
+    pending = person["needsYou"] if "needsYou" in person else data.get("needsYou")
+    reason = f"sync conflict in {', '.join(conflicts)}"
+    if reason in str(pending.get("reason") if isinstance(pending, dict) else pending):
+        return
+    if isinstance(pending, dict):
+        person["needsYou"] = {**pending, "reason": "; ".join(str(x) for x in (pending.get("reason"), reason) if x)}
+    else:
+        person["needsYou"] = {"reason": f"{pending}; {reason}" if pending else reason}
+
+
 def merged(p, g, base, mine, theirs):
-    """(the files of commits `mine` and `theirs` merged against `base`, with a `<file>.remote` beside each conflict;
-    the files of `base` the merge drops)."""
+    """(the files of commits `mine` and `theirs` merged against `base` (None: no common save), only those the merged
+    include and exclude lists carry, with a `<file>.remote` beside each conflict; the files to delete). A file the run
+    dir holds with content neither `mine` nor the merge has is a conflict too: it stays as it is."""
     b, m, t = (g.files(p, c) if c else {} for c in (base, mine, theirs))
-    out, conflicts = {}, []
-    for rel in sorted(set(m) | set(t)):
+    pj, out, conflicts, block = podium_json(p), {}, [], None
+    for rel in sorted(set(m) | set(t), key=lambda x: x != pj):
+        if rel != pj:
+            block = sync_block(out.get(pj)) if block is None else block
+            if not covered(p, rel, block):
+                continue
         bs, ms, ts = b.get(rel), m.get(rel), t.get(rel)
         if ms == ts or ts == bs:
             chosen = ms
@@ -373,12 +435,19 @@ def merged(p, g, base, mine, theirs):
             continue
         if chosen:
             out[rel] = g.cat(chosen)
+    for rel in [r for r in out if r != pj and not r.endswith(".remote")]:
+        here = on_disk(p, rel)
+        if here is not None and here != out[rel] and (rel not in m or here != g.cat(m[rel])):
+            out[rel + ".remote"] = out.pop(rel)
+            conflicts.append(rel)
     if conflicts:
-        pj = podium_json(p)
-        data = json.loads(out[pj]) if pj in out else {}
-        person_of(data, p.me)["needsYou"] = {"reason": f"sync conflict in {', '.join(conflicts)}"}
+        data = json.loads(out[pj]) if pj in out else json.loads(on_disk(p, pj) or b"{}")
+        flag(p, data, conflicts)
         out[pj] = dump(data)
-    return out, set(b) - set(out)
+    block = sync_block(out.get(pj))
+    gone = {rel for rel in set(b) - set(out) - set(conflicts) if covered(p, rel, block)
+            and on_disk(p, rel) in (None, g.cat(b[rel]), g.cat(m[rel]) if rel in m else None)}
+    return out, gone
 
 
 def merge_into(p, g, head, remote, message):
@@ -430,17 +499,16 @@ def _save(p, g, message):
             if not tree:
                 return "UNCHANGED"
             if remote and tree == g.tree_of(remote) and (not local or g.ancestor(local, remote)):
-                g.update_ref(remote)
+                if remote != local:
+                    g.update_ref(remote, local)
                 return "UNCHANGED"
-            if remote and not local:
-                return "BEHIND"
             head = local if tree == g.tree_of(local) else g.commit(tree, [local] if local else [], f"podium: {message}")
             if remote and not g.ancestor(remote, head):
                 if g.ancestor(head, remote):
                     return "BEHIND"
                 head, merged_here = merge_into(p, g, head, remote, f"podium: {message}"), True
             if head != local:
-                g.update_ref(head)
+                g.update_ref(head, local)
         if merged_here:
             p.refresh()
         if err:
@@ -461,16 +529,17 @@ def watcher_running(p):
         return False
 
 
-def pull(p):
+def pull(p, from_watcher=False):
     """Bring this machine's run state up to the remote's saves. One line: PULLED <sha>, UP-TO-DATE, KEPT <why>
-    (changes since the last save, a live watcher, or the remote out of reach), FAILED <why>, or OFF."""
+    (changes since the last save, a live watcher, or the remote out of reach), FAILED <why>, or OFF. The watcher
+    itself pulls `from_watcher`, past its own heartbeat."""
     if not enabled(p):
         return "OFF"
     g, why = open_git(p)
     if not g:
         return f"OFF ({why})"
     try:
-        out = _pull(p, g)
+        out = _pull(p, g, from_watcher)
     except SyncError as e:
         return f"FAILED {e}"
     if out.startswith("PULLED"):
@@ -478,7 +547,7 @@ def pull(p):
     return out
 
 
-def _pull(p, g):
+def _pull(p, g, from_watcher):
     remote, err = g.remote_tip()
     if err:
         return f"KEPT {err}"
@@ -490,22 +559,20 @@ def _pull(p, g):
             return "UP-TO-DATE"
         if tree == g.tree_of(remote):
             if not local or g.ancestor(local, remote):
-                g.update_ref(remote)
+                g.update_ref(remote, local)
             return "UP-TO-DATE"
-        if tree and not local:
-            return "KEPT this machine has run state it never saved"
-        if tree and tree != g.tree_of(local):
+        if local and tree and tree != g.tree_of(local):
             return "KEPT this machine has changes since its last save"
-        if watcher_running(p):
+        if not from_watcher and watcher_running(p):
             return "KEPT the watcher is running"
-        if local and not g.ancestor(local, remote):
+        if tree and not local:
+            head = merge_into(p, g, g.commit(tree, [], "podium: save"), remote, "podium: merge")
+        elif local and not g.ancestor(local, remote):
             head = merge_into(p, g, local, remote, "podium: merge")
         else:
-            theirs = g.files(p, remote)
-            gone = set(g.files(p, local)) - set(theirs) if local else set()
-            apply(p, {rel: g.cat(sha) for rel, sha in theirs.items()}, gone)
+            apply(p, *merged(p, g, local, local, remote))
             head = remote
-        g.update_ref(head)
+        g.update_ref(head, local)
     return f"PULLED {head[:7]}"
 
 
@@ -532,7 +599,7 @@ def cmd_sync(p, args):
         if len(rest) % 2 or set(opts) - {"--remote", "--ref"}:
             sys.exit(USAGE)
         s = settings(p)
-        remote, ref = opts.get("--remote") or s.get("remote") or REMOTE, opts.get("--ref") or s.get("ref") or REF
+        remote, ref = opts.get("--remote") or s.get("remote") or REMOTE, opts.get("--ref") or s.get("ref") or default_ref(p)
         g, why = open_git(p, remote, ref)
         if not g:
             sys.exit(f"podium: sync on refused: {why}")
