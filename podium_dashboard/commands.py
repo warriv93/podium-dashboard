@@ -9,7 +9,7 @@ import sys
 from podium_dashboard import human, sync
 from podium_dashboard.files import git_argv
 from podium_dashboard.human import availability, day_set, human_hours, human_line, me, write_human
-from podium_dashboard.state import NOW, STAGES, assign, building, pairs, queued_requests
+from podium_dashboard.state import NOW, STAGES, assign, building, pairs, queued_requests, valid_id
 
 PERSONAL = ("active", "needsYou")
 
@@ -308,6 +308,8 @@ def cmd_log(p, args):
     m, s, rest = story_target(p, args)
     if not rest or rest[0] not in stages(p):
         sys.exit(f"log [<milestone>/<story>] <STAGE> <note>, STAGE one of {' '.join(stages(p))}")
+    if not (valid_id(m["id"]) and valid_id(s["id"])):
+        sys.exit(f"not a safe id: {m['id']!r}/{s['id']!r}")
     note = " ".join(" ".join(rest[1:]).split())  # one line: a newline would start a line of its own
     path = os.path.join(p.dir, "stories", m["id"], f"{s['id']}.progress")
     os.makedirs(os.path.dirname(path), exist_ok=True)

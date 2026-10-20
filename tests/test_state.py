@@ -302,6 +302,21 @@ class Log(Run):
     def test_rejects_an_unknown_stage(self):
         self.podium("log", "M1/S1", "DONE", "x", code=1)
 
+    def test_refuses_an_id_that_is_not_a_plain_path_component(self):
+        self.data["epics"][0]["milestones"][0]["id"] = "../../../x"
+        self.data["epics"][0]["milestones"][0]["stories"][1]["id"] = "../../y"
+        self.write()
+        before = sorted(os.path.join(d, n) for d, _, ns in os.walk(self.tmp) for n in ns)
+        self.podium("log", "../../../x/S1", "STARTED", "go", code=1)
+        self.podium("log", "STARTED", "go", env={"PODIUM_MILESTONE": "../../../x", "PODIUM_STORY": "../../y"}, code=1)
+        self.assertEqual(sorted(os.path.join(d, n) for d, _, ns in os.walk(self.tmp) for n in ns), before)
+
+    def test_a_valid_id_is_one_short_plain_path_component(self):
+        for good in ("M1", "s-2_b", "x" * 32):
+            self.assertTrue(state.valid_id(good), good)
+        for bad in ("", "..", "../x", "a/b", "a\\b", "x" * 33, "M1\n", "M 1", None, 7):
+            self.assertFalse(state.valid_id(bad), bad)
+
     def test_asks_which_story_outside_a_story_branch(self):
         self.podium("log", "STARTED", "go", code=1)
 

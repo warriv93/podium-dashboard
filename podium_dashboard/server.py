@@ -5,11 +5,13 @@ whose `podium/` folder holds the run's files) on 127.0.0.1, and turns the Podium
 `requests.jsonl`, which the orchestrator watches. The browser only ever sends an action and an id; prompts come from
 the run's orchestrator extension.
 
-It answers only requests whose Host is 127.0.0.1:<port> or localhost:<port>, and a POST or DELETE only when its
-Origin, if any, is that same server: a page elsewhere can't reach it through DNS rebinding or a cross-site form.
+It answers only requests whose Host is 127.0.0.1:<port> or localhost:<port>, and any but a GET or HEAD only when its
+Origin, if any, is that same server: a page elsewhere can't reach it through DNS rebinding or a cross-site form. Only
+a POST, a DELETE or a visible tab's poll from its own page counts as use (below); a HEAD or an OPTIONS never does.
 GET /repo/<path> serves a file of the run dir's git toplevel, else of the run dir, never one outside it. Everything
 it serves but the page itself comes sandboxed (Content-Security-Policy): a synced HTML file runs in an origin of its
-own, whose POSTs say `Origin: null` and are refused.
+own, whose POSTs say `Origin: null` and are refused. The page's own policy lets it load and fetch only from this
+server.
 
 A story in a path is `<story>`, of the active milestone, or `<milestone>/<story>`, of any: two milestones can build
 at once.
@@ -78,9 +80,9 @@ from podium_dashboard import extension
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, write_human
 from podium_dashboard.plugins import paseo
-from podium_dashboard.state import ACT_ON, NOW, Podium, checkout_path, find_run, podium_dir, watcher_running
+from podium_dashboard.state import ACT_ON, ID, NOW, Podium, checkout_path, find_run, podium_dir, watcher_running
 
-STORY_ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+STORY_ID = ID
 SETTLE = {"confirm", "reverse"}
 MILESTONE_ACTIONS = {"plan", "build-all", "stop", "claim"}
 NO_PROMPT = "no orchestrator extension prompt"
@@ -96,8 +98,10 @@ def stale():
 
 
 def restart():
-    """Replace this process with a fresh server: same arguments and port, no fork (already detached if it was)."""
+    """Replace this process with a fresh server: same arguments and port, no fork (already detached if it was). It
+    starts in the folder holding this package, as `python -m` imports from the cwd first: never a run dir's code."""
     time.sleep(0.3)  # let the reply go out
+    os.chdir(os.path.dirname(PACKAGE))
     os.execv(sys.executable, [sys.executable, "-m", "podium_dashboard.server", *ARGV])
 
 
@@ -140,6 +144,8 @@ def find_story(root, ident):
 PAGE = os.path.join(PACKAGE, "podium.html")
 PAGE_PATHS = ("/", "/index.html", "/podium.html")
 SANDBOX = "sandbox allow-scripts allow-forms allow-popups"
+PAGE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+            "connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'")
 
 
 def orchestrator_of(data):
@@ -287,20 +293,26 @@ def make_handler(root):
             if not self.trusted():
                 self.send_error(403)
                 return False
-            if self.command != "GET" or self.headers.get("X-Podium-Visible") == "1":
+            visible = self.headers.get("X-Podium-Visible") == "1" and self.same_origin()
+            if self.command in ("POST", "DELETE") or (self.command == "GET" and visible):
                 SEEN.update(at=time.time(), by=f"{self.command} {self.path.split('?')[0]} from {self.headers.get('User-Agent', '?')[:60]}")
                 if not self.path.startswith("/human/"):
                     self.at_desk()
             return True
 
         def trusted(self):
-            """The Host names this server (no DNS rebinding), and a POST or DELETE comes from its own page."""
+            """The Host names this server (no DNS rebinding), and any request but a GET or HEAD comes from its own
+            page."""
             port = self.server.server_address[1]
             if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}"):
                 return False
+            return self.command in ("GET", "HEAD") or self.same_origin()
+
+        def same_origin(self):
+            """No Origin (not a browser), or this server's own; never `null`, a sandboxed file's."""
+            port = self.server.server_address[1]
             origin = self.headers.get("Origin")
-            return (self.command not in ("POST", "DELETE") or origin is None
-                    or origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}"))
+            return origin is None or origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}")
 
         def at_desk(self):
             """Someone using a Podium tab is at a computer (the server answers 127.0.0.1 only), so Mobile
@@ -320,8 +332,8 @@ def make_handler(root):
 
         def end_headers(self):
             self.send_header("Cache-Control", "no-store")
-            if getattr(self, "path", "").split("?")[0] not in PAGE_PATHS:
-                self.send_header("Content-Security-Policy", SANDBOX)
+            page = getattr(self, "path", "").split("?")[0] in PAGE_PATHS
+            self.send_header("Content-Security-Policy", PAGE_CSP if page else SANDBOX)
             super().end_headers()
 
         def do_GET(self):
@@ -567,7 +579,7 @@ def main(argv=None):
     exclude_run_files(root)
     port = free_port(args.port)
     server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(root))
-    ARGV[:] = [a for a in argv if a != "--detach"] + ["--port", str(port)]
+    ARGV[:] = [a for a in argv if a != "--detach"] + ["--dir", root, "--port", str(port)]
     print(f"http://127.0.0.1:{port}/", flush=True)
     if args.detach:
         if os.fork():

@@ -384,12 +384,13 @@ class Pull(SyncCase):
 
     def test_python_code_never_syncs_either_way(self):
         a = self.run_in(self.clone("a"), {**DATA, "sync": {}}, include=["podium/**"])
-        for name in ("tool.py", "tool.pyc", "site.pth", "notes.md"):
+        for name in ("tool.py", "tool.pyc", "site.pth", "ext.so", "ext.dylib", "ext.pyd", "notes.md"):
             self.write(os.path.join(a.dir, name), "x\n")
         self.assertRegex(sync.save(a), r"^SAVED ")
         self.assertEqual(self.remote_files(), ["podium/notes.md", "podium/podium.json"])
         self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["**"]}}), "podium/ext.py": "x\n",
-                        "lib/ext.pyc": "x\n", "lib/evil.pth": "x\n", "docs/in.md": "x\n"})
+                        "lib/ext.pyc": "x\n", "lib/evil.pth": "x\n", "lib/_ext.cpython-39-darwin.so": "x\n",
+                        "lib/ext.dylib": "x\n", "lib/ext.pyd": "x\n", "docs/in.md": "x\n"})
         b = self.run_in(self.clone("b"), None, include=["**"])
         self.assertRegex(sync.pull(b), r"^PULLED ")
         found = sorted(os.path.relpath(os.path.join(d, n), b.root) for d, _, ns in os.walk(b.root) for n in ns

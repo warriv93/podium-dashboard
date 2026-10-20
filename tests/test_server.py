@@ -12,6 +12,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -148,6 +149,53 @@ class Hardening(Server):
         self.assertEqual(self.call("POST", "/plan/M1", {"Origin": f"http://localhost:{self.port}"})[0], 202)
         self.assertEqual(self.call("GET", "/info", {"Origin": "http://evil.example"})[0], 200)
 
+    def test_refuses_any_other_method_from_another_origin_and_counts_no_head_or_options_as_use(self):
+        moved = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat(timespec="seconds")
+        human = json.dumps({"mode": "mobile", "until": "2099-01-01T10:00", "at": moved})
+        self.write("human.json", human)
+        self.serve()
+        visible = {"X-Podium-Visible": "1"}
+        self.assertEqual(self.call("OPTIONS", "/plan/M1", {"Origin": "http://evil.example", **visible})[0], 403)
+        self.assertEqual(self.call("PUT", "/plan/M1", {"Origin": "null", **visible})[0], 403)
+        self.response("HEAD", "/podium/podium.json", {"Origin": "http://evil.example", **visible})
+        self.response("HEAD", "/podium/podium.json", visible)
+        self.response("OPTIONS", "/podium/podium.json", visible)
+        self.response("GET", "/podium/podium.json", {"Origin": "http://evil.example", **visible})
+        with open(self.env["PODIUM_HUMAN"]) as f:
+            self.assertEqual(f.read(), human)
+        self.assertEqual(self.call("GET", "/info")[1]["lastUse"]["by"], "start")
+        self.response("GET", "/podium/podium.json", visible)
+        self.assertEqual(self.call("GET", "/human")[1]["mode"], "available")
+
+    def test_a_restart_never_imports_code_from_the_cwd(self):
+        cwd = os.path.join(self.tmp, "pulled")
+        marker = os.path.join(self.tmp, "imported")
+        self.write("pulled/json.py", f"open({marker!r}, 'w').close()\nraise ImportError('planted')\n")
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(DATA, f)
+        self.port = free_port()
+        boot = "import sys; sys.path.insert(0, sys.argv[1]); from podium_dashboard import server; server.main(sys.argv[2:])"
+        proc = subprocess.Popen([sys.executable, "-I", "-c", boot, ROOT, "--dir", os.path.relpath(self.run_dir, cwd),
+                                 "--port", str(self.port), "--idle", "0", "--git-every", "0"],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=self.env, cwd=cwd)
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        self.assertEqual(self.wait_for_info()["runDir"], self.run_dir)
+        self.assertEqual(self.call("POST", "/restart")[0], 202)
+        time.sleep(0.5)
+        info = self.wait_for_info()
+        self.assertIsNone(proc.poll())
+        self.assertFalse(os.path.exists(marker))
+        self.assertEqual((info["runDir"], info["lastUse"]["by"]), (self.run_dir, "start"))
+
+    def wait_for_info(self):
+        for _ in range(100):
+            try:
+                return self.call("GET", "/info")[1]
+            except OSError:
+                time.sleep(0.05)
+        self.fail("the server never answered")
+
     def test_refuses_a_post_from_a_sandboxed_page(self):
         self.serve()
         self.watched()
@@ -166,7 +214,9 @@ class Hardening(Server):
             self.assertEqual(r.getheader("Content-Security-Policy"), "sandbox allow-scripts allow-forms allow-popups", path)
         for path in ("/", "/index.html", "/podium.html?x=1"):
             r, _ = self.response("GET", path)
-            self.assertEqual((r.status, r.getheader("Content-Security-Policy")), (200, None), path)
+            self.assertEqual(r.status, 200, path)
+            self.assertIn("default-src 'self'", r.getheader("Content-Security-Policy"), path)
+            self.assertIn("base-uri 'none'", r.getheader("Content-Security-Policy"), path)
 
     def test_serves_files_of_the_repo_and_nothing_above_it(self):
         self.write("api/mock.html", "mock")

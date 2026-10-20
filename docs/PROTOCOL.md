@@ -68,9 +68,9 @@ Every verb that changes a milestone should call it and accept `--force`.
 
 `podium server [--dir D] [--port 8765] [--idle 60] [--detach] [--git-every 5]` serves the page and the run on `127.0.0.1`, on the first free port from `--port`. It stops after `--idle` minutes without use (0 never).
 
-Every request must carry a `Host` of `127.0.0.1:<port>` or `localhost:<port>`; any other answers 403 (DNS rebinding). A POST or DELETE with an `Origin` header must have `http://127.0.0.1:<port>` or `http://localhost:<port>`; any other answers 403 (cross-site forms), `null` included. Without an `Origin` (curl) it passes.
+Every request must carry a `Host` of `127.0.0.1:<port>` or `localhost:<port>`; any other answers 403 (DNS rebinding). Any request but a GET or HEAD with an `Origin` header must have `http://127.0.0.1:<port>` or `http://localhost:<port>`; any other answers 403 (cross-site forms), `null` included. Without an `Origin` (curl) it passes. Only a POST, a DELETE, or a GET from the page's visible tab with no foreign `Origin` counts as use; a HEAD or an OPTIONS never does.
 
-Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups`: a synced HTML file opened from `/podium/...` or `/repo/...` runs in an origin of its own, and its POSTs, `Origin: null`, are refused.
+Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Content-Security-Policy: sandbox allow-scripts allow-forms allow-popups`: a synced HTML file opened from `/podium/...` or `/repo/...` runs in an origin of its own, and its POSTs, `Origin: null`, are refused. The page carries `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`: it loads and fetches only from this server, and links only `http:` and `https:` URLs from the run's state.
 
 | Request | Answer |
 |---|---|

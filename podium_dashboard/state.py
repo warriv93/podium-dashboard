@@ -29,6 +29,12 @@ NOW = lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
 STAGES = ("STARTED", "RED", "GREEN", "REFACTOR", "FIX", "CONTRACT", "COMMITTED", "FAILED")
 ACT_ON = {"confirm", "reverse", "asana", "asana-done"}
 WATCHER_LIVE = 30
+ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
+
+def valid_id(x):
+    """Whether `x` is an id safe to use as a path component: an epic's, milestone's or story's from podium.json."""
+    return isinstance(x, str) and bool(ID.fullmatch(x))
 
 
 def podium_dir(root):

@@ -693,7 +693,7 @@ function phases() {
   const known = Object.fromEntries(DEFAULT_PHASES);
   return own.map((p) => (Array.isArray(p) ? [String(p[0]), String(p[1] ?? p[0])] : [String(p), known[p] || String(p).charAt(0).toUpperCase() + String(p).slice(1).replace(/[-_]/g, " ")]));
 }
-const maxAttempts = () => S.project?.orchestrator?.maxAttempts || 2;
+const maxAttempts = () => Number(S.project?.orchestrator?.maxAttempts) || 2;
 const orch = () => [S.info?.orchestrator, S.project?.orchestrator].find((o) => o?.command) || null;
 const orchCmd = () => orch()?.command || "";
 const SERVER_DOWN = "The Podium server didn't accept that: is it running? Start it with podium server --detach";
@@ -714,6 +714,11 @@ function setTheme(t) {
 }
 setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = (n) => Number(n) || 0;
+function safeUrl(url) {
+  if (typeof url !== "string" || !url) return "";
+  try { return ["http:", "https:"].includes(new URL(url, location.href).protocol) ? url : ""; } catch { return ""; }
+}
 
 function vsc(path, base = "runDir") {
   if (!S.info || !path) return null;
@@ -859,7 +864,7 @@ function parseJsonl(text) {
   return text.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 }
 const key = (ms, id) => `${ms}/${id}`;
-const progressPath = (ms, id) => `${S.base}stories/${ms}/${id}.progress`;
+const progressPath = (ms, id) => `${S.base}stories/${encodeURIComponent(ms)}/${encodeURIComponent(id)}.progress`;
 function progressLines(ms, id) {
   return (S.progress[key(ms, id)] || "").split("\n").filter(Boolean).map((l) => {
     const m = l.match(/^(\S+)\s+(\S+)\s*(.*)$/);
@@ -909,15 +914,15 @@ function commitsOf(s) {
 function repoUrl(repo) {
   if (!repo) return S.epic?.repoUrl || S.project?.repoUrl;
   const pr = S.project.epics.flatMap((E) => (E.milestones || []).map((m) => m.repos?.[repo]?.pr)).find((x) => x?.url);
-  return pr ? pr.url.replace(/\/pull\/.*$/, "") : null;
+  return pr ? String(pr.url).replace(/\/pull\/.*$/, "") : null;
 }
 const PR_LABEL = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
 function prPill(pr, ms) {
   if (!pr) return `<span class="pr none">no PR yet</span>`;
   const st = PR_LABEL[pr.state] ? pr.state : "open";
   const text = `${ms ? `${esc(ms)} ` : ""}#${esc(pr.number)} ${PR_LABEL[st]}`;
-  const tip = `title="${ms ? `${esc(ms)} · ` : ""}PR #${esc(pr.number)} ${st}"`;
-  return pr.url ? `<a class="pr ${st}" href="${esc(pr.url)}" target="_blank" rel="noopener" ${tip}>${text}</a>` : `<span class="pr ${st}" ${tip}>${text}</span>`;
+  const tip = `title="${ms ? `${esc(ms)} · ` : ""}PR #${esc(pr.number)} ${st}"`, url = safeUrl(pr.url);
+  return url ? `<a class="pr ${st}" href="${esc(url)}" target="_blank" rel="noopener" ${tip}>${text}</a>` : `<span class="pr ${st}" ${tip}>${text}</span>`;
 }
 const msRepoRows = (m) => msRepos(m).map((r) => ({ repo: r.repo, prs: r.pr ? [{ pr: r.pr }] : [] }));
 function epicRepoRows(milestones) {
@@ -1085,14 +1090,14 @@ function fullMs(m, all) {
   else if (left.length) foot = `<span class="badge waiting">Needs ${esc(left.join(", "))}</span>`;
   else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
   const map = Object.fromEntries(stories.map((s) => [s.id, s]));
-  const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${fullStatus(s, map)}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
+  const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
-  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : st}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span><div class="foot">${foot}</div>${waves}</div>`;
+  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span><div class="foot">${foot}</div>${waves}</div>`;
 }
 function miniMap(vm) {
   const all = Object.fromEntries(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const pills = runOrder(Object.values(all).filter((x) => x.status !== "dropped")).map((x) =>
-    `<span class="mpill ${fullStatus(x, all)} ${x.id === vm.id ? "here" : ""}" ${x.id === vm.id ? "" : `data-drill="${esc(x.id)}"`} title="${esc(`${x.id} · ${x.title}${x.owner ? ` · ${isMe(x.owner) ? "yours" : x.owner}` : ""}`)}">${esc(x.id)}</span>`).join("");
+    `<span class="mpill ${esc(fullStatus(x, all))} ${x.id === vm.id ? "here" : ""}" ${x.id === vm.id ? "" : `data-drill="${esc(x.id)}"`} title="${esc(`${x.id} · ${x.title}${x.owner ? ` · ${isMe(x.owner) ? "yours" : x.owner}` : ""}`)}">${esc(x.id)}</span>`).join("");
   return `<div class="mini" data-out tabindex="0" title="Back to the full map"><span class="mini-l">‹ Full map</span><span class="mpills">${pills}</span></div>`;
 }
 function renderFull() {
@@ -1145,7 +1150,8 @@ function msPrs(m) {
   return [m.pr, ...Object.entries(m.repos || {}).map(([repo, r]) => r?.pr && { ...r.pr, repo })].filter(Boolean);
 }
 const PR_WORD = { draft: "Draft PR", open: "PR open", merged: "PR merged", closed: "PR closed" };
-const prLink = (pr) => `<a class="prlink" href="${esc(pr.url)}" target="_blank" rel="noopener">${PR_WORD[pr.state] || "PR"}${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)} ↗</a>`;
+const prLink = (pr) => ((url, text) => (url ? `<a class="prlink" href="${esc(url)}" target="_blank" rel="noopener">${text} ↗</a>` : `<span class="prlink">${text}</span>`))(
+  safeUrl(pr.url), `${esc(PR_WORD[pr.state] || "PR")}${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)}`);
 const PLANNING = ["recon", "spec", "mock", "architecture", "stories"];
 const planningPhases = () => ((ks) => (ks.indexOf("build") > 0 ? ks.slice(0, ks.indexOf("build")) : PLANNING))(phases().map(([k]) => k));
 const planning = (m) => m.status === "working" && planningPhases().includes(m.phase);
@@ -1182,7 +1188,7 @@ function renderStepper() {
     const cls = i < now ? "past" : i === now ? "now" : "";
     const bar = i ? `<span class="step-bar ${i <= now ? "past" : ""}"></span>` : "";
     const t = cls && pt[k] ? pt[k] : null;
-    return `${bar}<span class="step ${cls}"${t ? ` title="${label}: ${dur(t.ms)}${t.open ? " so far" : ""}"` : ""}><span class="dot">${cls === "past" ? "✓" : i + 1}</span>${label}${t ? `<span class="sdur">${shortDur(t.ms)}</span>` : ""}</span>`;
+    return `${bar}<span class="step ${cls}"${t ? ` title="${esc(label)}: ${dur(t.ms)}${t.open ? " so far" : ""}"` : ""}><span class="dot">${cls === "past" ? "✓" : i + 1}</span>${esc(label)}${t ? `<span class="sdur">${shortDur(t.ms)}</span>` : ""}</span>`;
   }).join("");
   const cur = $("stepper").querySelector(".step.now");
   if (cur) $("stepper").scrollLeft = cur.offsetLeft - $("stepper").clientWidth / 2 + cur.clientWidth / 2;
@@ -1223,7 +1229,8 @@ function needsBanner() {
   const nms = n ? needsMs() : null, nid = n?.story ? String(n.story).split("/").pop() : null;
   const ids = [...new Set([...prs.map((pr) => pr.ms), ...(nms ? [nms] : [])])];
   const story = nid && nms ? `<span class="wchip" data-open="${esc(nid)}" data-ms="${esc(nms)}"><b>${esc(nid)}</b> open story ›</span>` : "";
-  const chips = prs.map((pr) => `<a class="wchip" href="${esc(pr.url)}" target="_blank" rel="noopener"><b>${esc(pr.ms)}</b>${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)} <span class="cycle">· draft ↗</span></a>`).join("")
+  const chips = prs.map((pr) => ((url, text) => (url ? `<a class="wchip" href="${esc(url)}" target="_blank" rel="noopener">${text} <span class="cycle">· draft ↗</span></a>` : `<span class="wchip">${text} <span class="cycle">· draft</span></span>`))(
+    safeUrl(pr.url), `<b>${esc(pr.ms)}</b>${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)}`)).join("")
     + story + ids.map((id) => `<span class="wchip" data-drill="${esc(id)}"><b>${esc(id)}</b> go to milestone in map ›</span>`).join("");
   const what = prs.length ? ` · ${prs.length === 1 ? "a draft PR" : `${prs.length} draft PRs`}` : "";
   return `<div class="banner needs"><span class="label"><span class="pulse amber"></span>Needs you${what}</span><span class="sub">${n ? esc(n.reason) : "Review it, then mark it ready or ask for changes"}</span><div class="chips">${chips}</div></div>`;
@@ -1301,11 +1308,12 @@ function mockOf(x) {
   const a = (x?.artifacts || []).find((a) => a.phase === "mock" || /mock/i.test(a.name || ""));
   const m = x?.mock || (a && { path: a.path });
   if (!m || !(m.path || m.url)) return null;
-  const href = m.path ? (m.path.startsWith("../") ? `/repo/${m.path.replace(/^(\.\.\/)+/, "")}` : `/${m.path.replace(/^\.?\//, "")}`) : m.url;
-  return { href, url: m.path ? m.url : null };
+  const path = typeof m.path === "string" ? m.path : "";
+  const href = path ? (path.startsWith("../") ? "/repo" + runHref(path.replace(/^(\.\.\/)+/, "")) : runHref(path)) : safeUrl(m.url);
+  return href ? { href, url: path ? safeUrl(m.url) : "" } : null;
 }
 const DS_ICO = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><rect x="9" y="15" width="6" height="5" rx="1"/><path d="M7.5 6h9M6.5 8.5l3.5 6M17.5 8.5l-3.5 6"/></svg>`;
-const runHref = (path) => "/" + path.replace(/^\.?\//, "").split("/").map(encodeURIComponent).join("/");
+const runHref = (path) => "/" + String(path).replace(/^(\.?\/)+/, "").split("/").map(encodeURIComponent).join("/");
 const isEpic = (id) => S.project.epics.some((x) => x.id === id);
 const dsOwner = (id) => S.project.epics.find((x) => x.id === id) || S.project.epics.flatMap((x) => x.milestones || []).find((m) => m.id === id);
 const dsDrawing = (E) => E.domainStories?.status === "drawing" || (Date.now() - (S.dsAsked?.[E.id] || 0) < 120000 && (E.domainStories?.at || "") < new Date(S.dsAsked[E.id]).toISOString());
@@ -1333,7 +1341,7 @@ function renderDs() {
   const n = (x) => specOf(x)?.sentences?.length;
   $("ds-view").innerHTML = `<div class="ds-head"><button class="ds-back" data-ds-back>‹ Back to map</button>
     <div class="ds-title"><span class="eyebrow">Domain story · ${isEpic(E.id) ? "epic" : `milestone ${esc(E.id)}`}</span><b>${esc(E.title)}</b></div><div class="ds-acts">${acts}</div></div>
-    ${list.length > 1 ? `<div class="ds-tabs">${list.map((x, i) => `<button class="ds-tab ${x === s ? "on" : ""}" data-ds-tab="${i}">${esc(x.title)}${n(x) ? `<span class="n">${n(x)}</span>` : ""}</button>`).join("")}</div>` : ""}
+    ${list.length > 1 ? `<div class="ds-tabs">${list.map((x, i) => `<button class="ds-tab ${x === s ? "on" : ""}" data-ds-tab="${i}">${esc(x.title)}${num(n(x)) ? `<span class="n">${num(n(x))}</span>` : ""}</button>`).join("")}</div>` : ""}
     ${s ? `<div class="ds-meta">${[sc.granularity, sc.time, sc.purity].filter(Boolean).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}<span>${esc(spec?.description || "")}</span>${d.at ? `<span class="when">drawn ${esc(when(d.at))}</span>` : ""}</div>
     <div class="ds-paper ${S.ds.zoom ? "zoom" : ""}" data-ds-zoom><img src="${esc(runHref(s.path))}" alt="${esc(s.title)}"></div>`
     : `<div class="ds-empty">${d.status === "failed" ? `The last drawing failed: ${esc(d.reason || "no reason given")}` : "Nothing drawn yet"}</div>`}`;
@@ -1444,7 +1452,7 @@ function storyNode(s, p, map) {
   else if (st === "working") foot = `<span class="pulse"></span><span class="badge working">Working on</span>${since(s.startedAt)}${agentLink(s)}`;
   else if (st === "approval") foot = `<span class="pulse amber"></span><span class="badge approval">Waiting for approval</span>${agentLink(s)}`;
   else if (st === "elsewhere") foot = `<span class="badge elsewhere">In another session</span>${releaseBtn(sk)}`;
-  else if (st === "failed") foot = `<span class="badge failed">Failed · ${s.attempts || 0}/${maxAttempts()}</span>${agentLink(s)}`;
+  else if (st === "failed") foot = `<span class="badge failed">Failed · ${num(s.attempts)}/${maxAttempts()}</span>${agentLink(s)}`;
   else if (st === "blocked") foot = `<span class="badge blocked">Blocked by ${esc((s.deps || []).filter((d) => map[d]?.status !== "done").join(", "))}</span>`;
   else if (st === "dropped") foot = `<span class="badge dropped">Dropped</span>`;
   else if (st === "ready") {
@@ -1455,7 +1463,7 @@ function storyNode(s, p, map) {
     const badge = `<span class="badge waiting" title="Waiting on ${esc(wait.join(", "))}">Waiting on ${esc(wait.join(", "))}</span>`;
     if (live && orch()) { top = badge; foot = `<button class="btn" disabled title="Waiting on ${esc(wait.join(", "))}">Assign subagent</button>`; } else foot = badge;
   }
-  return `<div class="node ${st} ${S.selected === s.id ? "sel" : ""}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(s.id)}" data-id="${esc(s.id)}" tabindex="0">
+  return `<div class="node ${esc(st)} ${S.selected === s.id ? "sel" : ""}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(s.id)}" data-id="${esc(s.id)}" tabindex="0">
     <div class="top"><span class="sid">${esc(s.id)}</span>${top}<span class="model">${esc(s.model || "")}</span></div>
     <span class="title">${esc(s.title)}</span>
     ${repoChips(s.repos || [])}
@@ -1489,13 +1497,13 @@ function renderQuality() {
   const critNote = failing.length ? ` · ${failing.map((c) => esc(c.id || "")).join(", ")} failed` : open.length ? ` · ${open.map((c) => esc(c.id || "")).join(", ")} open` : "";
   const pills = [
     pill(state(contract.map((c) => c.ok)), `Contract ${passing}/${contract.length}`),
-    pill(gate ? state([gateOk]) : "pend", gate ? `Gate · ${gate.fixed} of ${gate.findings} fixed` : "Gate not run"),
+    pill(gate ? state([gateOk]) : "pend", gate ? `Gate · ${num(gate.fixed)} of ${num(gate.findings)} fixed` : "Gate not run"),
     pill(state(criteria.map((c) => c.pass)), `Criteria ${crit}/${criteria.length}${critNote}`),
   ];
   $("qsum").innerHTML = `${S.epic.single ? "" : `<span class="qms">${esc(m.id)}</span>`}${pills.join("")}`;
   $("qgrid").innerHTML = `
     <div class="qcol"><h3>Contract</h3>${contract.map((c) => `<div class="qline">${mark(c.ok)}<code>${esc(c.cmd)}</code><span class="when">${esc(clock(c.at))}</span></div>`).join("") || `<div class="muted">No runs yet</div>`}</div>
-    <div class="qcol"><h3>Quality gate</h3>${gate ? `<div class="qline">${mark(gate.findings === gate.fixed + gate.skipped)}<span><b>${gate.findings}</b> findings · ${gate.fixed} fixed · ${gate.skipped} skipped</span></div>${gate.note ? `<div class="qline muted">${esc(gate.note)}</div>` : ""}<div class="qline muted"><code>${esc(gate.file || "")}</code></div>` : `<div class="muted">Runs after the last story merges</div>`}</div>
+    <div class="qcol"><h3>Quality gate</h3>${gate ? `<div class="qline">${mark(gate.findings === gate.fixed + gate.skipped)}<span><b>${num(gate.findings)}</b> findings · ${num(gate.fixed)} fixed · ${num(gate.skipped)} skipped</span></div>${gate.note ? `<div class="qline muted">${esc(gate.note)}</div>` : ""}<div class="qline muted"><code>${esc(gate.file || "")}</code></div>` : `<div class="muted">Runs after the last story merges</div>`}</div>
     <div class="qcol"><h3>Success criteria</h3>${criteria.map((c) => `<div class="qline">${mark(c.pass)}<span>${esc(c.text)}</span></div>`).join("") || `<div class="muted">Defined in the spec</div>`}</div>`;
   if (!S.qualityTouched) $("quality").open = contract.some((c) => c.ok === false) || gateOk === false || failing.length > 0;
 }
@@ -1587,7 +1595,8 @@ function digestBanner() {
     ["Failed", uniq(of("failed")).map((e) => `${story(e)}<span class="dwhy">${esc(e.reason || "")}</span>`).join("")],
     ["Started", uniq(of("dispatched")).filter((e) => !ended.has(id(e))).map(story).join("")],
     ["Milestones", moves.map((e) => `<span class="wchip" data-drill="${esc(e.milestone || "")}"><b>${esc(e.milestone || "")}</b> ${e.type === "phase" ? `→ ${esc(phaseLabel(e.phase))}` : e.type === "landed" ? "landed" : "planning started"}</span>`).join("")],
-    ["PRs", of("pr").map((e) => `<a class="wchip" href="${esc(e.url || "")}" target="_blank" rel="noopener"><b>${esc(e.milestone || "")}</b> #${esc(e.number)} ${esc(e.state || "")} ↗</a>`).join("")],
+    ["PRs", of("pr").map((e) => ((url, text) => (url ? `<a class="wchip" href="${esc(url)}" target="_blank" rel="noopener">${text} ↗</a>` : `<span class="wchip">${text}</span>`))(
+      safeUrl(e.url), `<b>${esc(e.milestone || "")}</b> #${esc(e.number)} ${esc(e.state || "")}`)).join("")],
     ["Other", ev.filter((e) => !shown.includes(e.type)).map((e) => `<div class="dline">${(EV[e.type] || [0, 0, () => esc(e.text || e.type)])[2](e)}</div>`).join("")],
   ].filter(([, html]) => html);
   if (!rows.length) return "";
@@ -1683,14 +1692,15 @@ function asanaBtn(x, compact) {
   const a = x?.asana;
   if (!a?.url) return "";
   if (completedInAsanaNotLanded(x)) return `<button class="asanabtn off" data-asana-ask="${esc(x.id)}" title="Completed in Asana but not landed here: skip building it?">${ASANA_ICO}${compact ? "Done?" : "Done in Asana?"}</button>`;
-  return `<a class="asanabtn" href="${esc(a.url)}" target="_blank" rel="noopener" title="Open in Asana">${ASANA_ICO}Asana</a>`;
+  const url = safeUrl(a.url);
+  return url ? `<a class="asanabtn" href="${esc(url)}" target="_blank" rel="noopener" title="Open in Asana">${ASANA_ICO}Asana</a>` : "";
 }
 function asanaAsk(m) {
   if (!completedInAsanaNotLanded(m)) return "";
   const sent = S.asanaChoice?.[m.id];
   const act = sent ? `<span class="settled ${sent === "drop" ? "reverse" : ""}">${sent === "drop" ? "Skipping it" : "Keeping it"}: the orchestrator applies it next</span>`
     : `<button class="btn" data-asana-done="drop" data-id="${esc(m.id)}">Skip it</button><button class="btn ghost" data-asana-done="keep" data-id="${esc(m.id)}">Keep building</button>`;
-  return `<div class="sec"><div class="approvalbox asana-ask"><b>Completed in Asana</b>, but not landed here. Skip building it?<div class="muted" style="margin:4px 0 8px">Skip drops the milestone${m.status === "working" ? " and stops its running stories" : ""}; Keep building leaves the subtask as it is in Asana. <a class="prlink" href="${esc(m.asana.url)}" target="_blank" rel="noopener">Open in Asana ↗</a></div><div class="settle">${act}</div></div></div>`;
+  return `<div class="sec"><div class="approvalbox asana-ask"><b>Completed in Asana</b>, but not landed here. Skip building it?<div class="muted" style="margin:4px 0 8px">Skip drops the milestone${m.status === "working" ? " and stops its running stories" : ""}; Keep building leaves the subtask as it is in Asana.${safeUrl(m.asana.url) ? ` <a class="prlink" href="${esc(safeUrl(m.asana.url))}" target="_blank" rel="noopener">Open in Asana ↗</a>` : ""}</div><div class="settle">${act}</div></div></div>`;
 }
 async function asanaDone(choice, id) {
   try {
@@ -1782,7 +1792,7 @@ const briefSec = (path, title = "Brief") => {
 const fileLink = (p, base) => (vsc(p, base) ? `<a class="file mono" href="${esc(vsc(p, base))}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
 function shaLink(sha, repo = null) {
   if (!sha || typeof sha !== "string") return "—";
-  const url = repoUrl(repo);
+  const url = safeUrl(repoUrl(repo));
   return url ? `<a class="mono" href="${esc(url)}/commit/${esc(sha)}" target="_blank" rel="noopener">${esc(sha.slice(0, 7))}</a>` : `<span class="mono">${esc(sha.slice(0, 7))}</span>`;
 }
 function landedLinks(landed) {
@@ -1813,7 +1823,7 @@ function renderSheet() {
     : st === "elsewhere" ? `<button class="btn big ghost" data-release="${esc(sk)}">✕ Take it back</button>${copyBtn("assign", sk)}` : "";
   const log = progressLines(vm.id, id);
   const elapsed = s.startedAt ? dur((s.finishedAt ? Date.parse(s.finishedAt) : Date.now()) - Date.parse(s.startedAt)) : "—";
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${e.single ? "" : `${esc(vm.id)} · `}${esc(id)}</span>${st === "working" ? `<span class="pulse"></span>` : st === "approval" ? `<span class="pulse amber"></span>` : ""}<span class="badge ${st === "done" ? doneCls(vm) : st}">${label}</span></div><h2>${esc(s.title)}</h2><div class="muted">${esc(s.summary || "")}</div>${action ? `<div style="margin-top:12px">${action}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${e.single ? "" : `${esc(vm.id)} · `}${esc(id)}</span>${st === "working" ? `<span class="pulse"></span>` : st === "approval" ? `<span class="pulse amber"></span>` : ""}<span class="badge ${st === "done" ? doneCls(vm) : esc(st)}">${esc(label)}</span></div><h2>${esc(s.title)}</h2><div class="muted">${esc(s.summary || "")}</div>${action ? `<div style="margin-top:12px">${action}</div>` : ""}`;
   $("sheet-body").innerHTML = `
     ${s.approval ? `<div class="sec"><div class="approvalbox"><b>Waiting for approval</b> — ${esc(s.approval.tool)}<div class="mono" style="margin-top:4px">${esc(s.approval.detail || "")}</div><div class="muted" style="margin-top:6px">Answer it in Paseo, or in the orchestrator terminal.</div></div></div>` : ""}
     ${s.failure ? `<div class="sec"><div class="failbox"><b>Failure</b> — ${esc(s.failure)}</div></div>` : ""}
@@ -1823,9 +1833,9 @@ function renderSheet() {
     ${(s.repos || []).length ? `<div class="sec"><h3>Repos</h3><div class="links">${s.repos.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div></div>` : ""}
     ${(s.files || []).length ? `<div class="sec"><h3>Files in scope</h3>${s.files.map((f) => fileLink(f, "repoDir")).join("")}</div>` : ""}
     ${(s.tasks || []).length ? `<div class="sec"><h3>Tasks</h3><div class="links">${s.tasks.map((t) => `<span class="link-chip mono">${esc(t)}</span>`).join("")}</div></div>` : ""}
-    ${live || s.agent ? `<div class="sec"><h3>Run</h3><dl class="kv"><dt>Status</dt><dd>${label}</dd><dt>Attempts</dt><dd>${s.attempts || 0} of ${maxAttempts()}</dd><dt>Model</dt><dd>${esc(s.model || "—")}</dd><dt>Agent</dt><dd class="mono">${s.agent ? `${esc(s.agent.backend)} · ${esc(s.agent.id)}${agentHref(s) ? ` · <a class="prlink" href="${esc(agentHref(s))}">open in Paseo ↗</a>` : ""}` : "—"}</dd><dt>Branch</dt><dd class="mono">${esc(s.branch || "—")}</dd><dt>Elapsed</dt><dd>${elapsed}</dd></dl></div>` : ""}
+    ${live || s.agent ? `<div class="sec"><h3>Run</h3><dl class="kv"><dt>Status</dt><dd>${esc(label)}</dd><dt>Attempts</dt><dd>${num(s.attempts)} of ${maxAttempts()}</dd><dt>Model</dt><dd>${esc(s.model || "—")}</dd><dt>Agent</dt><dd class="mono">${s.agent ? `${esc(s.agent.backend)} · ${esc(s.agent.id)}${agentHref(s) ? ` · <a class="prlink" href="${esc(agentHref(s))}">open in Paseo ↗</a>` : ""}` : "—"}</dd><dt>Branch</dt><dd class="mono">${esc(s.branch || "—")}</dd><dt>Elapsed</dt><dd>${elapsed}</dd></dl></div>` : ""}
     ${live ? `<div class="sec"><h3>Progress</h3>${log.length ? `<ul class="log">${log.map((l) => `<li><span class="t">${esc(clock(l.at))}</span><span><span class="stage ${esc(l.stage)}">${esc(l.stage)}</span></span><span>${esc(l.note)}</span></li>`).join("")}</ul>` : `<div class="muted">No progress yet</div>`}</div>` : ""}
-    <div class="sec"><h3>Commits</h3>${commitsOf(s).map((c) => `<div class="commit">${shaLink(c.sha, c.repo)}<span>${c.repo ? `<span class="repo">${esc(c.repo)}</span> ` : ""}${esc(c.subject)}</span><span class="mono">${c.plus != null ? `<span class="plus">+${c.plus}</span> <span class="minus">−${c.minus || 0}</span>` : ""}</span></div>`).join("") || `<div class="muted">None yet</div>`}</div>
+    <div class="sec"><h3>Commits</h3>${commitsOf(s).map((c) => `<div class="commit">${shaLink(c.sha, c.repo)}<span>${c.repo ? `<span class="repo">${esc(c.repo)}</span> ` : ""}${esc(c.subject)}</span><span class="mono">${c.plus != null ? `<span class="plus">+${num(c.plus)}</span> <span class="minus">−${num(c.minus)}</span>` : ""}</span></div>`).join("") || `<div class="muted">None yet</div>`}</div>
     ${["done", "failed"].includes(s.status) ? timeSec(log, s) : ""}`;
 }
 
@@ -1888,12 +1898,12 @@ function milestoneSheet(m) {
     claimBtn(m),
   ].join(" ");
   const q = m.quality?.gate;
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : bst}">${label}</span>${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
   $("sheet-body").innerHTML = `
     ${asanaAsk(m)}
     ${m.note ? `<div class="sec"><div class="muted">${esc(m.note)}</div></div>` : ""}
     <div class="sec"><h3>Run</h3><dl class="kv">
-      <dt>Status</dt><dd>${label}${m.status === "working" ? ` · ${msDoing(m)}` : ""}</dd>
+      <dt>Status</dt><dd>${esc(label)}${m.status === "working" ? ` · ${msDoing(m)}` : ""}</dd>
       ${m.owner ? `<dt>Owner</dt><dd>${ownerChip(m)}</dd>` : ""}
       ${((k) => (k ? `<dt>Mock</dt><dd><a class="prlink" href="${esc(k.href)}" target="_blank" rel="noopener">Open mock ↗</a>${k.url ? ` · <a class="prlink" href="${esc(k.url)}" target="_blank" rel="noopener">published ↗</a>` : ""}</dd>` : ""))(mockOf(m))}
       ${asanaRow(m)}
@@ -1902,7 +1912,7 @@ function milestoneSheet(m) {
       ${m.spec ? `<dt>Spec</dt><dd>${fileLink(m.spec, "repoDir")}</dd>` : ""}
       ${m.archive ? `<dt>Ledger</dt><dd>${fileLink(m.archive)}</dd>` : ""}
       ${stories.length ? `<dt>Stories</dt><dd>${stories.filter((s) => s.status === "done").length} of ${stories.length} ${m.status === "done" ? "done" : "merged to branch"}</dd>` : ""}
-      ${q ? `<dt>Quality gate</dt><dd>${q.findings} findings · ${q.fixed} fixed · ${q.skipped} skipped${q.note ? `<div class="muted">${esc(q.note)}</div>` : ""}</dd>` : ""}
+      ${q ? `<dt>Quality gate</dt><dd>${num(q.findings)} findings · ${num(q.fixed)} fixed · ${num(q.skipped)} skipped${q.note ? `<div class="muted">${esc(q.note)}</div>` : ""}</dd>` : ""}
     </dl></div>
     ${msRepos(m).length ? `<div class="sec"><h3>Repos</h3>${msRepos(m).map((r) => `<div class="commit"><span class="repo">${esc(r.repo)}</span><span class="mono">${esc(r.branch || "—")} → ${esc(r.base || "—")}</span>${prPill(r.pr)}</div>`).join("")}</div>` : ""}
     ${timelineSec(m)}
@@ -1916,7 +1926,7 @@ function epicSheet() {
   const e = S.epic, map = msById();
   $("sheet-head").innerHTML = `<span class="sid">Epic</span><h2>${esc(e.epic.title)}</h2><div class="muted">${esc(e.epic.summary || "")}</div>`;
   $("sheet-body").innerHTML = `
-    <div class="sec"><h3>Milestones</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-drill="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${viewStatus(m, map)}">${esc(m.status)}</span></div>`).join("")}</div>
+    <div class="sec"><h3>Milestones</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-drill="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${esc(viewStatus(m, map))}">${esc(m.status)}</span></div>`).join("")}</div>
     ${epicRepoRows(e.milestones).length ? `<div class="sec"><h3>Repos touched</h3>${repoLines(epicRepoRows(e.milestones))}</div>` : ""}
     ${(e.uncovered || []).length ? `<div class="sec"><h3>Brief items no milestone covers yet</h3><div class="links">${e.uncovered.map((c) => `<span class="link-chip">${esc(c)}</span>`).join("")}</div></div>` : ""}
     <div class="sec"><h3>Run</h3><dl class="kv">${asanaRow(e.epic)}<dt>Active</dt><dd>${esc(e.active || "none")}</dd><dt>Dispatcher</dt><dd>${esc(e.dispatcher || "")}</dd><dt>Podium</dt><dd class="mono">${esc(location.href)}</dd></dl></div>
@@ -1936,7 +1946,8 @@ const LINK_APPS = [
 function appLink(l) {
   const [, name, ico] = LINK_APPS.find(([re]) => re.test(l.url)) || [];
   const label = name ? l.label.replace(new RegExp(`^${name}s?:\\s*`, "i"), "") : l.label;
-  return `<a class="applink" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(name ? `${name}: ${label}` : l.label)}">${ico || ""}${esc(label)} ↗</a>`;
+  const url = safeUrl(l.url);
+  return url ? `<a class="applink" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(name ? `${name}: ${label}` : l.label)}">${ico || ""}${esc(label)} ↗</a>` : `<span class="applink">${esc(label)}</span>`;
 }
 const questLinks = (q) => (q.links || []).map(appLink).join("");
 function questTile(P) {
@@ -1949,7 +1960,7 @@ function questTile(P) {
 function syncBtn(x) {
   if (!x.asana?.url) return "";
   const busy = S.asanaSync && !(Date.parse(x.asana.syncedAt) > Date.parse(S.asanaSync));
-  return `<button class="asanabtn" data-asana-sync ${busy ? "disabled" : ""} title="${busy ? "Queued: the orchestrator re-reads Asana" : `Re-read the Asana task and its subtasks${x.asana.syncedAt ? ` · last read ${when(x.asana.syncedAt)}` : ""}`}">${busy ? "Syncing…" : "↻ Sync"}</button>`;
+  return `<button class="asanabtn" data-asana-sync ${busy ? "disabled" : ""} title="${busy ? "Queued: the orchestrator re-reads Asana" : `Re-read the Asana task and its subtasks${when(x.asana.syncedAt) ? ` · last read ${esc(when(x.asana.syncedAt))}` : ""}`}">${busy ? "Syncing…" : "↻ Sync"}</button>`;
 }
 async function asanaSync() {
   try {
@@ -1966,7 +1977,7 @@ function questSheet() {
   $("sheet-body").innerHTML = `
     <div class="sec"><div class="qlinks-sheet">${asanaBtn(P.project)}${syncBtn(P.project)}${questLinks(q)}</div>${asanaMeta(P.project)}</div>
     <div class="sec"><h3>Epics</h3>${P.epics.map((E) => `<div class="commit"><span class="sid">${esc(E.quest || "")}</span><span><a data-epic-sheet="${esc(E.id)}">${esc(E.title)}</a></span><span class="muted">${tally(E)} landed</span></div>`).join("")}</div>
-    ${tasks.length ? `<div class="sec"><h3>Tasks</h3>${tasks.map((t) => `<div class="commit"><span>${t.asana?.completed ? "✓" : "○"}</span><span>${t.asana?.url ? `<a href="${esc(t.asana.url)}" target="_blank" rel="noopener">${esc(t.title)} ↗</a>` : esc(t.title)}</span><span></span></div>`).join("")}</div>` : ""}
+    ${tasks.length ? `<div class="sec"><h3>Tasks</h3>${tasks.map((t) => `<div class="commit"><span>${t.asana?.completed ? "✓" : "○"}</span><span>${safeUrl(t.asana?.url) ? `<a href="${esc(safeUrl(t.asana.url))}" target="_blank" rel="noopener">${esc(t.title)} ↗</a>` : esc(t.title)}</span><span></span></div>`).join("")}</div>` : ""}
     ${briefSec(q.doc, "Document")}`;
 }
 function questSection(text, ref) {
@@ -2020,7 +2031,7 @@ function md(src) {
 
 function clock(iso) { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
 function when(iso) {
-  const d = new Date(iso); if (isNaN(d)) return iso || "";
+  const d = new Date(iso); if (isNaN(d)) return "";
   const ms = Date.now() - d; const m = Math.round(ms / 60000);
   if (m < 1440) return `${clock(iso)} · ${m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`}`;
   return d.toLocaleDateString([], { day: "numeric", month: "short" }) + ` · ${clock(iso)}`;

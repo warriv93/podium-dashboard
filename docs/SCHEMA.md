@@ -20,7 +20,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 | `synced.json` | `podium sync` | never |
 | `~/.podium/human.json` | `podium hours`, `whoami`, the Podium toggle | outside any run; one per machine |
 
-Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote`, and Python code: `*.py`, `*.pyc`, `*.pth`, `__pycache__/` folders. These names, and `sync.exclude`, match in any case: a Mac's file system ignores it.
+Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote`, Python code: `*.py`, `*.pyc`, `*.pth`, `__pycache__/` folders, and native modules: `*.so`, `*.dylib`, `*.pyd`. These names, and `sync.exclude`, match in any case: a Mac's file system ignores it.
 
 ## podium.json
 
@@ -145,7 +145,7 @@ An event is major, and saves the run when sync is on, if its type is `status`, `
 
 ## Progress files
 
-`stories/<milestone>/<story>.progress`, one line per step, appended by `podium log`:
+`stories/<milestone>/<story>.progress`, one line per step, appended by `podium log`, which refuses a milestone or story id that isn't 1 to 32 letters, digits, `_` or `-` (`state.valid_id`):
 
 ```
 2026-10-08T13:47:32+00:00 RED 8 failing tests in roles/can.spec.ts
