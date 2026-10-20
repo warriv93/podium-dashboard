@@ -20,7 +20,6 @@
   --shadow-hi: 0 2px 4px rgba(0,0,0,.06), 0 14px 36px rgba(0,0,0,.12);
   --radius: 18px;
 }
-/* theme: System follows the OS; Light and Dark override it (data-theme on <html>) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #000000; --card: #1c1c1e; --card-2: #232325; --glass: rgba(28,28,30,.72);
@@ -60,22 +59,19 @@ body {
 button { font: inherit; color: inherit; }
 code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
 
-/* ---------- top bar ---------- */
 .topbar {
   position: sticky; top: 0; z-index: 20;
   background: var(--glass); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--line);
 }
-/* two rows: logo, title and the appearance switch; under the title, the controls that matter */
 .topbar-inner { margin: 0 auto; padding: 6px 12px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; column-gap: 14px; row-gap: 4px; align-items: center; }
 .topbar-inner > .logo { grid-row: 1; }
 .topbar-inner > .corner { grid-column: 3; grid-row: 1; justify-self: end; align-self: start; display: flex; align-items: center; gap: 8px; }
 .corner .bell { width: 26px; height: 26px; }
 .controls { grid-column: 1 / 4; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
-.controls #feed-toggle { margin-left: auto; } /* the far right, under the appearance switch */
+.controls #feed-toggle { margin-left: auto; }
 .logo { width: 34px; height: 34px; flex: none; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 .brand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-/* the eyebrow is the product name and the orchestrator's status; where you are lives in the map's breadcrumb */
 .brand .eyebrow { display: flex; align-items: center; gap: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
 .brand h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .theme { display: inline-flex; background: var(--gray-soft); border-radius: 9px; padding: 2px; gap: 2px; }
@@ -105,7 +101,6 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); }
 
-/* ---------- stepper ---------- */
 .stepper { display: flex; align-items: center; padding: 14px 18px; gap: 0; overflow-x: auto; scrollbar-width: none; }
 .step { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 12.5px; color: var(--text-3); font-weight: 500; }
 .step .dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 1.5px solid var(--line-2); color: var(--text-3); flex: none; }
@@ -116,7 +111,6 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .step-bar { flex: 1 0 18px; height: 1.5px; background: var(--line-2); margin: 0 10px; min-width: 18px; }
 .step-bar.past { background: var(--text); }
 
-/* ---------- banner ---------- */
 .banner { border-radius: var(--radius); padding: 14px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 1px solid transparent; }
 .banner .label { font-weight: 650; font-size: 15px; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
 .banner .sub { color: var(--text-2); font-size: 13px; }
@@ -155,7 +149,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .stage.GREEN { background: var(--green-soft); color: var(--green); }
 .stage.REFACTOR { background: var(--accent-soft); color: var(--accent); }
 .stage.FIX { background: var(--amber-soft); color: var(--amber); }
-/* where a story's time went: one bar, then a row per kind of work */
 .tw-tot { float: right; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 650; font-size: 12.5px; }
 .tw-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: 2px 0 12px; }
 .tw-bar i { display: block; height: 100%; min-width: 3px; }
@@ -182,7 +175,6 @@ a.wchip { color: inherit; text-decoration: none; }
 @keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(3); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
 
-/* ---------- toolbar ---------- */
 .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .search { flex: 1 1 280px; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; box-shadow: var(--shadow); height: 40px; }
 .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
@@ -194,7 +186,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
 .seg .n { color: var(--text-3); margin-left: 4px; font-variant-numeric: tabular-nums; }
 
-/* ---------- domain stories ---------- */
 .dsbtn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px 2px 7px; border-radius: 999px; background: var(--card-2); color: var(--text-2); border: 1px solid var(--line-2); font: inherit; font-size: 12px; font-weight: 600; line-height: 18px; letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; }
 .dsbtn:hover { border-color: var(--accent); color: var(--accent); }
 .dsbtn.has { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
@@ -228,7 +219,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .ds-paper.zoom { cursor: zoom-out; }
 .ds-paper.zoom img { max-width: none; }
 
-/* ---------- map ---------- */
 .map-card { padding: 0; overflow: hidden; }
 .map-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 18px 0; }
 .map-head h2 { flex: 1; min-width: 0; }
@@ -243,15 +233,12 @@ a.wchip { color: inherit; text-decoration: none; }
 .mpill.working { border-color: var(--green-dot); color: var(--green); }
 .mpill.waiting { border-style: dashed; }
 .mpill.here { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
-/* the card's buttons sit on its top row, right of the id, and wrap before they would leave the card */
 .ftools { margin-left: auto; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; align-items: center; min-width: 0; text-transform: none; letter-spacing: 0; }
 .ftools .mockbtn, .ftools .asanabtn { margin-left: 0; }
 .fepic .eyebrow { display: flex; align-items: center; min-height: 22px; }
-/* an unlinked epic offers its Asana link on hover, so the lanes stay quiet */
 .fplan { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
 .fproj { display: inline-flex; gap: 10px; align-items: center; font-size: 12.5px; font-weight: 400; }
 .map-tools { display: flex; align-items: center; gap: 14px; flex: none; align-self: center; }
-/* full map: a lane per epic, a row per milestone in run order */
 .full { position: relative; display: grid; column-gap: 20px; align-items: start; padding: 4px 4px 24px; }
 .full > * { min-width: 0; }
 .full > svg.edges { z-index: 0; }
@@ -265,15 +252,13 @@ a.wchip { color: inherit; text-decoration: none; }
 .ford { font-size: 11px; font-weight: 700; color: var(--text-3); text-align: right; align-self: center; letter-spacing: .04em; }
 .fms { margin: 7px 0; display: flex; flex-direction: column; gap: 6px; }
 .fms:hover, .fepic:hover { border-color: var(--line-2); }
-.fms .ftop { display: flex; align-items: baseline; gap: 6px; min-height: 22px; } /* baseline: the id lines up with the first row of buttons when they wrap */
+.fms .ftop { display: flex; align-items: baseline; gap: 6px; min-height: 22px; }
 .fms .title { font-weight: 620; font-size: 13.5px; }
 .fms .foot { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-2); flex-wrap: wrap; }
 .fms.done { background: transparent; box-shadow: none; }
-/* research milestones answer a question before anything is built: one shared row above the run order, never chained */
 .fms.research { border-style: dashed; }
 .fres { display: flex; flex-direction: column; }
 .badge.research { background: var(--accent-soft); color: var(--accent); }
-/* the quest above the epics: the problem they all serve; it opens its document */
 .quest { width: 100%; margin: 6px 0 2px; display: flex; flex-direction: column; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; cursor: pointer; box-shadow: var(--shadow); }
 .quest:hover { border-color: var(--line-2); }
 .quest .eyebrow { display: flex; align-items: center; min-height: 22px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
@@ -329,7 +314,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .edge.overlap { stroke-dasharray: 4 5; }
 .edge.hi { stroke: var(--accent); stroke-width: 2; }
 .map.focus .edge:not(.hi) { opacity: .35; }
-/* wave labels sit in a layer under the scroller: still while it scrolls, covered by passing tiles */
 .map-wrap { position: relative; }
 .waves { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
 .rowlabel { position: absolute; left: 14px; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: .05em; text-transform: uppercase; }
@@ -342,7 +326,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .node:hover { transform: translateY(-2px); box-shadow: var(--shadow-hi); }
 .node:focus-visible { outline: 3px solid var(--accent-soft); border-color: var(--accent); }
 .node.dim { opacity: .28; }
-/* landed work lies flat and recessed; live work is tinted, ringed and lifted */
 .node.done { background: var(--bg); box-shadow: none; }
 .node.done:hover { transform: none; box-shadow: none; border-color: var(--line-2); }
 .node.done .title { color: var(--text-2); }
@@ -357,7 +340,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .node .title { font-weight: 620; font-size: 14px; letter-spacing: -.01em; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .node .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); min-height: 26px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
-.badge.done { background: var(--green-soft); color: var(--green); }  /* landed matches the progress ring; parked stays gray */
+.badge.done { background: var(--green-soft); color: var(--green); }
 .badge.working { color: var(--green); padding-left: 2px; }
 .badge.needs { color: var(--amber); padding-left: 2px; }
 .badge.approval { background: var(--amber-soft); color: var(--amber); }
@@ -446,13 +429,11 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .people .who.me b { color: var(--accent); }
 .people a { cursor: pointer; color: inherit; text-decoration: underline dotted; }
 .node.epic .eyebrow .owner, .node.epic .eyebrow .claim { margin-left: 8px; }
-/* not linked yet: the Asana pill in grey, Asana red on hover */
 .asanabtn.linkasana { background: var(--card-2); color: var(--text-3); border-color: var(--line-2); cursor: pointer; font-family: inherit; }
 .asanabtn.linkasana:hover { background: rgba(240,106,106,.12); color: #e8384f; border-color: rgba(232,56,79,.55); }
 .map-head > h2 > .linkasana { margin-left: 0; }
 .page-title > .linkasana { margin: 0; }
 
-/* ---------- quality ---------- */
 .quality > summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; align-items: center; gap: 12px; font-weight: 600; }
 .quality > summary::-webkit-details-marker { display: none; }
 .quality > summary .chev { margin-left: auto; color: var(--text-3); transition: transform .2s; }
@@ -476,7 +457,6 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .qline .when { margin-left: auto; color: var(--text-3); font-size: 12px; white-space: nowrap; }
 .muted { color: var(--text-3); font-size: 13px; }
 
-/* ---------- feed ---------- */
 .feed { position: sticky; top: 84px; max-height: calc(100vh - 104px); display: flex; flex-direction: column; }
 .feed h2 { margin: 0; padding: 14px 18px 10px; font-size: 13px; font-weight: 600; color: var(--text-2); letter-spacing: .02em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
 .feed-filter { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
@@ -495,7 +475,6 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .ev a { color: var(--accent); cursor: pointer; text-decoration: none; font-weight: 600; }
 .close-x { border: 0; background: var(--gray-soft); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; color: var(--text-2); flex: none; }
 
-/* ---------- sheet ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40; }
 .scrim.on { opacity: 1; pointer-events: auto; }
 .sheet {
@@ -549,11 +528,9 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 13px; transition: .25s; z-index: 60; pointer-events: none; max-width: calc(100vw - 32px); }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 
-/* ---------- epics ---------- */
 .back { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; white-space: nowrap; }
 .back:hover { border-color: var(--accent); }
 
-/* ---------- milestones ---------- */
 #banner { display: flex; flex-direction: column; gap: 10px; }
 [hidden] { display: none !important; }
 .step-ms { font-size: 11px; font-weight: 700; color: var(--text-2); background: var(--gray-soft); border-radius: 6px; padding: 2px 7px; margin-right: 12px; flex: none; }
@@ -563,7 +540,6 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .badge.draft { background: var(--accent-soft); color: var(--accent); }
 .badge.parked, .badge.later { background: var(--gray-soft); color: var(--text-2); }
 .badge.dropped { color: var(--text-3); padding-left: 0; text-decoration: line-through; }
-/* status icons: each badge state draws its glyph in the badge's own colour */
 .badge::before { content: none; flex: none; width: 12px; height: 12px; background: currentColor; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
 .badge.done { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); }
 .badge.merged { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='18' r='3'/%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Cpath d='M6 21V9a9 9 0 0 0 9 9'/%3E%3C/svg%3E"); }
@@ -591,7 +567,6 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .sheet .commit .sid { justify-self: start; }
 .sheet .commit a[data-drill], .sheet .commit a[data-open] { color: var(--accent); cursor: pointer; }
 
-/* ---------- repos and PRs ---------- */
 .repos { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .repo-line { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; min-width: 0; }
 .repo-chips { display: flex; gap: 4px; overflow: hidden; }
@@ -615,7 +590,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
 @media (max-width: 900px) {
 }
 @media (max-width: 600px) {
-  .topbar { position: static; } /* two rows of controls would take a fifth of a phone screen */
+  .topbar { position: static; }
   .topbar-inner { column-gap: 10px; }
   .controls { gap: 8px; }
   .human button { padding: 4px 8px; }
@@ -712,7 +687,6 @@ const DEFAULT_PHASES = [
   ["recon", "Recon"], ["spec", "Spec"], ["mock", "Mock"], ["architecture", "Architecture"],
   ["stories", "Stories"], ["build", "Build"], ["gate", "Quality gate"], ["verify", "Verify"], ["land", "Land"],
 ];
-/* the stepper's phases: the orchestrator's own (names, or [name, label] pairs) when podium.json lists them */
 function phases() {
   const own = S.project?.orchestrator?.phases;
   if (!Array.isArray(own) || !own.length) return DEFAULT_PHASES;
@@ -720,21 +694,18 @@ function phases() {
   return own.map((p) => (Array.isArray(p) ? [String(p[0]), String(p[1] ?? p[0])] : [String(p), known[p] || String(p).charAt(0).toUpperCase() + String(p).slice(1).replace(/[-_]/g, " ")]));
 }
 const maxAttempts = () => S.project?.orchestrator?.maxAttempts || 2;
-/* the orchestrator driving this run, {name, command}, or null: a run without one is shown read-only */
 const orch = () => [S.info?.orchestrator, S.project?.orchestrator].find((o) => o?.command) || null;
 const orchCmd = () => orch()?.command || "";
 const SERVER_DOWN = "The Podium server didn't accept that: is it running? Start it with podium server --detach";
 const FILTERS = [["all", "All"], ["working", "Working"], ["todo", "To do"], ["done", "Done"], ["failed", "Failed"]];
 const UNSTARTED = ["draft", "parked", "later"];
 const POLL_MS = 2000;
-// a hidden tab still polls, slower, so its notifications arrive within half a minute
 const HIDDEN_POLL_MS = 30000;
 let lastPoll = 0;
 const W = 236, H = 140, EPIC_W = 380, EPIC_W_REPOS = 460, EPIC_H = 132, GX = 22, GY = 64, PAD = 56;
 
 const S = { base: "podium/", handoffs: {}, human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: {}, briefs: {}, selected: null, view: undefined, query: "", filter: "all", online: true };
 const $ = (id) => document.getElementById(id);
-/* appearance: "system" (default) follows the OS; the choice is a per-viewer convenience in localStorage */
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", t);
@@ -744,14 +715,11 @@ function setTheme(t) {
 setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/* ---------- data ---------- */
-/* vscode:// link for a run-dir path (briefs, artifacts) or a repo path (files in scope) */
 function vsc(path, base = "runDir") {
   if (!S.info || !path) return null;
   return "vscode://file" + encodeURI(`${S.info[base]}/${path}`.replace(/\/\.?\//g, "/"));
 }
 fetch("/info", { cache: "no-store" }).then((r) => r.json()).then(setInfo).catch(() => {});
-/* who this viewer is decides which person's active milestone, needsYou and assumptions the page shows */
 function setInfo(i) {
   const first = !S.info, meChanged = !first && i.me !== S.info.me, orchChanged = !first && JSON.stringify(i.orchestrator) !== JSON.stringify(S.info.orchestrator);
   const peopleChanged = first || JSON.stringify(i.people) !== JSON.stringify(S.info.people);
@@ -771,18 +739,15 @@ async function getText(path) {
   if (!r.ok) throw new Error(r.status);
   return r.text();
 }
-/* every epic.json is two-level; an old single-level file becomes an epic with one milestone */
 function normalize(e) {
   if (!e.milestones) {
     e.milestones = [{ id: e.epic.id || "M1", title: e.epic.title, summary: e.epic.summary, status: e.completed ? "done" : "working",
       phase: e.phase, stories: e.stories || [], quality: e.quality, artifacts: e.artifacts, brief: e.epic.spec, branch: e.epic.branch }];
     e.active = e.milestones[0].id;
   }
-  // a lone research milestone answers a question: its epic still opens as an epic, not as that milestone's map
   e.single = e.milestones.length === 1 && !isResearch(e.milestones[0]);
   return e;
 }
-/* podium.json is project > epics > milestones > stories; an older epic.json becomes a project with one epic */
 function normalizeProject(d) {
   if (d.epics) return d;
   const e = normalize(d);
@@ -790,7 +755,6 @@ function normalizeProject(d) {
   return { project: { title: d.epic.title, summary: d.epic.summary }, epics: [E], active: e.active ? { epic: E.id, milestone: e.active } : null,
     needsYou: d.needsYou, buildAll: d.buildAll, dispatcher: d.dispatcher, repoUrl: d.repoUrl };
 }
-/* the epic in view, shaped like a single-epic file so every milestone/story view works on it */
 function epicCtx(id) {
   const P = S.project, E = P.epics.find((x) => x.id === id);
   if (!E) return null;
@@ -799,8 +763,7 @@ function epicCtx(id) {
     active: on ? P.active.milestone : null, needsYou: on ? P.needsYou : null,
     dispatcher: P.dispatcher, repoUrl: P.repoUrl, uncovered: E.uncovered });
 }
-/* this viewer's active milestone, needsYou and assumptions: people.<me>'s, else the top-level ones of a run from before
-   `people`. A run that syncs or has a `people` block numbers the viewer's own assumptions <n> and the older top-level
+/* a run that syncs or has a `people` block numbers the viewer's own assumptions <n> and the older top-level
    ones t<n>, which read as A<n> marked shared; any other run numbers the top-level ones <n> */
 function personal(d) {
   const obj = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : null);
@@ -834,12 +797,11 @@ async function poll() {
   lastPoll = Date.now();
   try {
     let raw;
-    /* the orchestrator's files sit in the run dir's podium/ folder; an older run keeps them at the top */
     raw = null;
     /* probe once, then keep reading where it was found: a miss would 404 on every poll */
     const where = [["podium/", "podium.json"], ["", "podium.json"], ["", "epic.json"]];
     for (const [base, name] of S.found ? [S.found, ...where.filter((w) => w !== S.found)] : where) {
-      try { raw = await getText(base + name); S.base = base; S.found = [base, name]; break; } catch { /* next */ }
+      try { raw = await getText(base + name); S.base = base; S.found = [base, name]; break; } catch {}
     }
     if (raw === null) throw new Error("no podium.json");
     S.online = true;
@@ -854,7 +816,6 @@ async function poll() {
       if (h !== S.handoffsRaw) { S.handoffsRaw = h; S.handoffs = JSON.parse(h); changed = true; }
     } catch { if (S.handoffsRaw) { S.handoffsRaw = ""; S.handoffs = {}; changed = true; } }
     try {
-      /* answers already sent: an assumption stays open in podium.json until the orchestrator applies it */
       const rq = await getText(S.base + "requests.jsonl");
       if (rq !== S.requestsRaw) {
         S.requestsRaw = rq;
@@ -905,28 +866,21 @@ function progressLines(ms, id) {
     return m ? { at: m[1], stage: m[2], note: m[3] } : { at: "", stage: "", note: l };
   });
 }
-/* what the agent is doing after its last progress line, and how far through the TDD cycle that is */
 const DOING = {
   STARTED: ["Writing tests", 1], RED: ["Making them pass", 2], GREEN: ["Refactoring", 3], REFACTOR: ["Running checks", 3],
   CONTRACT: ["Committing", 3], COMMITTED: ["Merging", 3], WAITING: ["Waiting for approval", 0], FAILED: ["Retrying", 1], FIX: ["Fixing", 2],
 };
-/* the orchestrator's own stages, {STAGE: {doing, step, time}}, over the defaults: what the agent does after that line,
-   how far through the cycle (0-3) it is, and which "where the time went" row the stretch after it counts toward */
 const ownStages = () => Object.entries(S.project?.orchestrator?.stages || {}).filter(([, v]) => v && typeof v === "object");
 const doingMap = () => ({ ...DOING, ...Object.fromEntries(ownStages().filter(([, v]) => v.doing).map(([k, v]) => [k, [String(v.doing), Number(v.step) || 0]])) });
 function doing(ms, id) { const l = progressLines(ms, id); const st = l.length ? l[l.length - 1].stage : null; return st ? doingMap()[st] || [st.toLowerCase(), 0] : ["Starting", 0]; }
 function bar3(n) { return `<span class="bar3" aria-label="step ${n} of 3">${[1, 2, 3].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`; }
 
-/* ---------- derived ---------- */
 const msById = () => Object.fromEntries(S.epic.milestones.map((m) => [m.id, m]));
 const activeMs = () => msById()[S.epic.active] || null;
 const viewMs = () => (S.view ? msById()[S.view] : null);
-/* a milestone building its stories: the active one while working, or another working one in its build phase; two can build at once */
 const isBuilding = (m) => !!m && m.status === "working" && (m.id === S.project.active?.milestone || m.phase === "build");
 const buildingMs = () => S.project.epics.flatMap((E) => E.milestones || []).filter(isBuilding);
-/* build-all is per milestone; a top-level buildAll, from an older run, is the active milestone's */
 const msBuildAll = (m) => (S.project.buildAll !== undefined && m.id === S.project.active?.milestone ? !!S.project.buildAll : !!m.buildAll);
-/* an id in a request path, <milestone>/<story> included, each part encoded */
 const idPath = (id) => String(id).split("/").map(encodeURIComponent).join("/");
 const items = () => viewMs()?.stories || (viewMs() ? [] : S.epic.milestones);
 const byId = () => Object.fromEntries(items().map((s) => [s.id, s]));
@@ -946,16 +900,12 @@ function matches(s) {
   return [s.id, s.title, s.summary, ...(s.files || []), ...(s.covers || []), ...repoNames(s)].join(" ").toLowerCase().includes(q);
 }
 
-/* ---------- repos ---------- */
-/* a milestone's `repos` map as a list; story `repos` is a plain list of names */
 const msRepos = (m) => Object.entries(m?.repos || {}).map(([repo, r]) => ({ repo, ...(r || {}) }));
 const repoNames = (x) => (Array.isArray(x.repos) ? x.repos : Object.keys(x.repos || {}));
-/* a story's commits with their repo: `commits` is {repo: [...]}, or a flat list (repo null) in single-repo runs */
 function commitsOf(s) {
   const c = s.commits || [];
   return Array.isArray(c) ? c.map((x) => ({ repo: null, ...x })) : Object.entries(c).flatMap(([repo, l]) => (l || []).map((x) => ({ repo, ...x })));
 }
-/* the GitHub page of a repo, from any PR url the project has for it; null repo is the single-repo run's repoUrl */
 function repoUrl(repo) {
   if (!repo) return S.epic?.repoUrl || S.project?.repoUrl;
   const pr = S.project.epics.flatMap((E) => (E.milestones || []).map((m) => m.repos?.[repo]?.pr)).find((x) => x?.url);
@@ -969,7 +919,6 @@ function prPill(pr, ms) {
   const tip = `title="${ms ? `${esc(ms)} · ` : ""}PR #${esc(pr.number)} ${st}"`;
   return pr.url ? `<a class="pr ${st}" href="${esc(pr.url)}" target="_blank" rel="noopener" ${tip}>${text}</a>` : `<span class="pr ${st}" ${tip}>${text}</span>`;
 }
-/* rows of {repo, prs: [{pr, ms}]}: one per repo of a milestone, or the union over an epic's milestones */
 const msRepoRows = (m) => msRepos(m).map((r) => ({ repo: r.repo, prs: r.pr ? [{ pr: r.pr }] : [] }));
 function epicRepoRows(milestones) {
   const rows = {};
@@ -983,25 +932,20 @@ function repoLines(rows) {
   if (!rows.length) return "";
   return `<div class="repos">${rows.map((r) => `<div class="repo-line"><span class="repo">${esc(r.repo)}</span>${r.prs.length ? r.prs.map((x) => prPill(x.pr, x.ms)).join("") : prPill(null)}</div>`).join("")}</div>`;
 }
-/* extra root-box height for repo lines that wrap after `perLine` PRs */
 const repoLinesHeight = (rows, perLine) => (rows.length ? 6 + rows.reduce((n, r) => n + Math.ceil(Math.max(1, r.prs.length) / perLine), 0) * 22 : 0);
 const repoChips = (names) => (names.length ? `<div class="repo-chips">${names.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div>` : "");
-/* the milestone's branch: the old top-level one, or its repos' one when they share it */
 function msBranch(m) {
   if (m.branch) return m.branch;
   const b = [...new Set(msRepos(m).map((r) => r.branch).filter(Boolean))];
   return b.length > 1 ? `${b.length} branches` : b[0] || "";
 }
 
-/* ---------- people ---------- */
 const isMe = (who) => !!who && who === S.info?.me;
 const personName = (who) => (isMe(who) ? "you" : esc(who));
 const ownerChip = (m) => (m?.owner ? `<span class="owner ${isMe(m.owner) ? "me" : ""}" title="${esc(isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`)}">👤 ${personName(m.owner)}</span>` : "");
-/* a run shared by people: it has a `people` block, or a milestone has an owner */
 const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
 const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
 const ownerOrClaim = (m) => ownerChip(m) || claimBtn(m);
-/* each person's active milestone, once more than one person shares the run */
 function renderPeople() {
   const el = $("people"), people = Object.entries(S.info?.people || {});
   el.hidden = people.length < 2;
@@ -1014,8 +958,6 @@ function renderPeople() {
   }).join("");
 }
 
-/* ---------- layout ---------- */
-/* sz: node height h, root box rw × rh; they grow when tiles carry repo lines */
 function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
   const map = Object.fromEntries(list.map((s) => [s.id, s]));
   const rank = {};
@@ -1030,7 +972,6 @@ function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
   list.forEach((s) => r(s.id));
   const rows = [];
   list.forEach((s) => (rows[rank[s.id]] ||= []).push(s));
-  // a wave wider than `cols` wraps onto several lines (narrow screens)
   const lines = (row) => (cols >= row.length ? [row] : Array.from({ length: Math.ceil(row.length / cols) }, (_, i) => row.slice(i * cols, (i + 1) * cols)));
   const xIndex = {};
   rows.forEach((row, ri) => {
@@ -1060,7 +1001,6 @@ function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
   pos.__root = { x: cx - sz.rw / 2, y: PAD / 2, w: sz.rw, h: sz.rh };
   return { pos, width, height: y - GY + PAD, rows: rowY.length, rowY, rowN, rowH, rowL };
 }
-// milestones run one at a time: done first, then the active one, then the rest, each after its deps
 function runOrder(list) {
   const by = Object.fromEntries(list.map((m) => [m.id, m]));
   const group = (m) => ({ done: 0, working: 1, dropped: 3 }[m.status] ?? 2);
@@ -1080,13 +1020,11 @@ function curve(a, b) {
   return `M${x1},${y1} C${x1},${y1 + m} ${x2},${y2 - m} ${x2},${y2}`;
 }
 
-/* ---------- render ---------- */
 function render() {
   if (!S.project) return;
   const P = S.project;
   renderAttention();
   renderPeople();
-  // the full map until a milestone is opened
   const full = !S.epic || !S.view;
   if (S.ds && !full && S.ds.id !== S.view) S.ds = null;
   renderDs();
@@ -1104,7 +1042,6 @@ function render() {
   if (S.selected) renderSheet();
 }
 
-/* the header, stepper and banner for the whole project, as on the epics page */
 function projectChrome() {
   const P = S.project;
   $("epic-title").textContent = P.project.title;
@@ -1120,7 +1057,6 @@ function projectChrome() {
   $("q").placeholder = "Search epics and milestones";
 }
 
-/* ---------- full map ---------- */
 function wavesOf(list) {
   const by = Object.fromEntries(list.map((s) => [s.id, s])), rank = {};
   const r = (s, seen = new Set()) => {
@@ -1133,7 +1069,6 @@ function wavesOf(list) {
   list.forEach((s) => (rows[r(s) - 1] ||= []).push(s));
   return rows.filter(Boolean);
 }
-// viewStatus without an open epic: todo splits into ready and waiting by its deps
 const fullStatus = (x, map) => (x.status !== "todo" ? x.status : (x.deps || []).every((d) => !map[d] || finished(d, map)) ? "ready" : "waiting");
 const planBtns = (m) => (orch() ? `<span class="fplan"><button class="btn" data-act="plan" data-id="${esc(m.id)}">Plan</button>${copyBtn("plan", m.id)}</span>` : "");
 function fullMs(m, all) {
@@ -1150,13 +1085,10 @@ function fullMs(m, all) {
   else if (left.length) foot = `<span class="badge waiting">Needs ${esc(left.join(", "))}</span>`;
   else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
   const map = Object.fromEntries(stories.map((s) => [s.id, s]));
-  // only the milestone being built opens up into its waves
   const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${fullStatus(s, map)}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
-  // a milestone with nothing to map yet opens its panel instead
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
   return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : st}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span><div class="foot">${foot}</div>${waves}</div>`;
 }
-/* the strip above a milestone's map: every milestone in run order, this one ringed; click to go back out */
 function miniMap(vm) {
   const all = Object.fromEntries(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const pills = runOrder(Object.values(all).filter((x) => x.status !== "dropped")).map((x) =>
@@ -1166,8 +1098,7 @@ function miniMap(vm) {
 function renderFull() {
   const P = S.project, open = S.epic;
   projectChrome();
-  S.epic = open; // the chrome clears it; Focus returns to the epic that was open
-  // a quest's tile carries its Asana task
+  S.epic = open;
   $("map-title").innerHTML = P.project.quest ? "Epics" : P.project.asana?.url ? `<span class="fproj">${asanaBtn(P.project)}${asanaMeta(P.project)}</span>` : linkBtn("");
   $("page-title").innerHTML = P.project.quest ? questTile(P) : "";
   $("quality").hidden = true;
@@ -1189,13 +1120,11 @@ function renderFull() {
   const next = order.findIndex((x) => !["done", "working"].includes(x.status));
   const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
   const rows = order.map((x, i) => `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
-  // lanes share the card's width; below their minimums the map scrolls sideways
   const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
   m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${rrow}${rows}</div>`;
   requestAnimationFrame(drawQueue);
   applyFilter();
 }
-// the queue line: row to row across the lanes, solid where it has run
 function drawQueue() {
   const g = document.querySelector("#map .full");
   if (!g) return;
@@ -1207,53 +1136,42 @@ function drawQueue() {
   g.insertAdjacentHTML("afterbegin", `<svg class="edges" width="${g.scrollWidth}" height="${g.scrollHeight}">${paths}</svg>`);
 }
 
-// landing dates may arrive as full ISO times: show the local day
 function day(v) {
   if (!v || !String(v).includes("T")) return esc(v || "");
   const d = new Date(v);
   return isNaN(d) ? esc(String(v).slice(0, 10)) : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-/* a milestone's PRs: its own and, across repos, each repo's */
 function msPrs(m) {
   return [m.pr, ...Object.entries(m.repos || {}).map(([repo, r]) => r?.pr && { ...r.pr, repo })].filter(Boolean);
 }
 const PR_WORD = { draft: "Draft PR", open: "PR open", merged: "PR merged", closed: "PR closed" };
 const prLink = (pr) => `<a class="prlink" href="${esc(pr.url)}" target="_blank" rel="noopener">${PR_WORD[pr.state] || "PR"}${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)} ↗</a>`;
-/* planning: the milestone's phases up to its breakdown, from Plan until the stories exist (the grill runs in the orchestrator's chat) */
 const PLANNING = ["recon", "spec", "mock", "architecture", "stories"];
 const planningPhases = () => ((ks) => (ks.indexOf("build") > 0 ? ks.slice(0, ks.indexOf("build")) : PLANNING))(phases().map(([k]) => k));
 const planning = (m) => m.status === "working" && planningPhases().includes(m.phase);
-/* a Plan click the orchestrator hasn't picked up yet: shown for two minutes, or until the milestone is working */
 const planAsked = (m) => m.status !== "working" && Date.now() - (S.planAsked?.[m.id] || 0) < 120000;
-/* a milestone grilled while another was active: "next after <ids>", "ready to plan" once nothing is ahead of it
-   (it starts on the user's Plan, never by itself), or "" when it isn't one */
 function grilledWaits(m) {
   if (!m.grilled || ["working", "done", "dropped"].includes(m.status)) return "";
   const all = Object.fromEntries(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const after = [...new Set([S.project.active?.milestone, ...(m.deps || []).filter((d) => all[d] && all[d].status !== "done")].filter(Boolean))];
   return after.length ? `next after ${after.join(", ")}` : "ready to plan";
 }
-/* what a working milestone is doing now: its open PRs, else the stories being built, else its phase */
 function msDoing(m) {
   const prs = msPrs(m).filter((pr) => pr.state !== "closed");
   if (prs.length) return prs.map(prLink).join(" ");
   const w = (m.stories || []).filter((s) => ["working", "approval"].includes(s.status)).map((s) => s.id);
   return w.length ? `Building ${esc(w.join(", "))}` : esc(phaseLabel(m.phase));
 }
-/* the milestone needsYou is about: its story's <milestone>/ prefix, else the active one */
 const needsMs = () => (String(S.project.needsYou?.story || "").includes("/") ? S.project.needsYou.story.split("/")[0] : S.project.active?.milestone);
-/* a working milestone that waits on the user: needsYou is set on it, or it has an open/draft PR, and no story is being built or approved */
 function msWaits(m) {
   if (m.status !== "working" || (m.stories || []).some((s) => ["working", "approval"].includes(s.status))) return false;
   const pr = msPrs(m).some((p) => ["draft", "open"].includes(p.state));
   return pr || (!!S.project.needsYou && needsMs() === m.id);
 }
-/* a story is complete only once its milestone has landed; before that it is merged into the milestone branch */
 const storyDone = (m) => (m.status === "done" ? "Completed" : "Merged to branch");
 const doneCls = (m) => (m.status === "done" ? "done" : "done merged");
 
 
-/* the stepper follows the milestone being planned or built */
 function renderStepper() {
   const m = activeMs();
   $("stepper").hidden = !m || m.status === "done";
@@ -1274,12 +1192,11 @@ function renderBanner() {
   const e = S.epic, am = activeMs();
   const stories = am?.stories || [];
   const ms = e.milestones;
-  // [milestone, story] for each story being built, in every building milestone of the epic
   const working = ms.filter(isBuilding).flatMap((m) => (m.stories || []).filter((s) => s.status === "working" || s.status === "approval").map((s) => [m, s]));
   let html;
   const allDone = ms.every((m) => ["done", "dropped"].includes(m.status));
   if (e.needsYou) {
-    html = working.length ? workingBanner(working) : ""; // what it needs is in the top banner
+    html = working.length ? workingBanner(working) : "";
   } else if (working.length) {
     html = workingBanner(working);
   } else if (allDone) {
@@ -1295,13 +1212,11 @@ function renderBanner() {
   }
   $("banner").innerHTML = needsBanner() + digestBanner() + assumedBanner() + html;
 }
-/* every draft PR in the project: the orchestrator opens PRs as drafts, and marking one ready is the user's call */
 function draftPrs() {
   return S.project.epics.flatMap((E) => (E.milestones || []).flatMap((m) =>
     [m.pr, ...Object.entries(m.repos || {}).map(([repo, r]) => r?.pr && { ...r.pr, repo })]
       .filter((pr) => pr?.state === "draft").map((pr) => ({ ...pr, ms: m.id }))));
 }
-/* one "Needs you" banner: the orchestrator's ask, the draft PRs to review, and a way into each milestone's map */
 function needsBanner() {
   const prs = draftPrs(), n = S.project.needsYou;
   if (!prs.length && !n) return "";
@@ -1313,7 +1228,6 @@ function needsBanner() {
   const what = prs.length ? ` · ${prs.length === 1 ? "a draft PR" : `${prs.length} draft PRs`}` : "";
   return `<div class="banner needs"><span class="label"><span class="pulse amber"></span>Needs you${what}</span><span class="sub">${n ? esc(n.reason) : "Review it, then mark it ready or ask for changes"}</span><div class="chips">${chips}</div></div>`;
 }
-/* the topbar toggle: the user's availability, from their hours or the toggle until the next change of hours */
 function renderHuman() {
   const h = S.human, el = $("human");
   el.hidden = !h;
@@ -1328,7 +1242,6 @@ function renderHuman() {
   el.innerHTML = states.map(([m, label, tip]) => `<button class="${h.mode === m ? "state" : ""} ${m}" data-act="human" data-id="${m}" title="${tip}"><i></i>${label}${h.mode === m && end ? `<span class="until">until ${esc(end)}</span>` : ""}</button>`).join("")
     + (h.source === "toggle" ? `<button class="flip" data-act="human" data-id="auto">Use hours</button>` : "");
 }
-/* decisions the orchestrator took while the user was away, until they review them */
 const assumptionName = (id) => {
   const a = (S.project?.assumptions || []).find((x) => x.n === id);
   return a ? `${a.label}${a.shared ? " (shared)" : ""}` : `A${id}`;
@@ -1347,7 +1260,6 @@ function assumedBanner() {
   const left = open.filter((a) => !S.settling?.[a.n]).length;
   return `<div class="banner assumed"><span class="label">Decided while you were away · ${left ? `${left} to settle` : "all answered"}</span><span class="sub">Confirm or reverse each; the arrow on the right shows the details</span>${left > 1 ? `<button class="btn confirm-all" data-settle="confirm" data-id="all">Confirm all ${left}</button>` : ""}<ul class="assumed-list">${items}</ul></div>`;
 }
-/* the user's answer to an assumption: a request the orchestrator applies (it owns podium.json) */
 async function settle(action, id) {
   let note = "";
   const all = id === "all", open = (S.project?.assumptions || []).filter((a) => a.status === "open" && !S.settling?.[a.n]).map((a) => a.n);
@@ -1379,14 +1291,12 @@ function workingBanner(working) {
 function renderFilters() {
   const map = byId(), counts = { all: 0 };
   items().forEach((s) => { counts.all++; const k = filterKey(viewStatus(s, map)); counts[k] = (counts[k] || 0) + 1; });
-  const vm = viewMs(), merged = vm && vm.status !== "done"; // a story is done only once its milestone lands
+  const vm = viewMs(), merged = vm && vm.status !== "done";
   $("filters").innerHTML = FILTERS.map(([k, l]) => [k, k === "done" && merged ? "Merged" : l]).map(([k, l]) => `<button class="${S.filter === k ? "on" : ""}" data-filter="${k}">${l}<span class="n">${counts[k] || 0}</span></button>`).join("");
   $("q").placeholder = viewMs() ? "Search stories, files, ids" : "Search milestones, brief items, ids";
 }
 
-/* a milestone's or epic's UI mock: its \`mock\` ({path, url}) or a planning artifact named a mock. A path is
-   relative to the run dir, which this server hosts; "../" reaches the repo, hosted under /repo/. The url is a
-   published copy (a claude.ai artifact), used when there is no local file. */
+/* a mock path is relative to the run dir, which this server hosts; "../" reaches the repo, hosted under /repo/ */
 function mockOf(x) {
   const a = (x?.artifacts || []).find((a) => a.phase === "mock" || /mock/i.test(a.name || ""));
   const m = x?.mock || (a && { path: a.path });
@@ -1394,14 +1304,10 @@ function mockOf(x) {
   const href = m.path ? (m.path.startsWith("../") ? `/repo/${m.path.replace(/^(\.\.\/)+/, "")}` : `/${m.path.replace(/^\.?\//, "")}`) : m.url;
   return { href, url: m.path ? m.url : null };
 }
-/* ---------- domain stories ---------- */
-/* an epic's or a milestone's domainStories: {status: drawing|ready|failed, at, stories: [{title, path, spec}], questions, reason}; paths in the run dir */
 const DS_ICO = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><rect x="9" y="15" width="6" height="5" rx="1"/><path d="M7.5 6h9M6.5 8.5l3.5 6M17.5 8.5l-3.5 6"/></svg>`;
 const runHref = (path) => "/" + path.replace(/^\.?\//, "").split("/").map(encodeURIComponent).join("/");
 const isEpic = (id) => S.project.epics.some((x) => x.id === id);
-// the epic or milestone with that id
 const dsOwner = (id) => S.project.epics.find((x) => x.id === id) || S.project.epics.flatMap((x) => x.milestones || []).find((m) => m.id === id);
-// asked here and not yet picked up, or being drawn
 const dsDrawing = (E) => E.domainStories?.status === "drawing" || (Date.now() - (S.dsAsked?.[E.id] || 0) < 120000 && (E.domainStories?.at || "") < new Date(S.dsAsked[E.id]).toISOString());
 function dsBtn(E) {
   const d = E.domainStories, what = isEpic(E.id) ? "epic" : "milestone";
@@ -1411,9 +1317,8 @@ function dsBtn(E) {
     : what === "epic" ? "Draw this epic's process as domain stories, from its brief" : "Draw what this milestone changes as domain stories, starting from the epic's when it has them";
   return orch() ? `<button class="dsbtn" data-act="domain-story" data-id="${esc(E.id)}" title="${esc(tip)}">${DS_ICO}Domain story</button>` : "";
 }
-// a milestone's stories open over its own map when it is the one in view; anything else opens over the full map
 function openDs(id) { S.ds = { id, tab: 0 }; if (S.epic && S.view && S.view !== id) S.view = null; render(); requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - document.querySelector(".topbar").offsetHeight - 12, behavior: "smooth" })); }
-function closeDs() { S.ds = null; render(); } // the map was hidden, so its queue lines are drawn again
+function closeDs() { S.ds = null; render(); }
 function renderDs() {
   const E = S.ds && dsOwner(S.ds.id);
   document.querySelector(".map-card").classList.toggle("ds-on", !!E);
@@ -1433,7 +1338,6 @@ function renderDs() {
     <div class="ds-paper ${S.ds.zoom ? "zoom" : ""}" data-ds-zoom><img src="${esc(runHref(s.path))}" alt="${esc(s.title)}"></div>`
     : `<div class="ds-empty">${d.status === "failed" ? `The last drawing failed: ${esc(d.reason || "no reason given")}` : "Nothing drawn yet"}</div>`}`;
 }
-/* a story's spec JSON, fetched once; renders again when it arrives */
 function specOf(s) {
   if (!s.spec) return null;
   const t = S.briefs[s.spec];
@@ -1455,7 +1359,6 @@ function renderMap() {
   const rootRows = vm ? msRepoRows(vm) : epicRepoRows(e.milestones);
   const nodeLines = kind === "milestone" ? Math.max(0, ...list.map((m) => msRepos(m).length)) : kind === "story" && list.some((s) => (s.repos || []).length) ? 1 : 0;
   const sz = { h: H + (nodeLines ? 4 + nodeLines * 20 : 0), rw: rootRows.length ? EPIC_W_REPOS : EPIC_W, rh: EPIC_H + repoLinesHeight(rootRows, 3) };
-  // below the feed breakpoint a wave wraps onto lines that fit, instead of scrolling sideways
   const avail = $("map").parentElement.clientWidth - 8;
   const cols = innerWidth <= 1100 ? Math.max(1, Math.floor((avail / 0.6 - 2 * PAD + GX) / (W + GX))) : Infinity;
   const L = layout(list, sz, cols);
@@ -1522,13 +1425,11 @@ function artifactNode(s, p) {
     <div class="foot"><span class="mono">${esc(s.artifact.path)}</span></div></div>`;
 }
 
-/* a Paseo agent's deep link, opening its chat in Paseo Desktop */
 function agentHref(s) {
   return s.agent?.backend === "paseo" && s.agent.id && S.info?.paseoServer ? `paseo://h/${encodeURIComponent(S.info.paseoServer)}/agent/${encodeURIComponent(s.agent.id)}` : null;
 }
 const agentLink = (s) => ((h) => (h ? `<a class="agentlink" href="${esc(h)}" title="Open this story's agent in Paseo">Paseo ↗</a>` : ""))(agentHref(s));
 const since = (at) => (at ? `<span class="since" data-since="${esc(at)}" title="Running since ${esc(clock(at))}">${dur(Date.now() - Date.parse(at))}</span>` : "");
-/* why a story failed: its last FAILED progress line, else the orchestrator's note */
 function failReason(ms, s) {
   const f = progressLines(ms, s.id).filter((l) => l.stage === "FAILED").pop();
   return f?.note || s.note || "";
@@ -1546,7 +1447,6 @@ function storyNode(s, p, map) {
   else if (st === "failed") foot = `<span class="badge failed">Failed · ${s.attempts || 0}/${maxAttempts()}</span>${agentLink(s)}`;
   else if (st === "blocked") foot = `<span class="badge blocked">Blocked by ${esc((s.deps || []).filter((d) => map[d]?.status !== "done").join(", "))}</span>`;
   else if (st === "dropped") foot = `<span class="badge dropped">Dropped</span>`;
-  // with its buttons in the foot, a story's status moves up beside its id so the foot fits
   else if (st === "ready") {
     const badge = `<span class="badge ready">Ready</span>`;
     if (live && orch()) { top = badge; foot = `<button class="btn" data-act="assign" data-id="${esc(sk)}">Assign subagent</button>${copyBtn("assign", sk)}`; } else foot = badge;
@@ -1573,7 +1473,6 @@ function applyFilter() {
   document.querySelectorAll(".node[data-id]").forEach((n) => map[n.dataset.id] && n.classList.toggle("dim", !matches(map[n.dataset.id])));
 }
 
-/* quality of the milestone in view, else of the active one */
 function renderQuality() {
   const m = viewMs() || activeMs();
   $("quality").hidden = !m;
@@ -1583,7 +1482,6 @@ function renderQuality() {
   const passing = contract.filter((c) => c.ok).length;
   const crit = criteria.filter((c) => c.pass).length;
   const mark = (v) => (v === true ? `<span class="ok">✓</span>` : v === false ? `<span class="bad">✕</span>` : `<span class="pend"></span>`);
-  // one pill per column: green when it passed, red when something failed, grey while it waits
   const state = (vals) => (vals.includes(false) ? "bad" : vals.length && vals.every((v) => v === true) ? "ok" : "pend");
   const pill = (st, text) => `<span class="qpill ${st}">${st === "ok" ? `<span class="ok">✓</span>` : st === "bad" ? `<span class="bad">✕</span>` : "<span></span>"}${text}</span>`;
   const gateOk = gate ? gate.findings === gate.fixed + gate.skipped : null;
@@ -1599,7 +1497,6 @@ function renderQuality() {
     <div class="qcol"><h3>Contract</h3>${contract.map((c) => `<div class="qline">${mark(c.ok)}<code>${esc(c.cmd)}</code><span class="when">${esc(clock(c.at))}</span></div>`).join("") || `<div class="muted">No runs yet</div>`}</div>
     <div class="qcol"><h3>Quality gate</h3>${gate ? `<div class="qline">${mark(gate.findings === gate.fixed + gate.skipped)}<span><b>${gate.findings}</b> findings · ${gate.fixed} fixed · ${gate.skipped} skipped</span></div>${gate.note ? `<div class="qline muted">${esc(gate.note)}</div>` : ""}<div class="qline muted"><code>${esc(gate.file || "")}</code></div>` : `<div class="muted">Runs after the last story merges</div>`}</div>
     <div class="qcol"><h3>Success criteria</h3>${criteria.map((c) => `<div class="qline">${mark(c.pass)}<span>${esc(c.text)}</span></div>`).join("") || `<div class="muted">Defined in the spec</div>`}</div>`;
-  // stays one line while nothing is red; opens itself when a check fails
   if (!S.qualityTouched) $("quality").open = contract.some((c) => c.ok === false) || gateOk === false || failing.length > 0;
 }
 
@@ -1632,7 +1529,6 @@ function link(e) {
 }
 const multiMs = () => !!S.project && S.project.epics.reduce((n, E) => n + (E.milestones || [1]).length, 0) > 1;
 function msLink(id) { return id && multiMs() ? `<a data-drill="${esc(id)}">${esc(id)}</a> ` : ""; }
-/* feed filters: which event types each chip shows; All folds a story's commit into its merge */
 const FEED = {
   all: null,
   decisions: ["assumed", "settled", "needs", "human", "request", "denied", "approval"],
@@ -1649,7 +1545,6 @@ function feedEvents() {
   for (const e of S.events.slice().reverse()) {
     if (types && !types.includes(e.type)) continue;
     if (f === "stories" && e.type === "commit" && !e.story) continue;
-    // a story's commit says nothing its merge doesn't: show one line per story
     if (f !== "commits" && e.type === "commit" && e.story && merged.has(key(e.milestone || "", e.story))) continue;
     const prev = out[out.length - 1];
     if (prev && prev.type === e.type && (prev.text || prev.subject || prev.question) === (e.text || e.subject || e.question) && prev.story === e.story) continue;
@@ -1667,13 +1562,9 @@ function renderEvents() {
   }).join("") || `<li class="muted" style="padding:8px">${f === "all" ? "Nothing yet" : "Nothing here yet"}</li>`;
 }
 
-/* ---------- while you were away ---------- */
-// What moved since the user last had the Podium in view. Asks, draft PRs and decisions have
-// their own banners, so the digest leaves them out.
 const AWAY_MS = 30 * 60000;
 const DIGEST_SKIP = new Set(["assumed", "settled", "needs", "human", "request", "commit", "status", "note"]);
 const seenKey = () => `podium-seen:${S.project?.project?.title || location.port}`;
-/* stamp the visit; true when this visit follows an absence, which opens the digest */
 function markSeen() {
   if (document.visibilityState !== "visible" || !S.project) return false;
   const k = seenKey(), prev = Number(localStorage.getItem(k) || 0), now = Date.now();
@@ -1689,7 +1580,6 @@ function digestBanner() {
   const uniq = (list) => [...new Map(list.filter((e) => e.story).map((e) => [id(e), e])).values()];
   const story = (e) => `<span class="wchip" data-open="${esc(e.story)}" data-ms="${esc(e.milestone || "")}"><b>${multiMs() && e.milestone ? `${esc(e.milestone)} · ` : ""}${esc(e.story)}</b></span>`;
   const ended = new Set(of("merged", "failed").map(id));
-  // one chip per milestone: where it got to
   const moves = [...new Map(of("planned", "phase", "landed").map((e) => [e.milestone, e])).values()];
   const shown = ["merged", "failed", "dispatched", "planned", "phase", "landed", "pr"];
   const rows = [
@@ -1704,8 +1594,6 @@ function digestBanner() {
   return `<div class="banner digest"><span class="label">While you were away</span><span class="sub">since ${esc(when(new Date(S.digestSince).toISOString()))}</span><button class="btn ghost" data-digest-done>Got it</button><div class="drows">${rows.map(([k, html]) => `<div class="drow"><span class="k">${k}</span><div class="dv">${html}</div></div>`).join("")}</div></div>`;
 }
 
-/* ---------- attention: tab title, icon dot, notifications ---------- */
-/* everything waiting on the user: [key, line, colour] */
 function attention() {
   const P = S.project, out = [];
   if (!P) return out;
@@ -1716,10 +1604,9 @@ function attention() {
     if (s.status === "failed") out.push([`f:${m.id}/${s.id}`, `${m.id} · ${s.id} failed`, "red"]);
     if (s.status === "approval") out.push([`p:${m.id}/${s.id}`, `${m.id} · ${s.id} waits for approval`, "amber"]);
   })));
-  P.epics.forEach((E) => (E.milestones || []).forEach((m) => { if (asanaOff(m) && !S.asanaChoice?.[m.id]) out.push([`asana:${m.id}`, `${m.id} is done in Asana: skip building it?`, "amber"]); }));
+  P.epics.forEach((E) => (E.milestones || []).forEach((m) => { if (completedInAsanaNotLanded(m) && !S.asanaChoice?.[m.id]) out.push([`asana:${m.id}`, `${m.id} is done in Asana: skip building it?`, "amber"]); }));
   return out;
 }
-/* the favicon is the header logo, so the two never drift; a dot when something waits on the user */
 function setFavicon(dot) {
   const svg = $("logo").outerHTML.replace(/<\/svg>\s*$/, `${dot ? `<circle cx="52" cy="12" r="11" fill="${dot}" stroke="#fff" stroke-width="3"/>` : ""}</svg>`);
   $("favicon").href = "data:image/svg+xml," + encodeURIComponent(svg);
@@ -1731,7 +1618,6 @@ function renderAttention() {
   document.title = `${n ? `(${n}) ` : ""}Podium · ${S.project.project.title}`;
   const dot = items.some((x) => x[2] === "red") ? "#ff3b30" : n ? "#ff9f0a" : "";
   if (dot !== S.dot) { S.dot = dot; setFavicon(dot); }
-  // notify only about what is new since the last render, and only while the tab is out of view
   if (S.attnKeys && notifyOn() && document.visibilityState !== "visible") {
     const fresh = items.filter((x) => !S.attnKeys.has(x[0]));
     if (fresh.length) new Notification(`Podium · ${S.project.project.title}`, { body: fresh.map((x) => x[1]).join("\n"), tag: "podium" });
@@ -1741,8 +1627,6 @@ function renderAttention() {
   $("bell").title = notifyOn() ? "Notifications on: you get one when something new needs you while this tab is in the background. Click to turn off." : "Notify me when something needs you while this tab is in the background";
 }
 
-/* ---------- timeline ---------- */
-/* time spent in each phase of milestone m, from its phase events (a phase entered twice adds up) */
 function phaseTimes(m) {
   const evs = S.events.filter((e) => e.milestone === m.id && ["planned", "phase", "landed"].includes(e.type))
     .map((e) => ({ ...e, t: Date.parse(e.at) })).filter((e) => !isNaN(e.t)).sort((a, b) => a.t - b.t);
@@ -1759,7 +1643,6 @@ function phaseTimes(m) {
   });
   return out;
 }
-/* each build wave's span, from its stories' start and finish */
 function waveTimes(m) {
   const st = m.stories || [], by = Object.fromEntries(st.map((s) => [s.id, s])), depth = {};
   const d = (s) => (depth[s.id] ??= 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((x) => by[x]).map((x) => d(by[x]))));
@@ -1786,7 +1669,6 @@ function timelineSec(m) {
     row(esc(r.label), r.ms, r.open) + (r.k === "build" ? wv.map((w, i) => (w ? row(`Wave ${i + 1} <span class="muted">· ${w.n}</span>`, w.end - w.start, w.open, "wave") : "")).join("") : "")).join("")}</div></div>`;
 }
 
-/* ---------- git: a run that moved on another machine ---------- */
 function renderGit() {
   const repos = S.git?.repos || [], bad = repos.filter((r) => r.behind || r.baseBehind), el = $("gitwarn");
   el.hidden = !bad.length;
@@ -1795,21 +1677,16 @@ function renderGit() {
   el.title = `Fetched ${clock(S.git.at)}. Work landed from another machine: pull before resuming the run, and check podium.json against what landed there.`;
 }
 
-/* ---------- Asana ---------- */
 const ASANA_ICO = `<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6.5" r="4.6" fill="currentColor"/><circle cx="5.4" cy="16.4" r="4.6" fill="currentColor"/><circle cx="18.6" cy="16.4" r="4.6" fill="currentColor"/></svg>`;
-/* an epic's task or a milestone's subtask; amber when Asana has it completed but it hasn't landed here */
-/* completed in Asana, not landed here, and not yet kept by the user */
-const asanaOff = (x) => !!(x?.asana?.completed && x.status && x.status !== "done" && !x.asana.keep && !isResearch(x));
+const completedInAsanaNotLanded = (x) => !!(x?.asana?.completed && x.status && x.status !== "done" && !x.asana.keep && !isResearch(x));
 function asanaBtn(x, compact) {
   const a = x?.asana;
   if (!a?.url) return "";
-  // done in Asana asks a question instead: skip building it, or keep it
-  if (asanaOff(x)) return `<button class="asanabtn off" data-asana-ask="${esc(x.id)}" title="Completed in Asana but not landed here: skip building it?">${ASANA_ICO}${compact ? "Done?" : "Done in Asana?"}</button>`;
+  if (completedInAsanaNotLanded(x)) return `<button class="asanabtn off" data-asana-ask="${esc(x.id)}" title="Completed in Asana but not landed here: skip building it?">${ASANA_ICO}${compact ? "Done?" : "Done in Asana?"}</button>`;
   return `<a class="asanabtn" href="${esc(a.url)}" target="_blank" rel="noopener" title="Open in Asana">${ASANA_ICO}Asana</a>`;
 }
-/* the question in a milestone's panel, or the answer already sent */
 function asanaAsk(m) {
-  if (!asanaOff(m)) return "";
+  if (!completedInAsanaNotLanded(m)) return "";
   const sent = S.asanaChoice?.[m.id];
   const act = sent ? `<span class="settled ${sent === "drop" ? "reverse" : ""}">${sent === "drop" ? "Skipping it" : "Keeping it"}: the orchestrator applies it next</span>`
     : `<button class="btn" data-asana-done="drop" data-id="${esc(m.id)}">Skip it</button><button class="btn ghost" data-asana-done="keep" data-id="${esc(m.id)}">Keep building</button>`;
@@ -1824,7 +1701,6 @@ async function asanaDone(choice, id) {
     toast(choice === "drop" ? `${id}: skipping it` : `${id}: keeping it`);
   } catch { toast(SERVER_DOWN); }
 }
-/* who owns it in Asana and its custom fields, as small chips */
 function asanaMeta(x) {
   const a = x?.asana;
   if (!a) return "";
@@ -1834,7 +1710,6 @@ function asanaMeta(x) {
 }
 const asanaRow = (x) => (x?.asana?.url ? `<dt>Asana</dt><dd>${asanaBtn(x)}${asanaMeta(x)}</dd>` : "");
 const linkBtn = (epic) => `<button class="asanabtn linkasana" data-link-asana="${esc(epic || "")}" title="${epic ? "Link this epic to its Asana task; its subtasks become milestones" : "Link an Asana project (its tasks become epics) or a task (it becomes an epic)"}">${ASANA_ICO}${epic ? "Asana" : "Link Asana project"}</button>`;
-/* a request the orchestrator maps, asking about whatever isn't obvious (it owns podium.json) */
 async function linkAsana(epic) {
   const what = epic ? `the Asana task for epic ${epic}` : "an Asana project or task";
   const url = (window.prompt(`Paste the link to ${what}`, "") || "").trim();
@@ -1847,8 +1722,6 @@ async function linkAsana(epic) {
   } catch { toast(SERVER_DOWN); }
 }
 
-/* ---------- navigation ---------- */
-/* make the epic holding milestone `ms` the one in view; `ms` "" means the epic's milestone map */
 function enterEpicOf(ms) {
   const ep = epicOfMs(ms);
   if (ep && ep !== S.epicView) { S.epicView = ep; S.epic = epicCtx(ep); S.view = undefined; chooseView(); }
@@ -1860,7 +1733,6 @@ function setView(id) {
   render();
 }
 
-/* ---------- sheet ---------- */
 async function openSheet(id) {
   S.selected = id;
   $("sheet").classList.add("on"); $("scrim").classList.add("on");
@@ -1879,7 +1751,6 @@ async function openSheet(id) {
     try { S.briefs[path] = await getText(path); } catch { try { S.briefs[path] = await getText(`podium/${path}`); } catch { S.briefs[path] = null; } }
     if (S.selected === id) renderSheet();
   }
-  // a building milestone's logs are fresh on every open; another's once, for where its stories' time went
   if (vm && target && target !== vm && (isBuilding(vm) || S.progress[key(vm.id, id)] === undefined)) {
     try { S.progress[key(vm.id, id)] = await getText(progressPath(vm.id, id)); } catch { S.progress[key(vm.id, id)] = ""; }
     if (S.selected === id) renderSheet();
@@ -1898,7 +1769,6 @@ const chip = (x, map) => {
   const mark = finished(x, map) ? `<span class="tick">✓</span>` : CHIP_DOT[st] ? `<span class="cdot" style="background:${CHIP_DOT[st]}"></span>` : "";
   return `<span class="link-chip ${finished(x, map) ? "landed" : ""}" data-open="${esc(x)}">${mark}<b>${esc(x)}</b> ${esc(map[x]?.title || "")}</span>`;
 };
-// what's left first, finished ones flat after; a count on top when there are several
 function depChips(ids, map, none, doneWord) {
   if (!ids.length) return `<span class="muted">${none}</span>`;
   const left = ids.filter((x) => !finished(x, map));
@@ -1915,7 +1785,6 @@ function shaLink(sha, repo = null) {
   const url = repoUrl(repo);
   return url ? `<a class="mono" href="${esc(url)}/commit/${esc(sha)}" target="_blank" rel="noopener">${esc(sha.slice(0, 7))}</a>` : `<span class="mono">${esc(sha.slice(0, 7))}</span>`;
 }
-/* `landedSha` is {repo: sha}, or one sha in single-repo runs */
 function landedLinks(landed) {
   if (!landed || typeof landed !== "object") return shaLink(landed);
   const pairs = Object.entries(landed).filter(([, sha]) => sha);
@@ -1960,14 +1829,11 @@ function renderSheet() {
     ${["done", "failed"].includes(s.status) ? timeSec(log, s) : ""}`;
 }
 
-/* ---------- where a story's time went ---------- */
-/* each stretch between two progress lines counts toward the step its first line began; a FIX line says
-   whether a bug or a test is being fixed; every stretch of an attempt that ended FAILED counts as that attempt */
 const TW = [["tests", "Writing tests", "var(--purple)"], ["build", "Building the feature", "var(--accent)"], ["bug", "Fixing bugs", "var(--red)"],
   ["test", "Fixing tests", "var(--amber-dot)"], ["fix", "Fixing", "#ff6b81"], ["refactor", "Refactoring", "var(--green-dot)"],
   ["checks", "Running checks", "#8e8e93"], ["wait", "Waiting on you", "#c7c7cc"]];
 const TW_OF = { STARTED: "tests", RED: "build", GREEN: "refactor", REFACTOR: "checks", CONTRACT: "checks", WAITING: "wait" };
-const TW_END = { tests: "RED", build: "GREEN", refactor: "REFACTOR", checks: "CONTRACT" }; // the line that reports how a step went
+const TW_REPORTING_LINE = { tests: "RED", build: "GREEN", refactor: "REFACTOR", checks: "CONTRACT" };
 const twOf = () => ({ ...TW_OF, ...Object.fromEntries(ownStages().filter(([, v]) => v.time).map(([k, v]) => [k, String(v.time)])) });
 function timeWent(log, endAt) {
   const of = twOf();
@@ -1985,17 +1851,15 @@ function timeWent(log, endAt) {
     const kindWord = l.stage === "FIX" ? (l.note.match(/^(bug|test)\b/i)?.[1] || "").toLowerCase() : "";
     const key = att[i] in failed ? `failed${att[i]}` : l.stage === "FIX" ? kindWord || "fix" : of[l.stage];
     if (!key) return;
-    // what the stretch was about: a FIX or WAITING line says it up front, a step's own closing line says how it went
     const note = ["FIX", "WAITING"].includes(l.stage) ? l.note.replace(/^(bug|test)\b\s*/i, "") : key.startsWith("failed") ? failed[att[i]]
-      : next && next.stage === TW_END[key] ? next.note : null;
+      : next && next.stage === TW_REPORTING_LINE[key] ? next.note : null;
     const r = (rows[key] ||= { key, ms: 0, n: 0, note: "", longest: 0 });
     r.ms += ms;
-    if (prev !== key) r.n++; // a round is a run of stretches on the same work
+    if (prev !== key) r.n++;
     prev = key;
     if (note != null && ms > r.longest) { r.longest = ms; r.note = note; }
   });
   const known = TW.filter(([k]) => rows[k]).map(([k, label, color]) => ({ ...rows[k], label, color }));
-  // a row an orchestrator's own stage names is labelled by that name
   const own = Object.values(rows).filter((r) => !r.key.startsWith("failed") && !TW.some(([k]) => k === r.key)).map((r) => ({ ...r, label: r.key, color: "#5ac8fa" }));
   const lost = Object.values(rows).filter((r) => r.key.startsWith("failed")).sort((a, b) => a.key.localeCompare(b.key))
     .map((r) => ({ ...r, label: `Failed attempt ${r.key.slice(6)}`, color: "repeating-linear-gradient(135deg, #aeaeb2 0 3px, #d1d1d6 3px 6px)", n: 1 }));
@@ -2059,11 +1923,8 @@ function epicSheet() {
     ${e.epic.spec || !e.epic.quest || !questOf() ? briefSec(e.epic.spec, "Brief") : questSec(e.epic.quest)}`;
 }
 
-/* ---------- quest ---------- */
-/* a project can answer a quest: one problem document whose user stories are the epics */
 const questOf = () => S.project?.project?.quest;
 const isResearch = (m) => m?.kind === "research";
-/* the app a link opens, by its address: its icon, and its name, which a label like "Figma: Admin UI" then drops */
 const GDOC = (c) => `<svg class="lico" viewBox="0 0 48 66" aria-hidden="true"><path fill="${c}" d="M30 0H5a5 5 0 0 0-5 5v56a5 5 0 0 0 5 5h38a5 5 0 0 0 5-5V18z"/><path fill="#fff" fill-opacity=".55" d="M30 0v13a5 5 0 0 0 5 5h13z"/><path fill="#fff" d="M11 32h26v3.5H11zm0 8h26v3.5H11zm0 8h18v3.5H11z"/></svg>`;
 const LINK_APPS = [
   [/figma\.com\//, "Figma", `<svg class="lico" viewBox="0 0 38 57" aria-hidden="true"><path fill="#1abcfe" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z"/><path fill="#0acf83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z"/><path fill="#ff7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19z"/><path fill="#f24e1e" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z"/><path fill="#a259ff" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z"/></svg>`],
@@ -2085,7 +1946,6 @@ function questTile(P) {
     `${ms.filter((x) => x.status === "done").length} of ${ms.length} milestones landed`, open && `${open} open quest ${open === 1 ? "task" : "tasks"}`].filter(Boolean);
   return `<div class="quest" data-quest tabindex="0"><span class="eyebrow">Quest<span class="ftools">${asanaBtn(P.project, true)}${syncBtn(P.project)}</span></span><span class="title">${esc(P.project.title)}</span>${P.project.summary ? `<span class="gist">${esc(P.project.summary)}</span>` : ""}<div class="qfoot">${counts.map((c) => `<span>${c}</span>`).join("")}${asanaMeta(P.project)}<span class="qlinks">${questLinks(q)}</span></div></div>`;
 }
-/* re-read the quest's Asana task and subtasks: a queued link to the task it already holds, which the orchestrator takes as a refresh */
 function syncBtn(x) {
   if (!x.asana?.url) return "";
   const busy = S.asanaSync && !(Date.parse(x.asana.syncedAt) > Date.parse(S.asanaSync));
@@ -2109,7 +1969,6 @@ function questSheet() {
     ${tasks.length ? `<div class="sec"><h3>Tasks</h3>${tasks.map((t) => `<div class="commit"><span>${t.asana?.completed ? "✓" : "○"}</span><span>${t.asana?.url ? `<a href="${esc(t.asana.url)}" target="_blank" rel="noopener">${esc(t.title)} ↗</a>` : esc(t.title)}</span><span></span></div>`).join("")}</div>` : ""}
     ${briefSec(q.doc, "Document")}`;
 }
-/* an epic's part of the quest: its heading (### US1: …) down to the next heading as high */
 function questSection(text, ref) {
   const lines = text.split("\n"), lvl = (l) => l.match(/^#+(?=\s)/)?.[0].length || 0;
   const re = new RegExp(`^#{1,6}\\s+${ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
@@ -2123,8 +1982,6 @@ function questSec(ref) {
   return `<div class="sec"><h3>Brief<a data-quest>Whole quest ›</a></h3>${part ? `<div class="md">${md(part)}</div>` : t === undefined ? `<div class="muted">Loading…</div>` : `<div class="muted">${esc(ref)} not found in ${esc(p)}</div>`}</div>`;
 }
 
-/* ---------- tiny markdown ---------- */
-/* a section heading's icon, by what the section is about (brief, spec and sheet headings) */
 const HEAD_ICONS = [["goal", "🎯"], ["objective", "🎯"], ["acceptance", "✅"], ["success criteria", "🏆"], ["files in scope", "📁"], ["files", "📁"],
   ["context", "🧭"], ["depends on", "🔗"], ["dependencies", "🔗"], ["contract", "📜"], ["done when", "🏁"], ["brief items", "📌"], ["covers", "📌"],
   ["brief", "📝"], ["document", "📄"], ["run", "⚙️"], ["progress", "⏱️"], ["timeline", "🗓️"], ["commits", "🔀"], ["where the time went", "⏳"], ["tasks", "🗂️"], ["open questions", "❓"],
@@ -2133,7 +1990,6 @@ const HEAD_ICONS = [["goal", "🎯"], ["objective", "🎯"], ["acceptance", "✅
   ["budget", "💰"], ["data sources", "🛰️"], ["module", "🧱"], ["shape", "🧱"], ["seams", "🧵"], ["story graph", "🕸️"], ["quality gate", "🛡️"]];
 const headIcon = (text) => HEAD_ICONS.find(([k]) => text.trim().toLowerCase().startsWith(k))?.[1];
 const withIcon = (text, html) => ((i) => (i ? `<span class="hicon">${i}</span>` : "") + html)(headIcon(text));
-/* the sheet's own section headings (Brief, Run, Commits…) get theirs once rendered */
 function iconSheetHeads() {
   for (const h of $("sheet-body").querySelectorAll(".sec > h3")) {
     const t = h.firstChild;
@@ -2162,7 +2018,6 @@ function md(src) {
   return out.join("");
 }
 
-/* ---------- time ---------- */
 function clock(iso) { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
 function when(iso) {
   const d = new Date(iso); if (isNaN(d)) return iso || "";
@@ -2172,9 +2027,7 @@ function when(iso) {
 }
 function dur(ms) { const m = Math.max(0, Math.round(ms / 60000)); return m < 1 ? "<1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
 
-/* ---------- actions ---------- */
 const NO_ORCHESTRATOR = () => (orchCmd() ? `No orchestrator is watching — run ${orchCmd()} in an agent chat, then click again` : "This run has no orchestrator to act on that");
-/* the prompt behind a button, for a session of the user's own; the server builds it from the orchestrator's text */
 const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
 const releaseBtn = (id) => `<button class="release" data-release="${esc(id)}" title="Take it back: the orchestrator may dispatch it again" aria-label="Take it back">✕</button>`;
 async function release(id) {
@@ -2193,7 +2046,7 @@ async function copyPrompt(action, id) {
     let r = action === "assign"
       ? await fetch(`/handoff/${idPath(id)}`, { method: "POST" })
       : await fetch(`/prompt/${action}/${idPath(id)}`, { cache: "no-store" });
-    const unmarked = r.status === 409;  // no orchestrator to keep it from: copy it without the hand-off
+    const unmarked = r.status === 409;
     if (unmarked) r = await fetch(`/prompt/${action}/${idPath(id)}`, { cache: "no-store" });
     if (r.status === 404 && !r.headers.get("Content-Type")?.includes("json")) return toast("This Podium server predates the copy button — restart it");
     if (r.status === 501) return toast(`${orch()?.name || "This run's orchestrator"} has no prompt to copy for that`);
@@ -2206,7 +2059,6 @@ async function copyPrompt(action, id) {
     toast("Couldn't copy the prompt — is the Podium server running? Start it with podium server --detach");
   }
 }
-// the server replaces itself on the same port; reload once it answers again
 async function restartServer() {
   try { await fetch("/restart", { method: "POST" }); } catch { return toast("The Podium server didn't answer — start it again with podium server --detach"); }
   toast("Restarting the Podium server…");
@@ -2235,7 +2087,7 @@ let toastT;
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3200); }
 
 document.addEventListener("click", (ev) => {
-  if (ev.target.closest("a[href]")) return; // a PR link inside a card opens itself, not the card
+  if (ev.target.closest("a[href]")) return;
   if (ev.target.closest("a.pr")) return;
   const th = ev.target.closest("[data-theme-set]");
   if (th) { setTheme(th.dataset.themeSet); return; }
@@ -2250,7 +2102,7 @@ document.addEventListener("click", (ev) => {
   if (ds) { ev.stopPropagation(); openDs(ds.dataset.ds); return; }
   const cp = ev.target.closest("[data-copy]");
   if (cp) { ev.stopPropagation(); copyPrompt(cp.dataset.copy, cp.dataset.id); return; }
-  const ex = !ev.target.closest("[data-settle]") && ev.target.closest("[data-expand]"); // the whole line toggles, not its buttons
+  const ex = !ev.target.closest("[data-settle]") && ev.target.closest("[data-expand]");
   if (ex) {
     ev.stopPropagation();
     const i = ex.dataset.expand, y = scrollY;
@@ -2271,7 +2123,7 @@ document.addEventListener("click", (ev) => {
   const f = ev.target.closest("[data-filter]");
   if (f) { S.filter = f.dataset.filter; renderFilters(); applyFilter(); return; }
   const aq = ev.target.closest("[data-asana-ask]");
-  if (aq) { enterEpicOf(aq.dataset.asanaAsk); openSheet(S.view === aq.dataset.asanaAsk ? "__root" : aq.dataset.asanaAsk); return; } // the milestone's panel holds the question
+  if (aq) { enterEpicOf(aq.dataset.asanaAsk); openSheet(S.view === aq.dataset.asanaAsk ? "__root" : aq.dataset.asanaAsk); return; }
   const ad = ev.target.closest("[data-asana-done]");
   if (ad) { asanaDone(ad.dataset.asanaDone, ad.dataset.id); return; }
   if (ev.target.closest("[data-asana-sync]")) { asanaSync(); return; }
@@ -2289,7 +2141,6 @@ document.addEventListener("click", (ev) => {
     enterEpicOf(d.dataset.drill);
     if (S.epic.single) render(); else setView(d.dataset.drill);
     if (d.dataset.story) openSheet(d.dataset.story);
-    // a link outside the map (Needs you, digest, a sheet) brings the map into view, below the sticky header
     if (!d.closest(".map-card")) requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - document.querySelector(".topbar").offsetHeight - 12, behavior: "smooth" }));
     return;
   }
