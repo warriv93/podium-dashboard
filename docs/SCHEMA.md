@@ -12,7 +12,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 | `events.jsonl` | `podium set --event`, core commands | yes, merged as a union of lines |
 | `stories/<milestone>/<story>.md`, `.progress` | orchestrator, `podium log` | yes (`.progress` merged as a union, except that the owner's machine keeps its own milestone's as it is) |
 | `handoffs.json` | the server | yes |
-| planning docs (`*.md` at the run dir's top, `spec/**`, `mock/**`, `domain-stories/**`) | orchestrator | yes, unless this machine's lists leave them out |
+| planning docs (`*.md` and `**/*.md` anywhere in the run dir, `spec/**`, `mock/**`, `domain-stories/**`) | orchestrator | yes, unless this machine's lists leave them out |
 | `requests.jsonl` | the server | never |
 | `cursor.json` | `podium requests` | never |
 | `watcher.json` | `podium watch` | never |
@@ -118,7 +118,7 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
 
 ### sync
 
-`{enabled, remote, ref, include, exclude}`, all this machine's own: never pushed, never taken from a pull. `include` and `exclude` are globs relative to the run dir; each one unset falls back to this machine's `sync.json`, else to the built-in lists: the state files plus `*.md`, `spec/**`, `mock/**`, `domain-stories/**`, and no exclude. See `PROTOCOL.md`.
+`{enabled, remote, ref, include, exclude}`, all this machine's own: never pushed, never taken from a pull. `include` and `exclude` are globs relative to the run dir; each one unset falls back to this machine's `sync.json`, else to the built-in lists: the state files plus `*.md`, `**/*.md`, `spec/**`, `mock/**`, `domain-stories/**`, and no exclude. See `PROTOCOL.md`.
 
 ### Collaboration
 

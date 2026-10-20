@@ -88,8 +88,8 @@ COMMANDS
         .deep-plan, in kebab case>; each machine must use the same) without touching a working tree,
         index or HEAD, and pushed to <remote>: a remote of the run's repo
         (default origin), or a URL, which needs no repo. By default the state
-        files and the planning docs sync: *.md at the run dir's top, spec/,
-        mock/ and domain-stories/. sync.include and sync.exclude globs
+        files and the planning docs sync: Markdown files anywhere in the
+        run dir, spec/, mock/ and domain-stories/. sync.include and sync.exclude globs
         (relative to the run dir) change that for one run, `sync defaults` for
         every run on this machine. The request queue, its cursor, the
         watcher's heartbeat, the server log, Python code, repos/, worktrees/

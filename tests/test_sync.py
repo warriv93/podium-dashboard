@@ -263,13 +263,13 @@ class Pull(SyncCase):
 
     def test_include_and_exclude_stay_with_their_machine(self):
         a, b = self.machine("a"), self.machine("b")
-        a.data["sync"].update(include=["podium/podium.json", "docs/*.md"], exclude=["docs/draft-*"])
+        a.data["sync"].update(include=["podium/podium.json", "docs/*.txt"], exclude=["docs/draft-*"])
         a.save()
-        self.write(os.path.join(a.root, "docs", "plan.md"), "# plan\n")
-        self.write(os.path.join(a.root, "docs", "draft-idea.md"), "# idea\n")
+        self.write(os.path.join(a.root, "docs", "plan.txt"), "# plan\n")
+        self.write(os.path.join(a.root, "docs", "draft-idea.txt"), "# idea\n")
         self.assertRegex(sync.save(a), r"^SAVED ")
         self.assertNotIn("sync", json.loads(self.remote_file("podium/podium.json")))
-        self.assertIn("docs/plan.md", self.remote_files())
+        self.assertIn("docs/plan.txt", self.remote_files())
         self.assertRegex(sync.pull(b), r"^PULLED ")
         self.assertEqual(b.data["sync"], {"enabled": True, "ref": REF})
         self.assertFalse(os.path.exists(os.path.join(b.root, "docs")))
@@ -306,21 +306,21 @@ class Pull(SyncCase):
 
     def test_a_machine_that_widens_its_include_gets_the_files_it_now_covers_and_drops_none(self):
         a = self.machine("a")
-        a.data["sync"]["include"] = ["podium/**", "docs/*.md"]
+        a.data["sync"]["include"] = ["podium/**", "docs/*.txt"]
         a.save()
-        self.write(os.path.join(a.root, "docs", "plan.md"), "# plan\n")
+        self.write(os.path.join(a.root, "docs", "plan.txt"), "# plan\n")
         self.assertRegex(sync.save(a), r"^SAVED ")
         b = self.machine("b")
         self.assertFalse(os.path.exists(os.path.join(b.root, "docs")))
-        b.data["sync"]["include"] = ["podium/**", "docs/*.md"]
+        b.data["sync"]["include"] = ["podium/**", "docs/*.txt"]
         b.save()
         self.set_status(b, "M2", "working")
         self.assertRegex(sync.save(b), r"^SAVED ")
-        self.assertIn("docs/plan.md", self.remote_files())
-        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.md")), "# plan\n")
-        os.remove(os.path.join(b.root, "docs", "plan.md"))
+        self.assertIn("docs/plan.txt", self.remote_files())
+        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.txt")), "# plan\n")
+        os.remove(os.path.join(b.root, "docs", "plan.txt"))
         self.assertRegex(sync.save(b, "drop plan"), r"^SAVED ")
-        self.assertNotIn("docs/plan.md", self.remote_files())
+        self.assertNotIn("docs/plan.txt", self.remote_files())
 
     def test_enabled_remote_and_ref_stay_with_their_machine(self):
         a = self.run_in(self.clone("a"), remote="origin", ref=REF)
@@ -369,7 +369,7 @@ class Pull(SyncCase):
 
     def test_pull_restores_only_what_this_machines_lists_carry(self):
         self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["podium/podium.json", "podium/stories/**"]}}),
-                        "podium/stories/M1/S1.progress": "p\n", "docs/outside.md": "x\n"})
+                        "podium/stories/M1/S1.progress": "p\n", "docs/outside.txt": "x\n"})
         b = self.run_in(self.clone("b"), None)
         self.assertRegex(sync.pull(b), r"^PULLED ")
         self.assertTrue(os.path.exists(os.path.join(b.dir, "stories", "M1", "S1.progress")))
@@ -828,12 +828,12 @@ class Defaults(SyncCase):
 
     def test_a_run_with_no_lists_syncs_the_state_and_planning_docs_but_never_machine_files_or_code(self):
         p = self.run_in(self.clone("a"), hidden=False)
-        for rel in ("notes.md", "spec/x.md", "mock/m.html", "domain-stories/d.egn", "docs/deep.md", ".envrc",
-                    "spec/gen.py", "Makefile"):
+        for rel in ("notes.md", "spec/x.md", "mock/m.html", "domain-stories/d.egn", "docs/deep.md", "research/notes/x.md",
+                    ".envrc", "spec/gen.py", "Makefile", "repos/core/README.md", "worktrees/w/a.md", "x.logs/a.md"):
             self.write(os.path.join(p.root, rel), "x\n")
         self.assertRegex(sync.save(p), r"^SAVED ")
-        self.assertEqual(self.remote_files(), ["README.md", "domain-stories/d.egn", "mock/m.html", "notes.md",
-                                               "podium/podium.json", "spec/x.md"])
+        self.assertEqual(self.remote_files(), ["README.md", "docs/deep.md", "domain-stories/d.egn", "mock/m.html", "notes.md",
+                                               "podium/podium.json", "research/notes/x.md", "spec/x.md"])
 
     def test_the_machine_default_applies_to_a_run_with_no_lists(self):
         self.set_defaults(include=["podium/podium.json", "docs/*.md"], exclude=["docs/draft-*"])
@@ -857,27 +857,27 @@ class Defaults(SyncCase):
     def test_with_no_default_a_run_falls_back_to_the_built_in_lists(self):
         p = self.run_in(self.clone("a"))
         self.assertEqual(sync.sources(p), 'include ["podium/podium.json", "podium/events.jsonl", "podium/handoffs.json", '
-                                          '"podium/stories/**", "*.md", "spec/**", "mock/**", "domain-stories/**"] '
+                                          '"podium/stories/**", "*.md", "**/*.md", "spec/**", "mock/**", "domain-stories/**"] '
                                           '(built-in) exclude [] (built-in)')
 
     def test_widening_the_default_restores_the_files_it_now_covers_and_narrowing_it_deletes_none(self):
         a = self.machine("a")
-        a.data["sync"]["include"] = ["podium/**", "docs/*.md"]
+        a.data["sync"]["include"] = ["podium/**", "docs/*.txt"]
         a.save()
-        self.write(os.path.join(a.root, "docs", "plan.md"), "# plan\n")
+        self.write(os.path.join(a.root, "docs", "plan.txt"), "# plan\n")
         self.assertRegex(sync.save(a), r"^SAVED ")
         b = self.machine("b")
         self.assertFalse(os.path.exists(os.path.join(b.root, "docs")))
-        self.set_defaults(include=["podium/**", "docs/*.md"])
+        self.set_defaults(include=["podium/**", "docs/*.txt"])
         self.set_status(b, "M2", "working")
         self.assertRegex(sync.save(b), r"^SAVED ")
-        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.md")), "# plan\n")
+        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.txt")), "# plan\n")
         self.set_defaults(include=["podium/**"])
         self.set_status(b, "M2", "done")
         self.assertRegex(sync.save(b), r"^SAVED ")
         self.assertRegex(sync.pull(b), r"^(UP-TO-DATE|PULLED )")
-        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.md")), "# plan\n")
-        self.assertIn("docs/plan.md", self.remote_files())
+        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.txt")), "# plan\n")
+        self.assertIn("docs/plan.txt", self.remote_files())
 
     def test_a_pull_never_touches_the_machine_default(self):
         self.set_defaults(include=["podium/**"])

@@ -4,8 +4,8 @@ The state is committed onto `ref` (default refs/heads/podium-run/<run slug>) thr
 tree, index or HEAD, and pushed to `remote`: a remote name of the run's own repo (default origin), or a URL, whose
 commits live in a private bare cache per run under ~/.podium/sync, so a run outside any repo syncs too. `include`
 globs (relative to the run dir) pick the files, and `exclude` ones drop some: each list the run's own, else this
-machine's default (sync.json beside human.json), else the state files plus the planning docs (*.md at the run dir's
-top, spec/, mock/, domain-stories/) and no exclude; this machine's own files never go: the request queue and its cursor,
+machine's default (sync.json beside human.json), else the state files plus the planning docs (Markdown files anywhere in
+the run dir, spec/, mock/, domain-stories/) and no exclude; this machine's own files never go: the request queue and its cursor,
 the watcher's heartbeat, the server log; nor does Python code or a native module. The whole `sync` block, `include` and `exclude` too,
 is this machine's and stays out of the synced podium.json: a remote's save never widens what lands here. The
 orchestrator's `extension` is this machine's too: the run carries the value its first save seeded, and only a first
@@ -44,7 +44,7 @@ LOCAL = [*MACHINE_FILES, "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth", "*.so", 
          "**/__pycache__/**", "__pycache__/**"]
 IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 APPEND_ONLY = ["events.jsonl", "*.progress"]
-PLANNING_DOCS = ["*.md", "spec/**", "mock/**", "domain-stories/**"]
+PLANNING_DOCS = ["*.md", "**/*.md", "spec/**", "mock/**", "domain-stories/**"]
 LISTS = ("include", "exclude")
 CACHE = "~/.podium/sync"
 USAGE = ("sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status"
