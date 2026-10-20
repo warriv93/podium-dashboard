@@ -28,8 +28,7 @@ def cmd_status(p, args):
     d = p.data
     act = p.active()
     owned = lambda m: f" · owner {m['owner']}" if m.get("owner") else ""
-    print(f"{(d.get('project') or {}).get('title', '?')} · active {act.get('epic', '-')}/{act.get('milestone', '-')}"
-          f" · dispatcher {d.get('dispatcher', '-')}")
+    print(f"{(d.get('project') or {}).get('title', '?')} · active {act.get('epic', '-')}/{act.get('milestone', '-')}")
     print(f"human: {human_line(availability())}")
     if p.needs_you():
         print(f"needsYou: {json.dumps(p.needs_you(), ensure_ascii=False)}")

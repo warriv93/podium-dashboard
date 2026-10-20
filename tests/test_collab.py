@@ -172,7 +172,7 @@ class PersonalState(Case):
         data["epics"][0]["milestones"][1]["owner"] = "a"
         run = self.run_at(os.path.join(self.tmp, "run"), data)
         out = self.podium(run, "status", "--all").stdout
-        self.assertIn(" · active -/M2 · ", out)
+        self.assertIn(" · active -/M2\n", out)
         self.assertNotIn("needsYou", out)
         self.assertIn("people: a → M2 · b → M1\n", out)
         self.assertIn("epic e: 2 working, 1 todo · owners M2 a\n", out)

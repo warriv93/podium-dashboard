@@ -80,6 +80,17 @@ PROTO_RUN = {
 PROTO_EVENTS = [{"type": kind, "milestone": "M1", "story": "constructor", "phase": kind, "state": kind, "at": DONE} for kind in KEYS] + [
     {"type": "phase", "milestone": "M1", "phase": kind, "at": f"2026-10-20T0{i}:00:00+00:00"} for i, kind in enumerate(KEYS)] + [
     {"type": "pr", "milestone": "M1", "number": 3, "state": kind, "at": DONE} for kind in KEYS]
+CYCLIC_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "dispatcher": "elsewhere-only",
+    "active": {"epic": "e1", "milestone": "M1"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "M", "status": "working", "phase": "build", "deps": ["M2"],
+         "stories": [{"id": "S1", "title": "a", "status": "working", "deps": ["S3"], "startedAt": "2026-10-20T07:00:00+00:00"},
+                     {"id": "S2", "title": "b", "status": "done", "deps": ["S1"], "overlapAfter": ["S2"],
+                      "startedAt": "2026-10-20T07:00:00+00:00", "finishedAt": DONE},
+                     {"id": "S3", "title": "c", "status": "todo", "deps": ["S2"], "startedAt": "2026-10-20T07:30:00+00:00"},
+                     {"id": "S4", "title": "d", "status": "todo", "deps": ["S1"]}]},
+        {"id": "M2", "title": "N", "status": "todo", "deps": ["M1"]}]}]}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
 
 HARNESS = r"""
@@ -205,6 +216,13 @@ class HostileRun(unittest.TestCase):
         for shown in ("Failed · 0/2", "0 findings · 0 fixed · 0 skipped", "Gate · 0 of 0 fixed", "+0 −0", "Attempts0 of 2"):
             self.assertIn(shown, text)
         self.assertIn("Re-read the Asana task and its subtasks", [v for _, k, v in scan.attrs if k == "title"])
+
+    def test_renders_a_run_whose_stories_and_milestones_depend_on_each_other_in_a_cycle(self):
+        scan = self.rendered(CYCLIC_RUN, [], PROGRESS, ("S1", "S2", "S3"))
+        text = "".join(scan.text)
+        self.assertIn("W1", text)
+        self.assertNotIn("elsewhere-only", text)
+        self.assertNotIn("Dispatcher", text)
 
     def test_renders_a_run_whose_ids_types_and_states_are_object_prototype_keys(self):
         scan = self.rendered(PROTO_RUN, PROTO_EVENTS, PROTO_PROGRESS, (*KEYS, "S1"), **{"podium/handoffs.json": "null"})

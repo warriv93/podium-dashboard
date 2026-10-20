@@ -760,7 +760,7 @@ function normalizeProject(d) {
   const e = normalize(d);
   const E = { ...d.epic, id: d.epic.id || "E1", milestones: e.milestones, uncovered: d.uncovered };
   return { project: { title: d.epic.title, summary: d.epic.summary }, epics: [E], active: e.active ? { epic: E.id, milestone: e.active } : null,
-    needsYou: d.needsYou, buildAll: d.buildAll, dispatcher: d.dispatcher, repoUrl: d.repoUrl };
+    needsYou: d.needsYou, buildAll: d.buildAll, repoUrl: d.repoUrl };
 }
 function epicCtx(id) {
   const P = S.project, E = P.epics.find((x) => x.id === id);
@@ -768,7 +768,7 @@ function epicCtx(id) {
   const on = P.active?.epic === id;
   return normalize({ epic: E, milestones: E.milestones, stories: E.stories, phase: E.phase, quality: E.quality, artifacts: E.artifacts,
     active: on ? P.active.milestone : null, needsYou: on ? P.needsYou : null,
-    dispatcher: P.dispatcher, repoUrl: P.repoUrl, uncovered: E.uncovered });
+    repoUrl: P.repoUrl, uncovered: E.uncovered });
 }
 /* a run that syncs or has a `people` block numbers the viewer's own assumptions <n> and the older top-level
    ones t<n>, which read as A<n> marked shared; any other run numbers the top-level ones <n> */
@@ -1657,7 +1657,12 @@ function phaseTimes(m) {
 }
 function waveTimes(m) {
   const st = m.stories || [], by = dict(st.map((s) => [s.id, s])), depth = dict();
-  const d = (s) => (depth[s.id] ??= 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((x) => by[x]).map((x) => d(by[x]))));
+  const d = (s, seen = new Set()) => {
+    if (depth[s.id]) return depth[s.id];
+    if (seen.has(s.id)) return 0;
+    seen.add(s.id);
+    return (depth[s.id] = 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((x) => by[x]).map((x) => d(by[x], seen))));
+  };
   const waves = [];
   st.forEach((s) => {
     if (!s.startedAt) return;
@@ -1932,7 +1937,7 @@ function epicSheet() {
     <div class="sec"><h3>Milestones</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-drill="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${esc(viewStatus(m, map))}">${esc(m.status)}</span></div>`).join("")}</div>
     ${epicRepoRows(e.milestones).length ? `<div class="sec"><h3>Repos touched</h3>${repoLines(epicRepoRows(e.milestones))}</div>` : ""}
     ${(e.uncovered || []).length ? `<div class="sec"><h3>Brief items no milestone covers yet</h3><div class="links">${e.uncovered.map((c) => `<span class="link-chip">${esc(c)}</span>`).join("")}</div></div>` : ""}
-    <div class="sec"><h3>Run</h3><dl class="kv">${asanaRow(e.epic)}<dt>Active</dt><dd>${esc(e.active || "none")}</dd><dt>Dispatcher</dt><dd>${esc(e.dispatcher || "")}</dd><dt>Podium</dt><dd class="mono">${esc(location.href)}</dd></dl></div>
+    <div class="sec"><h3>Run</h3><dl class="kv">${asanaRow(e.epic)}<dt>Active</dt><dd>${esc(e.active || "none")}</dd><dt>Podium</dt><dd class="mono">${esc(location.href)}</dd></dl></div>
     ${e.epic.spec || !e.epic.quest || !questOf() ? briefSec(e.epic.spec, "Brief") : questSec(e.epic.quest)}`;
 }
 

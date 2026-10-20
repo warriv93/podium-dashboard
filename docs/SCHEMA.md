@@ -34,7 +34,6 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
   "people": {"ann": {"active": {}, "needsYou": null, "assumptions": []}},
   "orchestrator": {"name": "minimal", "command": "/minimal", "extension": "../../examples/minimal_extension.py"},
   "sync": {"enabled": true, "remote": "git@example.com:acme/podium-runs.git", "ref": "refs/heads/podium-run/acme"},
-  "dispatcher": "paseo",
   "repoUrl": "https://github.com/example/acme",
   "updatedAt": "2026-10-08T15:14:32+00:00"
 }
@@ -52,7 +51,6 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | `people` | per-person state, see Collaboration |
 | `orchestrator` | the extension block, see below |
 | `sync` | git sync, see below |
-| `dispatcher` | free text shown in the header (`paseo`, `claude`, ...) |
 | `repoUrl` | the project's repository URL, for links in a single-repo run |
 | `updatedAt` | stamped on every write |
 

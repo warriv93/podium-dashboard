@@ -93,7 +93,15 @@ Sync carries the run's state files; to share planning docs too, each machine add
 
 ## Security
 
-The server binds to `127.0.0.1` only and refuses any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`. A POST or DELETE from a page with another `Origin` is refused too. There is no login: anyone with a shell on your machine can reach it, so do not forward the port.
+The server binds to `127.0.0.1` only and refuses any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`. Any request but a GET or HEAD from a page with another `Origin` is refused too. There is no login: anyone with a shell on your machine can reach it, so do not forward the port.
+
+## Trust model
+
+Sharing a run through `podium sync` means trusting everyone who can push to its remote: what they write, such as story briefs and the prompts built from the run's state, becomes instructions for your agents.
+
+What a pull never does: run code. The extension is a `.py` file each machine sets itself (a machine takes the run's only on its first join, and never again); Python files and native modules never sync; the orchestrator skills run a contract command from synced state only after you `podium approve` it. A pull writes only the run's files that this machine's own `sync.include` and `sync.exclude` carry, inside the run dir and never through a symlink, and never touches the progress of milestones you own.
+
+What it accepts: a repo path in `podium.json` may point at any repo on disk, and git runs there (always with `safe.bareRepository=explicit`). The dashboard sets no frame policy, so another site may frame it, and a click inside that frame is a click on the dashboard.
 
 ## License
 

@@ -186,6 +186,7 @@ class TwoMilestones(Run):
     def test_status_and_ready_show_each_building_milestone_with_its_build_all(self):
         self.podium("set", "milestone:M2", "buildAll=true")
         out = self.podium("status")
+        self.assertEqual(out.splitlines()[0], "T · active e/M1")
         self.assertIn("\nM1 Feat · working · phase build · branch - · buildAll off\n", out)
         self.assertIn("  repo api feat/m1 → main · no PR\n  repo web feat/m1 → main · PR #7 open\n", out)
         self.assertIn("\nM2 Beside · working · phase build · branch - · buildAll on\n", out)
