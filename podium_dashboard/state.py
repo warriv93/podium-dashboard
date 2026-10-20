@@ -45,6 +45,7 @@ class Podium:
         self.path = os.path.join(self.dir, "podium.json")
         self.repo = os.path.dirname(self.root)
         self.held = None  # events a batch holds back until its one write
+        self.fresh = []  # the events this command appended at the current time: a backdated one is history
         self.lock_fd, self.lock_depth = None, 0
         self.load()
 
@@ -110,11 +111,14 @@ class Podium:
             self.base = copy.deepcopy(self.data)
 
     def event(self, type_, milestone=None, story=None, **fields):
+        backdated = bool(fields.get("at"))
         line = {"at": fields.pop("at", None) or NOW(), "type": type_, **fields}
         if milestone:
             line["milestone"] = milestone
         if story:
             line["story"] = story
+        if not backdated:
+            self.fresh.append(line)
         if self.held is not None:
             self.held.append(line)
             return
