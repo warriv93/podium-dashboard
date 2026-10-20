@@ -80,7 +80,7 @@ COMMANDS
     requests
         Each request in requests.jsonl that no earlier call or the watcher passed on:
           ACT <confirm|reverse|asana|asana-done> <id> [note=…]   the user's answers
-          LIST <action> <id> [note=…]                           the rest
+          LIST <action> [<id>] [note=…]                         the rest (share has no id)
         The cursor lives in podium/cursor.json, local to this machine.
     sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status | defaults ...
         Opt-in git sync of the run state (podium.json's `sync` block), committed

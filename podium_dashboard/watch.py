@@ -4,7 +4,8 @@
 Prints one line per event the orchestrator must act on:
 
     REQUEST <action> [<id>] [note=…]  a Podium button (requests.jsonl); confirm/reverse <n> settle an assumption; asana [<epic>] note=<Asana link> links Asana;
-                                    build-all/stop <milestone> name the milestone they act on, assign [<milestone>/]<story> its story
+                                    build-all/stop <milestone> name the milestone they act on, assign [<milestone>/]<story> its story;
+                                    share, with no id, asks to share the run with a colleague
     PROGRESS <story> <line>         a story agent's COMMITTED or FAILED line (stories/<milestone>/<story>.progress);
                                     the other stages only feed the Podium, so they stay out of the agent's context
     PERMISSION <story> <tool>       a Paseo agent waits for approval   (--paseo)

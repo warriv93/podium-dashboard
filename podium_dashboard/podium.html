@@ -94,6 +94,9 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .human .mobile i { background: var(--accent); }
 .human .unavailable i { background: var(--text-3); }
 .human .until { font-weight: 400; color: var(--text-2); }
+.share { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; color: var(--text); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.share i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
+.share.on i { background: var(--green-dot); opacity: 1; }
 @media (max-width: 720px) { .human .until, .human .flip { display: none; } }
 .icon-btn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; display: none; }
 
@@ -629,6 +632,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
     <div class="controls">
       <div class="human" id="human" hidden></div>
       <span class="gitwarn" id="gitwarn" hidden></span>
+      <span id="share" hidden></span>
       <button class="icon-btn" id="feed-toggle">Activity</button>
     </div>
   </div>
@@ -1032,6 +1036,7 @@ function render() {
   const P = S.project;
   renderAttention();
   renderPeople();
+  renderShare();
   const full = !S.epic || !S.view;
   if (S.ds && !full && S.ds.id !== S.view) S.ds = null;
   renderDs();
@@ -1686,6 +1691,25 @@ function timelineSec(m) {
     row(esc(r.label), r.ms, r.open) + (r.k === "build" ? wv.map((w, i) => (w ? row(`Wave ${i + 1} <span class="muted">· ${w.n}</span>`, w.end - w.start, w.open, "wave") : "")).join("") : "")).join("")}</div></div>`;
 }
 
+const SHARE_TIP = "Shares this run so a colleague can plan and build milestones beside you. Your orchestrator session picks it up and prints the steps.";
+function joinSteps(o) {
+  const hint = S.info?.orchestrator?.shareHint;
+  return [
+    "Install the tool: pip install --user git+https://github.com/warriv93/podium-dashboard",
+    typeof hint === "string" && hint ? hint : `Install the ${o.name || "orchestrator's"} skill`,
+    `In a new empty folder, run ${o.command} join ${S.project.sync.ref || "<ref>"}`,
+    "Claim a milestone with podium claim <id>",
+  ];
+}
+function renderShare() {
+  const o = orch(), el = $("share");
+  el.hidden = !o;
+  if (!o) return;
+  const on = !!S.project.sync?.enabled;
+  const tip = on ? `A colleague joins this run in four steps:\n${joinSteps(o).map((step, i) => `${i + 1}. ${step}`).join("\n")}\nClick to print them in your orchestrator's chat again.` : SHARE_TIP;
+  el.innerHTML = `<button class="share ${on ? "on" : ""}" data-act="share" title="${esc(tip)}"><i></i>${on ? "Shared" : "Share"}</button>`;
+}
+
 function renderGit() {
   const repos = S.git?.repos || [], bad = repos.filter((r) => r.behind || r.baseBehind), el = $("gitwarn");
   el.hidden = !bad.length;
@@ -2097,7 +2121,7 @@ async function act(action, id) {
     if (action === "domain-story") { S.dsAsked = { __proto__: null, ...S.dsAsked, [id]: Date.now() }; render(); setTimeout(render, 121000); }
     if (action === "plan") { S.planAsked = { __proto__: null, ...S.planAsked, [id]: Date.now() }; render(); setTimeout(render, 121000); }
     if (action === "human") { S.human = await r.json(); renderHuman(); return toast({ available: "You're available — the orchestrator brings its questions to you", mobile: "On mobile — questions only when they block, pictures instead of Podium links", unavailable: "You're away — the orchestrator keeps going and records its decisions", auto: "Back on your hours" }[id]); }
-    toast({ assign: `Queued ${id} — the orchestrator picks it up next`, plan: `Planning ${id} — answer its questions in the orchestrator's chat`, "build-all": `Build all queued for ${id} — wave by wave`, "domain-story": `Drawing ${id} as domain stories — it opens from the Story button when ready`, stop: `${id} stops after this wave`, claim: `Claiming ${id} — it shows as yours once the claim is saved` }[action]);
+    toast({ assign: `Queued ${id} — the orchestrator picks it up next`, plan: `Planning ${id} — answer its questions in the orchestrator's chat`, "build-all": `Build all queued for ${id} — wave by wave`, "domain-story": `Drawing ${id} as domain stories — it opens from the Story button when ready`, stop: `${id} stops after this wave`, claim: `Claiming ${id} — it shows as yours once the claim is saved`, share: S.project?.sync?.enabled ? "Queued: the orchestrator prints the colleague's steps in its chat" : "Sharing queued: the orchestrator turns sync on and prints the colleague's steps in its chat" }[action]);
   } catch {
     toast(S.stale ? "The Podium server runs older code than this page — press Restart at the top, then click again" : SERVER_DOWN);
   }

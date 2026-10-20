@@ -19,10 +19,11 @@ The module may define any of these:
 | Name | Meaning |
 |---|---|
 | `COMMANDS` | `{verb: fn(p, args)}`: `podium <verb> ...` calls `fn` with a `Podium` and the remaining arguments. The first line of the docstring appears in `podium --help`. |
-| `ACTIONS` | A set of extra request actions the server accepts. The core's are `assign plan build-all stop confirm reverse domain-story claim`. |
+| `ACTIONS` | A set of extra request actions the server accepts. The core's are `assign plan build-all stop confirm reverse domain-story claim share`. |
 | `prompt(p, kind, target_id)` | Returns the text for the server's prompt endpoints, or None. |
 | `on_asana_refresh(p, task_json)` | Called for each linked Asana task a refresh re-reads, before it writes the generic fields; never for a project. Runs from `podium asana refresh` and when an extension calls `asana.refresh(p)`, for example in `turn`. `task_json["subtasks"]` holds the subtasks of a task read on its own and is absent for an epic's subtask taken from its parent's list. |
 | `SYNC_MAJOR(event)` | Returns whether an event saves the run when sync is on. Replaces the default rule. |
+| `SHARE_HINT` | A string: how a colleague gets your orchestrator, shown as step 2 of the Share button's join steps. Without it the step reads "Install the `<orchestrator.name>` skill". |
 
 ### prompt kinds
 
@@ -75,7 +76,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | Request | Answer |
 |---|---|
 | `GET /` | the page |
-| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command}, me, people, paseoServer, lastUse, stale}` |
+| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command, shareHint}, me, people, paseoServer, lastUse, stale}`; `shareHint` is the extension's `SHARE_HINT`, else null |
 | `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes; a checkout path inside the run dir but outside `repos/` and `worktrees/` is skipped |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
@@ -83,6 +84,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `GET /podium/...`, any other path | a file of the run dir, by its real path: a folder, or a file a symlink leads outside the run dir, answers 404 |
 | `POST /<action>/<id>` | queue a request line, 202 `{"queued": {...}}`; `<action>` is a core action or one of `ACTIONS`; `confirm` and `reverse` take an assumption number or `all`, and `?note=` |
 | `POST /build-all/<milestone>`, `POST /stop/<milestone>` | the same, per milestone |
+| `POST /share` | queue `share`, which takes no id: the page's Share button asks the orchestrator to share the run, or to print the colleague's steps again once it syncs; any id answers 404 |
 | `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; it takes any `https://app.asana.com/...` link, 400 for any other and 404 for an unknown epic. `podium asana link` later refuses a link that is not a project or task |
 | `POST /asana-done/<milestone>?choice=<drop\|keep>` | queue the answer, 202 |
 | `POST /handoff/<story>` | record the story in `handoffs.json` and return the `handoff` prompt; `DELETE /handoff/<story>` takes it back |
@@ -110,7 +112,7 @@ A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 
 When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. It pulls during a build too: the pull merges the remote's saves with the unsaved changes here (see Merge), so another person's claim arrives within a minute. Progress lines that arrive with a pull belong to the other person's stories and are not printed; a line logged here while the pull ran is. A progress file a save's merge rewrote behind the watcher is read again whole: it prints the lines it never handled, for a story of a milestone the run has, with no owner or this person, and nothing twice. A progress file that appeared since the watcher started is printed under the same rule.
 
-`podium requests` prints the requests nobody has passed on yet, as `ACT <confirm|reverse|asana|asana-done> <id> [note=...]` (the user's answers, to act on at once) and `LIST <action> <id> [note=...]` (the rest). It moves the cursor in `cursor.json`; lines the running watcher already printed are skipped.
+`podium requests` prints the requests nobody has passed on yet, as `ACT <confirm|reverse|asana|asana-done> <id> [note=...]` (the user's answers, to act on at once) and `LIST <action> [<id>] [note=...]` (the rest; `share` has no id). It moves the cursor in `cursor.json`; lines the running watcher already printed are skipped.
 
 ## Asana
 

@@ -102,6 +102,12 @@ class Lines(Watcher):
         self.assertEqual((got["since"][path], got["offsets"][path]), (start, os.path.getsize(path)))
         self.assertEqual(self.requests(), ["LIST plan M1"])
 
+    def test_prints_a_share_request_with_no_id(self):
+        w = self.start()
+        self.started()
+        self.append(self.pod("requests.jsonl"), json.dumps({"action": "share", "story": None}))
+        self.assertEqual(self.lines(w), ["REQUEST share"])
+
     def test_prints_a_storys_committed_line_but_not_its_other_stages(self):
         progress = self.pod("stories", "M1", "S1.progress")
         self.append(progress, "2026-01-01T00:00:00+00:00 STARTED")

@@ -27,6 +27,7 @@ DATA = {"project": {"title": "T"}, "active": {"epic": "e", "milestone": "M1"}, "
 
 EXTENSION = """
 ACTIONS = {"ship"}
+SHARE_HINT = "Install the orch skill from its repo"
 
 def prompt(p, kind, target_id):
     if kind == "plan":
@@ -122,7 +123,7 @@ class Info(Server):
         self.assertEqual(set(info), {"runDir", "repoDir", "watching", "orchestrator", "me", "people", "paseoServer",
                                      "lastUse", "stale"})
         self.assertEqual((info["runDir"], info["repoDir"]), (self.run_dir, self.repo))
-        self.assertEqual(info["orchestrator"], {"name": "orch", "command": "/orch"})
+        self.assertEqual(info["orchestrator"], {"name": "orch", "command": "/orch", "shareHint": None})
         self.assertEqual(info["me"], "ann")
         self.assertEqual(info["people"], {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}})
         self.assertEqual((info["watching"], info["stale"], info["paseoServer"]), (False, False, None))
@@ -130,7 +131,11 @@ class Info(Server):
     def test_a_run_without_an_orchestrator_or_people_says_so(self):
         self.serve({k: v for k, v in DATA.items() if k != "orchestrator"})
         info = self.call("GET", "/info")[1]
-        self.assertEqual((info["orchestrator"], info["people"]), ({"name": None, "command": None}, {}))
+        self.assertEqual((info["orchestrator"], info["people"]), ({"name": None, "command": None, "shareHint": None}, {}))
+
+    def test_passes_on_the_extensions_share_hint(self):
+        self.serve(extension=EXTENSION)
+        self.assertEqual(self.call("GET", "/info")[1]["orchestrator"]["shareHint"], "Install the orch skill from its repo")
 
 
 class Hardening(Server):
@@ -332,6 +337,17 @@ class Requests(Server):
         self.assertEqual(self.call("POST", "/ship/M1")[0], 404)
         self.assertEqual(self.call("POST", "/confirm/1")[0], 404)
         self.assertEqual(self.requests(), [("claim", "M2"), ("assign", "M1/S1"), ("stop", "M1")])
+
+    def test_queues_share_with_no_id_for_the_watcher_and_the_next_turn(self):
+        self.serve()
+        self.assertEqual(self.call("POST", "/share")[0], 409)
+        self.watched()
+        self.assertEqual(self.call("POST", "/share/M1")[0], 404)
+        self.assertEqual(self.call("POST", "/share")[0], 202)
+        self.assertEqual(self.requests(), [("share", None)])
+        r = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "requests"],
+                           capture_output=True, text=True, env=self.env, cwd=self.tmp)
+        self.assertEqual(r.stdout.splitlines(), ["LIST share"])
 
     def test_numbers_assumptions_as_podium_assumptions_does_in_a_run_with_one_state_per_person(self):
         people = {"ann": {"assumptions": [{"question": "mine", "status": "open"}]}}

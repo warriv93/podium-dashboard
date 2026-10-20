@@ -191,11 +191,20 @@ class HostileRun(unittest.TestCase):
                            capture_output=True, text=True, cwd=tmp, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         scan = Scan()
-        for html in json.loads(r.stdout):
+        self.html = json.loads(r.stdout)
+        for html in self.html:
             scan.feed(html)
             scan.close()
             scan.reset()
         return scan
+
+    def share_button(self, run):
+        """The Share button's label and tooltip, as the last render of the header put them."""
+        self.rendered(run, [], PROGRESS, ())
+        scan = Scan()
+        scan.feed([html for html in self.html if 'data-act="share"' in html][-1])
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
 
     def test_renders_every_string_of_the_run_as_text_and_links_only_http(self):
         scan = self.rendered()
@@ -230,6 +239,29 @@ class HostileRun(unittest.TestCase):
         for kind in KEYS:
             self.assertIn(kind, text)
         self.assertNotIn("[native code]", text + "".join(v for _, _, v in scan.attrs))
+
+
+    def test_share_says_what_it_will_do_while_the_run_does_not_sync(self):
+        label, tip = self.share_button({**CYCLIC_RUN, "sync": {"enabled": False, "ref": "refs/heads/podium-run/acme"}})
+        self.assertEqual(label, "Share")
+        self.assertEqual(tip, "Shares this run so a colleague can plan and build milestones beside you. "
+                              "Your orchestrator session picks it up and prints the steps.")
+
+    def test_shared_lists_the_colleagues_steps_with_the_runs_ref(self):
+        label, tip = self.share_button({**CYCLIC_RUN, "sync": {"enabled": True, "ref": "refs/heads/podium-run/acme"}})
+        self.assertEqual(label, "Shared")
+        self.assertEqual(tip.splitlines(), [
+            "A colleague joins this run in four steps:",
+            "1. Install the tool: pip install --user git+https://github.com/warriv93/podium-dashboard",
+            "2. Install the o skill",
+            "3. In a new empty folder, run /o join refs/heads/podium-run/acme",
+            "4. Claim a milestone with podium claim <id>",
+            "Click to print them in your orchestrator's chat again."])
+
+    def test_shared_shows_the_extensions_hint_and_a_hostile_ref_as_text(self):
+        run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareHint": X}, "sync": {"enabled": True, "ref": X}}
+        tip = self.share_button(run)[1].splitlines()
+        self.assertEqual((tip[2], tip[3]), (f"2. {X}", f"3. In a new empty folder, run /o join {X}"))
 
 
 if __name__ == "__main__":

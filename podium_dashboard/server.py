@@ -27,7 +27,8 @@ its only writer), so the orchestrator leaves it alone, and returns the extension
 DELETE /handoff/<story> takes it back.
 
 POST /<action>/<id> queues a request: the core's actions (assign, plan, build-all, stop, confirm, reverse,
-domain-story, claim) and the extension's ACTIONS. confirm and reverse take an assumption's number as `podium
+domain-story, claim, share) and the extension's ACTIONS. POST /share, which takes no id, asks the orchestrator to
+share the run with a colleague, or, once it syncs, to print the colleague's steps again. confirm and reverse take an assumption's number as `podium
 assumptions` prints it (`<n>`, or `t<n>` for a run's older top-level ones in a run with one state per person) or
 `all`, every open one not yet answered. POST /build-all/<milestone> and /stop/<milestone> queue that milestone's
 build-all and its stop: each milestone has its own. Bare, from an older page, they name the active milestone.
@@ -86,6 +87,7 @@ from podium_dashboard.state import ACT_ON, ID, NOW, Podium, checkout_path, find_
 STORY_ID = ID
 SETTLE = {"confirm", "reverse"}
 MILESTONE_ACTIONS = {"plan", "build-all", "stop", "claim"}
+RUN_ACTIONS = {"share"}
 NO_PROMPT = "no orchestrator extension prompt"
 PORTS = 20
 STARTED = time.time()
@@ -165,8 +167,9 @@ def info(root):
     p = load_podium(root)
     data = p.data if p else {}
     people = data.get("people") if isinstance(data.get("people"), dict) else {}
+    module = extension.load(p)[0] if p else None
     return {"runDir": root, "repoDir": repo_dir(root), "watching": watcher_running(podium_dir(root)),
-            "orchestrator": orchestrator_of(data),
+            "orchestrator": {**orchestrator_of(data), "shareHint": extension.share_hint(module)},
             "me": p.me if p else None,
             "people": {name: {"active": who.get("active")} for name, who in people.items() if isinstance(who, dict)},
             "paseoServer": paseo.server_id(),
@@ -395,9 +398,12 @@ def make_handler(root):
             if action in ("build-all", "stop") and not story:
                 story = (load_run(root)[1] or {}).get("id")
             p = load_podium(root)
-            if not p or action not in extension.actions(extension.load(p)[0]) or not story:
+            if not p or action not in extension.actions(extension.load(p)[0]) or (not story and action not in RUN_ACTIONS):
                 return self.reply(404, {"error": "unknown action"})
-            if action in SETTLE and story == "all":
+            if action in RUN_ACTIONS:
+                if story:
+                    return self.reply(404, {"error": "unknown id"})
+            elif action in SETTLE and story == "all":
                 answered = self.answered()
                 story = ",".join(i for i in self.known_ids(p, action) if i not in answered)
                 if not story:
