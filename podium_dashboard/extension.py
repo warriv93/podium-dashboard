@@ -7,7 +7,7 @@ import importlib.util
 import os
 import sys
 
-CORE_ACTIONS = {"assign", "plan", "build-all", "stop", "confirm", "reverse", "domain-story"}
+CORE_ACTIONS = {"assign", "plan", "build-all", "stop", "confirm", "reverse", "domain-story", "claim"}
 MODULE = "podium_extension"
 _loaded = {}
 

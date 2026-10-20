@@ -80,8 +80,8 @@ COMMANDS
         The cursor lives in podium/cursor.json, local to this machine.
     sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status
         Opt-in git sync of the run state (podium.json's `sync` block), committed
-        onto <ref> (default refs/heads/podium/<run dir name, or the repo's for
-        .deep-plan>; each machine must use the same) without touching a working tree,
+        onto <ref> (default refs/heads/podium-run/<run dir name, or the repo's for
+        .deep-plan, in kebab case>; each machine must use the same) without touching a working tree,
         index or HEAD, and pushed to <remote>: a remote of the run's repo
         (default origin), or a URL, which needs no repo. sync.include globs
         (relative to the run dir) pick the files; the request queue, its

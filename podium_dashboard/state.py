@@ -115,6 +115,8 @@ class Podium:
     def event(self, type_, milestone=None, story=None, **fields):
         backdated = bool(fields.get("at"))
         line = {"at": fields.pop("at", None) or NOW(), "type": type_, **fields}
+        if self.per_person():
+            line.setdefault("by", self.me)
         if milestone:
             line["milestone"] = milestone
         if story:
