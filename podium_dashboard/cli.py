@@ -57,7 +57,8 @@ COMMANDS
         pulling first when the run syncs, and pushing at once. Refused (exit 1)
         while someone else owns it, unless --force, which records a `handover`
         event. When another claim reached the remote first, it keeps the
-        milestone and this one exits 1.
+        milestone and this one exits 1. In a synced run, an orchestrator verb
+        that changes a milestone nobody owns claims it this way first.
     release <milestone>
         Give up your milestone; refused (exit 1) when it is someone else's.
     assume <question> <choice> <why> [--story [<milestone>/]ID] [--short TEXT]
@@ -70,7 +71,9 @@ COMMANDS
     settle <n>[,<n>...] <confirmed|reversed>
         Settle those assumptions with one write and one `settled` event.
     log [<milestone>/<story>] <STAGE> <note>
-        Append `<ISO time> <STAGE> <note>` to the story's progress file. The story
+        Append `<ISO time> <STAGE> <note>` to the story's progress file. STAGE is
+        one of STARTED RED GREEN REFACTOR FIX CONTRACT COMMITTED FAILED, or a key
+        of the orchestrator's `stages` map. The story
         is the argument, else $PODIUM_MILESTONE/$PODIUM_STORY, else the cwd's
         branch story/<id>.
     requests
@@ -96,6 +99,9 @@ COMMANDS
         do, events and progress lines as their union; a text conflict keeps this
         machine's file, writes the other as <file>.remote, and adds to your
         needsYou. So does a local file the remote's save brings with other content.
+        To join a shared run on another machine: `podium --dir <run dir> sync on
+        --remote <URL> --ref <ref>` in a dir with no run yet (or only what `init`
+        writes), then `sync pull`.
     init --name <name> --command </command> --extension <path to .py> [--phases a,b,c]
         Name the run's orchestrator and its extension module in podium.json's
         `orchestrator` block, creating podium/podium.json when absent.

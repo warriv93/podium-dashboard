@@ -526,10 +526,11 @@ def cmd_whoami(p, args):
 
 
 # --- ownership ----------------------------------------------------------------
-def require_owner(p, milestone_id, force=False):
+def require_owner(p, milestone_id, force=False, claim=True):
     """Exit 1 unless this person may change milestone `milestone_id` (None: the active one): it is theirs, or nobody
     owns it in a run that doesn't sync, or no milestone has an owner and the run doesn't sync. A synced run's
-    milestone without an owner must be claimed first. `force` skips the check."""
+    milestone without an owner becomes theirs through `claim_milestone` first, or passes unclaimed with `claim`
+    False. `force` skips the check."""
     if force:
         return
     m = p.milestone(milestone_id)
@@ -538,18 +539,17 @@ def require_owner(p, milestone_id, force=False):
     owner = m.get("owner")
     if owner and owner != p.me:
         sys.exit(f"podium: milestone {m['id']} is owned by {owner}")
-    if not owner and p.synced():
-        sys.exit(f"podium: milestone {m['id']} has no owner: podium claim {m['id']}")
+    if not owner and p.synced() and claim:
+        print(f"claimed {claim_milestone(p, m['id'])}")
 
 
-def cmd_claim(p, args):
+def claim_milestone(p, milestone_id, force=False):
+    """Make the milestone this person's: pull when the run syncs, exit 1 while someone else owns it (unless `force`,
+    a `handover`), set the owner, push, and record an `owner` event. Returns the milestone's id."""
     from podium_dashboard import sync
-    force, rest = "--force" in args, [a for a in args if a != "--force"]
-    if len(rest) != 1:
-        sys.exit("claim <milestone> [--force]")
     if p.synced():
         sync.pull(p)
-    m = p.milestone(rest[0])
+    m = p.milestone(milestone_id)
     mid, owner = m["id"], m.get("owner")
     if owner and owner != p.me and not force:
         sys.exit(f"podium: milestone {mid} is owned by {owner}")
@@ -561,7 +561,14 @@ def cmd_claim(p, args):
         if owner:
             p.event("handover", mid, **{"from": owner, "to": p.me})
         p.event("owner", mid, owner=p.me)
-    print(f"claimed {mid}")
+    return mid
+
+
+def cmd_claim(p, args):
+    force, rest = "--force" in args, [a for a in args if a != "--force"]
+    if len(rest) != 1:
+        sys.exit("claim <milestone> [--force]")
+    print(f"claimed {claim_milestone(p, rest[0], force)}")
 
 
 def claimed_first(p, mid):
@@ -595,10 +602,16 @@ def cmd_release(p, args):
     print(f"released {m['id']}")
 
 
+def stages(p):
+    """The progress stages `log` takes: STAGES and every key of the orchestrator's `stages` map."""
+    extra = (p.data.get("orchestrator") or {}).get("stages")
+    return STAGES + tuple(k for k in (extra if isinstance(extra, dict) else {}) if k not in STAGES)
+
+
 def story_target(p, args):
     """(milestone, story, rest of args) from a leading `[<milestone>/]<story>` arg, else PODIUM_MILESTONE and
     PODIUM_STORY, else the cwd's branch `story/<id>`; a bare story id is looked up in the working stories first."""
-    target = args[0] if args and args[0] not in STAGES else None
+    target = args[0] if args and args[0] not in stages(p) else None
     rest = args[1:] if target else args
     if not target and os.environ.get("PODIUM_STORY"):
         target = "/".join(x for x in (os.environ.get("PODIUM_MILESTONE"), os.environ["PODIUM_STORY"]) if x)
@@ -617,8 +630,8 @@ def story_target(p, args):
 
 def cmd_log(p, args):
     m, s, rest = story_target(p, args)
-    if not rest or rest[0] not in STAGES:
-        sys.exit(f"log [<milestone>/<story>] <STAGE> <note>, STAGE one of {' '.join(STAGES)}")
+    if not rest or rest[0] not in stages(p):
+        sys.exit(f"log [<milestone>/<story>] <STAGE> <note>, STAGE one of {' '.join(stages(p))}")
     note = " ".join(" ".join(rest[1:]).split())  # one line: a newline would start a line of its own
     path = os.path.join(p.dir, "stories", m["id"], f"{s['id']}.progress")
     os.makedirs(os.path.dirname(path), exist_ok=True)

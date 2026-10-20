@@ -409,6 +409,28 @@ def flag(p, data, conflicts):
         person["needsYou"] = {"reason": f"{pending}; {reason}" if pending else reason}
 
 
+def blank(value):
+    return not value or isinstance(value, dict) and all(blank(v) for v in value.values())
+
+
+def skeleton(p):
+    """Whether this machine's run state is no more than the podium.json `podium init` writes: a project title, the
+    orchestrator, and empty epics, people and assumptions."""
+    if set(synced_files(p)) - {podium_json(p)}:
+        return False
+    content = on_disk(p, podium_json(p))
+    try:
+        data = json.loads(content) if content is not None else {}
+    except ValueError:
+        return False
+    if not isinstance(data, dict) or set(data) - {"project", "orchestrator", "active", "needsYou", "assumptions",
+                                                    "epics", "people", "updatedAt"}:
+        return False
+    project = data.get("project")
+    return (isinstance(project, dict) and set(project) <= {"title"} or project is None) and all(
+        blank(data.get(k)) for k in ("active", "needsYou", "assumptions", "epics", "people"))
+
+
 def merged(p, g, base, mine, theirs):
     """(the files of commits `mine` and `theirs` merged against `base` (None: no common save), only those the merged
     include and exclude lists carry, with a `<file>.remote` beside each conflict; the files to delete). A file the run
@@ -532,7 +554,8 @@ def watcher_running(p):
 def pull(p, from_watcher=False):
     """Bring this machine's run state up to the remote's saves. One line: PULLED <sha>, UP-TO-DATE, KEPT <why>
     (changes since the last save, a live watcher, or the remote out of reach), FAILED <why>, or OFF. The watcher
-    itself pulls `from_watcher`, past its own heartbeat."""
+    itself pulls `from_watcher`, past its own heartbeat. A run never saved or pulled here whose state is only the
+    skeleton `podium init` writes takes the remote's state whole, keeping this machine's `sync` keys."""
     if not enabled(p):
         return "OFF"
     g, why = open_git(p)
@@ -555,6 +578,8 @@ def _pull(p, g, from_watcher):
         return "UP-TO-DATE"
     with p.locked():
         local, tree = g.rev(g.ref + "^{commit}"), state_tree(p, g)
+        if not local and skeleton(p):
+            tree = None
         if local and g.ancestor(remote, local):
             return "UP-TO-DATE"
         if tree == g.tree_of(remote):

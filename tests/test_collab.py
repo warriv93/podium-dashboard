@@ -226,9 +226,10 @@ class Ownership(Case):
 
 
 class RequireOwner(Case):
-    def require(self, data, me, mid="M1", force=False):
+    def require(self, data, me, mid="M1", force=False, claim=True):
         p = self.as_(me, self.run_at(os.path.join(self.tmp, "run"), data))
-        require_owner(p, mid, force)
+        require_owner(p, mid, force, claim)
+        return p
 
     def owned(self, **owners):
         data = json.loads(json.dumps(DATA))
@@ -253,9 +254,13 @@ class RequireOwner(Case):
     def test_an_unowned_milestone_beside_owned_ones_is_free_while_the_run_does_not_sync(self):
         self.require(self.owned(M2="b"), "a")
 
-    def test_a_synced_run_needs_a_claim_first(self):
-        synced = {**DATA, "sync": {"enabled": True}}
-        self.assertEqual(self.refusal(synced, "a"), "podium: milestone M1 has no owner: podium claim M1")
+    def test_claim_false_lets_a_synced_runs_unowned_milestone_pass_unclaimed(self):
+        p = self.require({**DATA, "sync": {"enabled": True}}, "a", claim=False)
+        self.assertEqual((self.owners(self.state(p.root))["M1"], self.events(p.root)), (None, []))
+
+    def test_claim_false_still_refuses_someone_elses_milestone(self):
+        self.assertEqual(self.refusal({**self.owned(M1="b"), "sync": {"enabled": True}}, "a", claim=False),
+                         "podium: milestone M1 is owned by b")
 
     def test_force_skips_the_check(self):
         self.require(self.owned(M1="b"), "a", force=True)
@@ -284,6 +289,25 @@ class TwoMachines(Case):
         p = Podium(run)
         self.assertRegex(sync.save(p) if data else sync.pull(p), r"^(SAVED|PULLED) ")
         return run
+
+    def with_launch(self):
+        """Give the run an extension whose `launch <milestone>` changes the milestone after require_owner, as an
+        orchestrator's verbs do, and share it with b."""
+        ext = os.path.join(self.tmp, "ext.py")
+        with open(ext, "w") as f:
+            f.write("from podium_dashboard.state import require_owner\n\n\n"
+                    "def launch(p, args):\n"
+                    "    require_owner(p, args[0])\n"
+                    "    p.milestone(args[0])['launched'] = p.me\n"
+                    "    p.save()\n"
+                    "    print('launched', args[0])\n\n\n"
+                    "COMMANDS = {'launch': launch}\n")
+        self.podium(self.a, "init", "--name", "o", "--command", "/o", "--extension", ext, me="a")
+        self.assertRegex(self.podium(self.a, "sync", "save", me="a").stdout, r"^SAVED ")
+        self.assertRegex(self.podium(self.b, "sync", "pull", me="b").stdout, r"^PULLED ")
+
+    def remote_state(self):
+        return json.loads(git("--git-dir", self.bare, "show", "refs/heads/podium:podium/podium.json"))
 
     def remote_events(self):
         out = git("--git-dir", self.bare, "show", "refs/heads/podium:podium/events.jsonl")
@@ -329,6 +353,32 @@ class TwoMachines(Case):
             self.assertEqual(self.owners(self.state(run))["M3"], "a")
             self.assertEqual([e["owner"] for e in self.events(run) if e["type"] == "owner"], ["a"])
         self.assertEqual(self.state(self.a)["people"], {"b": {"needsYou": "busy"}})
+
+    def test_a_verb_changing_an_unowned_milestone_claims_it_pushes_the_claim_and_goes_on(self):
+        self.with_launch()
+        r = self.podium(self.a, "launch", "M3", me="a")
+        self.assertEqual(r.stdout.splitlines()[:2], ["claimed M3", "launched M3"])
+        self.assertEqual(self.state(self.a)["epics"][0]["milestones"][2]["launched"], "a")
+        self.assertEqual(self.owners(self.remote_state())["M3"], "a")
+        self.assertIn(("owner", "M3", "a"), [(e["type"], e.get("milestone"), e.get("owner")) for e in self.remote_events()])
+
+    def test_a_verb_on_a_milestone_another_clone_claimed_meanwhile_is_refused(self):
+        self.with_launch()
+        self.podium(self.a, "launch", "M3", me="a")
+        r = self.podium(self.b, "launch", "M3", me="b", code=1)
+        self.assertEqual((r.stdout, r.stderr), ("", "podium: milestone M3 is owned by a\n"))
+        self.assertEqual(self.state(self.b)["epics"][0]["milestones"][2]["launched"], "a")
+
+    def test_a_verb_whose_auto_claim_loses_the_race_is_refused_and_changes_nothing(self):
+        self.with_launch()
+        self.podium(self.b, "set", "me", "needsYou=busy", me="b")  # unsaved, so b's pull before its claim keeps its state
+        self.podium(self.a, "launch", "M3", me="a")
+        r = self.podium(self.b, "launch", "M3", me="b", code=1)
+        self.assertEqual(r.stderr, "podium: milestone M3 is owned by a\n")
+        self.assertNotIn("launched M3", r.stdout)
+        b = self.state(self.b)["epics"][0]["milestones"][2]
+        self.assertEqual((b["owner"], b.get("launched")), ("a", "a"))
+        self.assertEqual(self.owners(self.remote_state())["M3"], "a")
 
 
 if __name__ == "__main__":

@@ -138,6 +138,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .banner.assumed li:first-child { border-top: none; }
 .banner.assumed li .sub { margin-left: 4px; }
 .banner.assumed .aid { display: inline-block; min-width: 26px; color: var(--accent); }
+.banner.assumed .ashared { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 5px; padding: 0 5px; margin-right: 8px; }
 .banner.assumed .settle { display: flex; gap: 6px; flex: none; }
 .banner.assumed .confirm-all { align-self: flex-start; }
 .banner.assumed .settle .btn { padding: 3px 11px; font-size: 12px; }
@@ -800,12 +801,12 @@ function epicCtx(id) {
 }
 /* this viewer's active milestone, needsYou and assumptions: people.<me>'s, else the top-level ones of a run from before
    `people`. A run that syncs or has a `people` block numbers the viewer's own assumptions <n> and the older top-level
-   ones t<n>; any other run numbers the top-level ones <n> */
+   ones t<n>, which read as A<n> marked shared; any other run numbers the top-level ones <n> */
 function personal(d) {
   const obj = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : null);
   const people = obj(d.people), mine = (people && obj(people[S.info?.me])) || {};
   const pick = (k) => (k in mine ? mine[k] : d[k]);
-  const numbered = (list, pre) => (Array.isArray(list) ? list : []).map((a, i) => ({ ...a, n: `${pre}${i}` }));
+  const numbered = (list, pre) => (Array.isArray(list) ? list : []).map((a, i) => ({ ...a, n: `${pre}${i}`, label: `A${i}`, shared: !!pre }));
   const assumptions = d.sync?.enabled || people ? [...numbered(mine.assumptions, ""), ...numbered(d.assumptions, "t")] : numbered(d.assumptions, "");
   return { ...d, active: pick("active"), needsYou: pick("needsYou"), assumptions };
 }
@@ -1328,6 +1329,10 @@ function renderHuman() {
     + (h.source === "toggle" ? `<button class="flip" data-act="human" data-id="auto">Use hours</button>` : "");
 }
 /* decisions the orchestrator took while the user was away, until they review them */
+const assumptionName = (id) => {
+  const a = (S.project?.assumptions || []).find((x) => x.n === id);
+  return a ? `${a.label}${a.shared ? " (shared)" : ""}` : `A${id}`;
+};
 function assumedBanner() {
   const open = (S.project?.assumptions || []).filter((a) => a.status === "open");
   if (!open.length) return "";
@@ -1337,7 +1342,7 @@ function assumedBanner() {
     const act = p ? `<span class="settled ${p}">${word[p]}</span>`
       : `<span class="settle"><button class="btn" data-settle="confirm" data-id="${esc(a.n)}">Confirm</button><button class="btn ghost" data-settle="reverse" data-id="${esc(a.n)}">Reverse…</button></span>`;
     const more = on ? `<div class="more"><div><span class="k">Question</span>${a.story ? `<a data-open="${esc(a.story)}" data-ms="${esc(a.milestone || "")}">${esc(a.story)}</a> · ` : ""}${esc(a.question)}</div><div><span class="k">Decided</span><b>${esc(a.choice)}</b></div><div><span class="k">Why</span>${esc(a.why)}</div></div>` : "";
-    return `<li class="${on ? "open" : ""}"><div class="row" data-expand="${esc(a.n)}"><span class="q"><b class="aid">A${esc(a.n)}</b>${a.milestone ? `<span class="ams">${esc(a.milestone)}</span>` : ""}${esc(a.short || a.question)}</span>${act}<button class="chev" data-expand="${esc(a.n)}" title="${on ? "Less" : "More"}" aria-expanded="${on}"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>${more}</li>`;
+    return `<li class="${on ? "open" : ""}"><div class="row" data-expand="${esc(a.n)}"><span class="q"><b class="aid">${esc(a.label)}</b>${a.shared ? `<span class="ashared" title="Recorded before each person kept their own">shared</span>` : ""}${a.milestone ? `<span class="ams">${esc(a.milestone)}</span>` : ""}${esc(a.short || a.question)}</span>${act}<button class="chev" data-expand="${esc(a.n)}" title="${on ? "Less" : "More"}" aria-expanded="${on}"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>${more}</li>`;
   }).join("");
   const left = open.filter((a) => !S.settling?.[a.n]).length;
   return `<div class="banner assumed"><span class="label">Decided while you were away · ${left ? `${left} to settle` : "all answered"}</span><span class="sub">Confirm or reverse each; the arrow on the right shows the details</span>${left > 1 ? `<button class="btn confirm-all" data-settle="confirm" data-id="all">Confirm all ${left}</button>` : ""}<ul class="assumed-list">${items}</ul></div>`;
@@ -1348,7 +1353,7 @@ async function settle(action, id) {
   const all = id === "all", open = (S.project?.assumptions || []).filter((a) => a.status === "open" && !S.settling?.[a.n]).map((a) => a.n);
   if (all && !window.confirm(`Confirm all ${open.length} decisions the orchestrator made while you were away?`)) return;
   if (action === "reverse") {
-    note = window.prompt(`Reverse A${id}: what should it be instead? (optional)`, "");
+    note = window.prompt(`Reverse ${assumptionName(id)}: what should it be instead? (optional)`, "");
     if (note === null) return;
   }
   try {
@@ -1356,7 +1361,7 @@ async function settle(action, id) {
     if (!r.ok) throw new Error(r.status);
     S.settling = { ...(S.settling || {}), ...Object.fromEntries((all ? open : [id]).map((i) => [i, action])) };
     render();
-    toast(all ? `${open.length} decisions confirmed` : action === "confirm" ? `A${id} confirmed` : `A${id} reversed: the orchestrator reworks what it shaped`);
+    toast(all ? `${open.length} decisions confirmed` : action === "confirm" ? `${assumptionName(id)} confirmed` : `${assumptionName(id)} reversed: the orchestrator reworks what it shaped`);
   } catch {
     toast(SERVER_DOWN);
   }
@@ -1706,7 +1711,7 @@ function attention() {
   if (!P) return out;
   if (P.needsYou) out.push([`needs:${P.needsYou.reason}`, `Needs you: ${P.needsYou.reason}`, "amber"]);
   draftPrs().forEach((pr) => out.push([`pr:${pr.ms}:${pr.repo || ""}:${pr.number}`, `${pr.ms} draft PR #${pr.number} to review`, "amber"]));
-  (P.assumptions || []).forEach((a) => { if (a.status === "open" && !S.settling?.[a.n]) out.push([`a:${a.n}`, `A${a.n} to settle: ${a.short || a.question}`, "amber"]); });
+  (P.assumptions || []).forEach((a) => { if (a.status === "open" && !S.settling?.[a.n]) out.push([`a:${a.n}`, `${assumptionName(a.n)} to settle: ${a.short || a.question}`, "amber"]); });
   P.epics.forEach((E) => (E.milestones || []).forEach((m) => (m.stories || []).forEach((s) => {
     if (s.status === "failed") out.push([`f:${m.id}/${s.id}`, `${m.id} · ${s.id} failed`, "red"]);
     if (s.status === "approval") out.push([`p:${m.id}/${s.id}`, `${m.id} · ${s.id} waits for approval`, "amber"]);

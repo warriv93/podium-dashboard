@@ -387,6 +387,53 @@ class Pull(SyncCase):
         self.assertEqual(sync.save(b), "BEHIND")
 
 
+class Join(SyncCase):
+    def cli(self, run_dir, *args):
+        r = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", run_dir, *args], capture_output=True,
+                           text=True, env={**os.environ, "PYTHONPATH": ROOT})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout
+
+    def shared_run(self):
+        self.assertRegex(sync.save(self.run_in(os.path.join(self.tmp, "first"), remote=self.bare)), r"^SAVED ")
+
+    def state(self, run_dir):
+        with open(os.path.join(run_dir, "podium", "podium.json")) as f:
+            return json.load(f)
+
+    def test_sync_on_in_an_empty_dir_then_pull_joins_the_shared_run(self):
+        self.shared_run()
+        run = os.path.join(self.tmp, "join")
+        os.makedirs(run)
+        self.assertEqual(self.cli(run, "sync", "on", "--remote", self.bare, "--ref", REF), f"ON {self.bare} ref {REF}\n")
+        machine = {"enabled": True, "remote": self.bare, "ref": REF}
+        self.assertEqual({k: v for k, v in self.state(run).items() if k != "updatedAt"}, {"sync": machine})
+        self.assertRegex(self.cli(run, "sync", "pull"), r"^PULLED ")
+        data = self.state(run)
+        self.assertEqual((data["project"], data["epics"], data["sync"]), (DATA["project"], DATA["epics"], machine))
+
+    def test_a_run_only_init_wrote_takes_the_remotes_state_whole_on_its_first_pull(self):
+        self.shared_run()
+        run = os.path.join(self.tmp, "join")
+        self.cli(run, "init", "--name", "o", "--command", "/o", "--extension", "o.py")
+        self.cli(run, "sync", "on", "--remote", self.bare, "--ref", REF)
+        self.assertRegex(self.cli(run, "sync", "pull"), r"^PULLED ")
+        data = self.state(run)
+        self.assertEqual((data["project"]["title"], data["epics"]), ("T", DATA["epics"]))
+        self.assertNotIn("orchestrator", data)
+        self.assertEqual(data["sync"], {"enabled": True, "remote": self.bare, "ref": REF})
+
+    def test_a_run_with_more_than_init_wrote_merges_with_the_remote(self):
+        self.shared_run()
+        run = os.path.join(self.tmp, "join")
+        self.cli(run, "init", "--name", "o", "--command", "/o", "--extension", "o.py")
+        self.cli(run, "assume", "q", "c", "w")
+        self.cli(run, "sync", "on", "--remote", self.bare, "--ref", REF)
+        self.assertRegex(self.cli(run, "sync", "pull"), r"^PULLED ")
+        data = self.state(run)
+        self.assertEqual((data["project"]["title"], data["orchestrator"]["name"], len(data["assumptions"])), ("join", "o", 1))
+
+
 class Merge(SyncCase):
     def test_two_machines_changing_different_milestones_keep_both_changes(self):
         a, b = self.machine("a"), self.machine("b")

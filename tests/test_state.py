@@ -292,6 +292,13 @@ class Log(Run):
         self.podium("log", "M1/S1", "FIX", "bug", "UTC vs local midnight")
         self.assertEqual(self.progress()[0].split(" ", 1)[1], "FIX bug UTC vs local midnight")
 
+    def test_takes_a_stage_of_the_orchestrators_own_stage_map(self):
+        self.podium("set", ".", 'orchestrator={"stages": {"REVIEW": {"doing": "reviewing", "step": 2, "time": "review"}}}')
+        self.podium("log", "M1/S1", "REVIEW", "looks fine")
+        self.podium("log", "REVIEW", "again", env={"PODIUM_STORY": "S1", "PODIUM_MILESTONE": "M1"})
+        self.assertEqual([l.split(" ", 1)[1] for l in self.progress()], ["REVIEW looks fine", "REVIEW again"])
+        self.podium("log", "M1/S1", "DONE", "x", code=1)
+
     def test_rejects_an_unknown_stage(self):
         self.podium("log", "M1/S1", "DONE", "x", code=1)
 
