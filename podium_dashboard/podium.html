@@ -1,0 +1,2341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Podium</title>
+<link rel="icon" id="favicon">
+<style>
+:root {
+  --bg: #f5f5f7; --card: #ffffff; --card-2: #fbfbfd; --glass: rgba(255,255,255,.72);
+  --text: #1d1d1f; --text-2: #6e6e73; --text-3: #a1a1a6;
+  --line: rgba(0,0,0,.08); --line-2: rgba(0,0,0,.14);
+  --accent: #0071e3; --accent-soft: rgba(0,113,227,.10);
+  --green: #28a745; --green-dot: #34c759; --green-soft: rgba(52,199,89,.12);
+  --amber: #c27c00; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.14);
+  --red: #d70015; --red-soft: rgba(255,59,48,.10);
+  --purple: #8250df; --purple-soft: rgba(130,80,223,.12);
+  --gray-soft: rgba(142,142,147,.14);
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.06);
+  --shadow-hi: 0 2px 4px rgba(0,0,0,.06), 0 14px 36px rgba(0,0,0,.12);
+  --radius: 18px;
+}
+/* theme: System follows the OS; Light and Dark override it (data-theme on <html>) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --card: #1c1c1e; --card-2: #232325; --glass: rgba(28,28,30,.72);
+    --text: #f5f5f7; --text-2: #a1a1a6; --text-3: #6e6e73;
+    --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
+    --accent: #2997ff; --accent-soft: rgba(41,151,255,.16);
+    --green: #30d158; --green-dot: #30d158; --green-soft: rgba(48,209,88,.16);
+    --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
+    --red: #ff6961; --red-soft: rgba(255,69,58,.16);
+    --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
+    --gray-soft: rgba(142,142,147,.20);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
+    --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --card: #1c1c1e; --card-2: #232325; --glass: rgba(28,28,30,.72);
+  --text: #f5f5f7; --text-2: #a1a1a6; --text-3: #6e6e73;
+  --line: rgba(255,255,255,.09); --line-2: rgba(255,255,255,.16);
+  --accent: #2997ff; --accent-soft: rgba(41,151,255,.16);
+  --green: #30d158; --green-dot: #30d158; --green-soft: rgba(48,209,88,.16);
+  --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
+  --red: #ff6961; --red-soft: rgba(255,69,58,.16);
+  --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
+  --gray-soft: rgba(142,142,147,.20);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
+  --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
+}
+:root { color-scheme: light dark; } :root[data-theme="light"] { color-scheme: light; } :root[data-theme="dark"] { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; letter-spacing: -.005em;
+}
+button { font: inherit; color: inherit; }
+code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
+
+/* ---------- top bar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--glass); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--line);
+}
+/* two rows: logo, title and the appearance switch; under the title, the controls that matter */
+.topbar-inner { margin: 0 auto; padding: 6px 12px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; column-gap: 14px; row-gap: 4px; align-items: center; }
+.topbar-inner > .logo { grid-row: 1; }
+.topbar-inner > .corner { grid-column: 3; grid-row: 1; justify-self: end; align-self: start; display: flex; align-items: center; gap: 8px; }
+.corner .bell { width: 26px; height: 26px; }
+.controls { grid-column: 1 / 4; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.controls #feed-toggle { margin-left: auto; } /* the far right, under the appearance switch */
+.logo { width: 34px; height: 34px; flex: none; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.brand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+/* the eyebrow is the product name and the orchestrator's status; where you are lives in the map's breadcrumb */
+.brand .eyebrow { display: flex; align-items: center; gap: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.brand h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.theme { display: inline-flex; background: var(--gray-soft); border-radius: 9px; padding: 2px; gap: 2px; }
+.theme button { border: 0; background: transparent; border-radius: 7px; padding: 3px 8px; font-size: 11px; color: var(--text-2); cursor: pointer; }
+.theme button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+@media (max-width: 600px) { .theme button { padding: 4px 7px; } }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.eyebrow .live { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 11.5px; }
+.restart { margin-left: 8px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 11.5px; font-weight: 600; text-transform: none; letter-spacing: 0; cursor: pointer; }
+.restart:hover { background: var(--accent); color: #fff; }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--green-dot); }
+.live.off i { background: var(--red); }
+.live.idle i { background: var(--amber-dot); }
+.human { display: inline-flex; align-items: center; gap: 2px; background: var(--gray-soft); border-radius: 999px; padding: 2px; font-size: 12px; white-space: nowrap; }
+.human button { border: 0; background: transparent; border-radius: 999px; padding: 4px 10px; cursor: pointer; color: var(--text-2); display: inline-flex; align-items: center; gap: 6px; }
+.human .state { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.human button i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
+.human .state i { opacity: 1; }
+.human .available i { background: var(--green-dot); }
+.human .mobile i { background: var(--accent); }
+.human .unavailable i { background: var(--text-3); }
+.human .until { font-weight: 400; color: var(--text-2); }
+@media (max-width: 720px) { .human .until, .human .flip { display: none; } }
+.icon-btn { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; display: none; }
+
+.page { margin: 0 auto; padding: 20px 24px 48px; display: grid; grid-template-columns: minmax(0,1fr) 320px; gap: 20px; align-items: start; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); }
+
+/* ---------- stepper ---------- */
+.stepper { display: flex; align-items: center; padding: 14px 18px; gap: 0; overflow-x: auto; scrollbar-width: none; }
+.step { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 12.5px; color: var(--text-3); font-weight: 500; }
+.step .dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 1.5px solid var(--line-2); color: var(--text-3); flex: none; }
+.step.past { color: var(--text-2); }
+.step.past .dot { background: var(--text); border-color: var(--text); color: var(--card); }
+.step.now { color: var(--text); font-weight: 650; }
+.step.now .dot { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 4px var(--accent-soft); }
+.step-bar { flex: 1 0 18px; height: 1.5px; background: var(--line-2); margin: 0 10px; min-width: 18px; }
+.step-bar.past { background: var(--text); }
+
+/* ---------- banner ---------- */
+.banner { border-radius: var(--radius); padding: 14px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 1px solid transparent; }
+.banner .label { font-weight: 650; font-size: 15px; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
+.banner .sub { color: var(--text-2); font-size: 13px; }
+.banner.working { background: var(--green-soft); border-color: rgba(52,199,89,.25); }
+.banner.needs { background: var(--amber-soft); border-color: rgba(255,159,10,.35); }
+.banner.done { background: var(--gray-soft); color: var(--text-2); }
+.banner.assumed { background: var(--accent-soft); border-color: rgba(0,113,227,.22); flex-direction: column; align-items: stretch; gap: 6px; }
+.banner.assumed .assumed-list { list-style: none; margin: 0; padding: 0; font-size: 13px; max-height: 420px; overflow-y: auto; }
+.banner.assumed li { padding: 6px 0; border-top: 1px solid rgba(0,113,227,.15); }
+.banner.assumed li .row { display: flex; gap: 10px; align-items: center; cursor: pointer; border-radius: 8px; }
+.banner.assumed li .row:hover .q { color: var(--accent); }
+.banner.assumed li .q { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.banner.assumed .ams { font-size: 11px; font-weight: 700; color: var(--text-2); background: var(--gray-soft); border-radius: 5px; padding: 1px 6px; margin-right: 8px; }
+.banner.assumed .chev { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; border-radius: 8px; background: rgba(0,113,227,.08); color: var(--accent); cursor: pointer; transition: transform .15s; }
+.banner.assumed .chev:hover { background: rgba(0,113,227,.12); }
+.banner.assumed li.open .chev { transform: rotate(180deg); }
+.banner.assumed .more { margin: 6px 36px 4px 34px; display: grid; gap: 4px; color: var(--text-2); }
+.banner.assumed .more .k { display: inline-block; min-width: 70px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
+.banner.assumed li:first-child { border-top: none; }
+.banner.assumed li .sub { margin-left: 4px; }
+.banner.assumed .aid { display: inline-block; min-width: 26px; color: var(--accent); }
+.banner.assumed .settle { display: flex; gap: 6px; flex: none; }
+.banner.assumed .confirm-all { align-self: flex-start; }
+.banner.assumed .settle .btn { padding: 3px 11px; font-size: 12px; }
+.banner.assumed .settled { flex: none; font-size: 12px; font-weight: 600; color: var(--green); white-space: nowrap; }
+.banner.assumed .settled.reverse { color: var(--amber); }
+.banner.idle { background: var(--card); border-color: var(--line); box-shadow: var(--shadow); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.wchip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 10px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); cursor: pointer; font-size: 13px; box-shadow: var(--shadow); }
+a.wchip { color: inherit; text-decoration: none; }
+.wchip:hover { border-color: var(--line-2); }
+.wchip b { font-weight: 600; }
+.stage { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; padding: 2px 7px; border-radius: 6px; background: var(--gray-soft); color: var(--text-2); }
+.stage.RED { background: var(--red-soft); color: var(--red); }
+.stage.GREEN { background: var(--green-soft); color: var(--green); }
+.stage.REFACTOR { background: var(--accent-soft); color: var(--accent); }
+.stage.FIX { background: var(--amber-soft); color: var(--amber); }
+/* where a story's time went: one bar, then a row per kind of work */
+.tw-tot { float: right; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 650; font-size: 12.5px; }
+.tw-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: 2px 0 12px; }
+.tw-bar i { display: block; height: 100%; min-width: 3px; }
+.tw { display: grid; grid-template-columns: 10px auto minmax(0, 1fr) auto 36px; gap: 7px 10px; align-items: baseline; font-size: 13px; }
+.tw .d { width: 9px; height: 9px; border-radius: 3px; align-self: center; }
+.tw .n { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw .m { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; white-space: nowrap; }
+.tw .p { color: var(--text-3); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.tw-foot { margin-top: 8px; font-size: 11.5px; color: var(--text-3); }
+
+.cycle { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12px; }
+.bar3 { display: inline-flex; gap: 3px; }
+.bar3 i { width: 14px; height: 4px; border-radius: 2px; background: var(--gray-soft); }
+.bar3 i.on { background: var(--green-dot); }
+.node .doing { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
+.node .doing .bar3 { margin-left: auto; }
+.node .doing.why { display: block; color: var(--red); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node .since { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.agentlink { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.agentlink:hover { text-decoration: underline; }
+.pulse { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--green-dot); flex: none; }
+.pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green-dot); animation: pulse 1.8s ease-out infinite; }
+.pulse.amber, .pulse.amber::after { background: var(--amber-dot); }
+@keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
+
+/* ---------- toolbar ---------- */
+.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search { flex: 1 1 280px; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; box-shadow: var(--shadow); height: 40px; }
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; color: var(--text); font-size: 14px; min-width: 0; }
+.search input::placeholder { color: var(--text-3); }
+.kbd { font-size: 11px; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; }
+.seg { display: inline-flex; background: var(--gray-soft); border-radius: 10px; padding: 3px; gap: 2px; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+.seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+.seg .n { color: var(--text-3); margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+/* ---------- domain stories ---------- */
+.dsbtn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px 2px 7px; border-radius: 999px; background: var(--card-2); color: var(--text-2); border: 1px solid var(--line-2); font: inherit; font-size: 12px; font-weight: 600; line-height: 18px; letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; }
+.dsbtn:hover { border-color: var(--accent); color: var(--accent); }
+.dsbtn.has { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.dsbtn.has:hover { background: var(--accent); color: #fff; }
+.dsbtn.busy { cursor: default; border-style: dashed; }
+.dsbtn.busy:hover { border-color: var(--line-2); color: var(--text-2); }
+.dsbtn.busy i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: dsp 1s ease-in-out infinite; }
+@keyframes dsp { 50% { opacity: .25; } }
+.map-card.ds-on > :not(#ds-view) { display: none; }
+#ds-view { display: none; }
+.map-card.ds-on #ds-view { display: block; animation: dsin .22s ease-out; }
+@keyframes dsin { from { opacity: 0; transform: translateX(24px); } }
+.ds-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ds-back { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px 5px 8px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--card-2); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.ds-back:hover { border-color: var(--accent); }
+.ds-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ds-title .eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.ds-title b { font-size: 16px; font-weight: 680; }
+.ds-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ds-tabs { display: flex; gap: 6px; padding: 10px 18px 0; flex-wrap: wrap; }
+.ds-tab { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-2); font: inherit; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+.ds-tab.on { background: var(--text); color: var(--card); border-color: var(--text); font-weight: 600; }
+.ds-tab .n { opacity: .6; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.ds-meta { padding: 8px 18px 0; font-size: 12.5px; color: var(--text-2); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.ds-meta .chip { padding: 1px 8px; border-radius: 6px; background: var(--gray-soft); font-size: 11.5px; }
+.ds-meta .when { margin-left: auto; color: var(--text-3); }
+.ds-empty { padding: 40px 18px; text-align: center; color: var(--text-2); }
+/* the picture is drawn for paper, so it stays on white in dark mode too */
+.ds-paper { margin: 12px 18px 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; overflow: auto; max-height: calc(100vh - 240px); min-height: min(60vh, 520px); text-align: center; cursor: zoom-in; }
+.ds-paper img { max-width: 100%; height: auto; display: inline-block; padding: 12px; }
+.ds-paper.zoom { cursor: zoom-out; }
+.ds-paper.zoom img { max-width: none; }
+
+/* ---------- map ---------- */
+.map-card { padding: 0; overflow: hidden; }
+.map-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 18px 0; }
+.map-head h2 { flex: 1; min-width: 0; }
+.map-head .legend { flex: none; white-space: nowrap; }
+.mini { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); cursor: pointer; font-size: 12.5px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.mini:hover { border-color: var(--accent); }
+.mini-l { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.mpills { display: flex; gap: 4px; }
+.mpill { font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--text-2); background: var(--card); white-space: nowrap; }
+.mpill[data-drill]:hover { border-color: var(--accent); color: var(--accent); }
+.mpill.done { background: var(--gray-soft); border-color: transparent; color: var(--text-3); }
+.mpill.working { border-color: var(--green-dot); color: var(--green); }
+.mpill.waiting { border-style: dashed; }
+.mpill.here { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
+/* the card's buttons sit on its top row, right of the id, and wrap before they would leave the card */
+.ftools { margin-left: auto; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; align-items: center; min-width: 0; text-transform: none; letter-spacing: 0; }
+.ftools .mockbtn, .ftools .asanabtn { margin-left: 0; }
+.fepic .eyebrow { display: flex; align-items: center; min-height: 22px; }
+/* an unlinked epic offers its Asana link on hover, so the lanes stay quiet */
+.fplan { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
+.fproj { display: inline-flex; gap: 10px; align-items: center; font-size: 12.5px; font-weight: 400; }
+.map-tools { display: flex; align-items: center; gap: 14px; flex: none; align-self: center; }
+/* full map: a lane per epic, a row per milestone in run order */
+.full { position: relative; display: grid; column-gap: 20px; align-items: start; padding: 4px 4px 24px; }
+.full > * { min-width: 0; }
+.full > svg.edges { z-index: 0; }
+.fepic, .fms { position: relative; z-index: 1; background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; cursor: pointer; text-align: left; box-shadow: var(--shadow); }
+.fepic { background: var(--card); border-radius: 16px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 4px; }
+.fepic .eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.fepic .title { font-weight: 680; font-size: 15px; }
+.fbar { height: 5px; border-radius: 3px; background: var(--gray-soft); overflow: hidden; margin-top: 3px; }
+.fbar i { display: block; height: 100%; background: var(--green-dot); }
+.fsub { font-size: 11.5px; color: var(--text-2); }
+.ford { font-size: 11px; font-weight: 700; color: var(--text-3); text-align: right; align-self: center; letter-spacing: .04em; }
+.fms { margin: 7px 0; display: flex; flex-direction: column; gap: 6px; }
+.fms:hover, .fepic:hover { border-color: var(--line-2); }
+.fms .ftop { display: flex; align-items: baseline; gap: 6px; min-height: 22px; } /* baseline: the id lines up with the first row of buttons when they wrap */
+.fms .title { font-weight: 620; font-size: 13.5px; }
+.fms .foot { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-2); flex-wrap: wrap; }
+.fms.done { background: transparent; box-shadow: none; }
+/* research milestones answer a question before anything is built: one shared row above the run order, never chained */
+.fms.research { border-style: dashed; }
+.fres { display: flex; flex-direction: column; }
+.badge.research { background: var(--accent-soft); color: var(--accent); }
+/* the quest above the epics: the problem they all serve; it opens its document */
+.quest { width: 100%; margin: 6px 0 2px; display: flex; flex-direction: column; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; cursor: pointer; box-shadow: var(--shadow); }
+.quest:hover { border-color: var(--line-2); }
+.quest .eyebrow { display: flex; align-items: center; min-height: 22px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.quest .title { font-weight: 700; font-size: 17px; }
+.quest .gist { font-size: 13px; color: var(--text-2); max-width: 90ch; }
+.quest .qfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 11.5px; color: var(--text-2); }
+.quest .qfoot .asana-meta { margin: 0; }
+.qlinks { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+.qlinks a, .qlinks-sheet a { color: var(--text-2); text-decoration: none; }
+.applink { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.lico { width: 12px; height: 12px; flex: none; }
+.applink .lico { width: auto; height: 13px; }
+.qlinks a:hover, .qlinks-sheet a:hover { color: var(--accent); }
+.qlinks-sheet { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; }
+.fms.done .title { color: var(--text-2); }
+.fms.working { background: linear-gradient(var(--green-soft), var(--green-soft)), var(--card); border: 1.5px solid var(--green-dot); box-shadow: 0 0 0 4px var(--green-soft), var(--shadow-hi); }
+.fms.waits { background: linear-gradient(var(--amber-soft), var(--amber-soft)), var(--card); border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
+.fms.failed { border: 1.5px solid var(--red); }
+.fnext { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 2px; position: relative; z-index: 1; }
+.fnext::after { content: ""; flex: 1; border-top: 1.5px dashed var(--accent); opacity: .5; }
+.fwaves { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.fwave { display: flex; align-items: center; gap: 4px; }
+.fwave .fw { font-size: 9.5px; font-weight: 700; color: var(--text-3); width: 22px; flex: none; }
+.fsc { flex: 1 1 0; min-width: 0; border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 3px 6px; font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.fsc b { color: var(--text); margin-right: 4px; }
+.fsc:hover { border-color: var(--accent); }
+.fsc.done { background: var(--purple-soft); border-color: transparent; }
+.fsc.working { border: 1.5px solid var(--green-dot); color: var(--text); }
+.fsc.approval { border: 1.5px solid var(--amber-dot); color: var(--text); }
+.fsc.failed, .fsc.blocked { border: 1.5px solid var(--red); }
+.fsc.waiting { border-style: dashed; background: transparent; }
+.fsc.dim, .fms.dim, .fepic.dim { opacity: .28; }
+.map-head h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.map-head h2 .kind { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin-right: 5px; }
+.map-head h2 .here { color: var(--text-2); }
+.page-title { padding: 10px 18px 2px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.page-title:empty { display: none; }
+.page-title > .asanabtn { margin-left: 0; }
+.mockbtn { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 2px 10px 2px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); font-size: 12px; font-weight: 600; line-height: 18px; letter-spacing: 0; text-transform: none; text-decoration: none; white-space: nowrap; vertical-align: middle; flex: none; }
+.mockbtn span { font-size: 13px; }
+.mockbtn:hover { background: var(--accent); color: #fff; }
+.page-title .back { display: inline-flex; margin: 0 4px 0 0; }
+.page-title .sub { font-size: 13px; color: var(--text-2); }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-3); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { overflow: visible; }
+.map-scroll { position: relative; z-index: 1; overflow: auto; padding: 8px 0 24px; }
+.map { position: relative; margin: 0 auto; }
+.map svg.edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.edge { fill: none; stroke: var(--line-2); stroke-width: 1.5; transition: stroke .2s, opacity .2s; }
+.waveband { fill: var(--gray-soft); opacity: .55; }
+.edge.done { stroke: var(--text-3); }
+.edge.overlap { stroke-dasharray: 4 5; }
+.edge.hi { stroke: var(--accent); stroke-width: 2; }
+.map.focus .edge:not(.hi) { opacity: .35; }
+/* wave labels sit in a layer under the scroller: still while it scrolls, covered by passing tiles */
+.map-wrap { position: relative; }
+.waves { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.rowlabel { position: absolute; left: 14px; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: .05em; text-transform: uppercase; }
+
+.node {
+  position: absolute; background: var(--card-2); border: 1px solid var(--line); border-radius: 16px;
+  padding: 12px 14px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px;
+  box-shadow: var(--shadow); transition: transform .18s ease, box-shadow .18s ease, opacity .2s, border-color .2s;
+}
+.node:hover { transform: translateY(-2px); box-shadow: var(--shadow-hi); }
+.node:focus-visible { outline: 3px solid var(--accent-soft); border-color: var(--accent); }
+.node.dim { opacity: .28; }
+/* landed work lies flat and recessed; live work is tinted, ringed and lifted */
+.node.done { background: var(--bg); box-shadow: none; }
+.node.done:hover { transform: none; box-shadow: none; border-color: var(--line-2); }
+.node.done .title { color: var(--text-2); }
+.node.blocked { opacity: .62; }
+.node.working { background: linear-gradient(var(--green-soft), var(--green-soft)), var(--card); border: 1.5px solid var(--green-dot); box-shadow: 0 0 0 4px var(--green-soft), var(--shadow-hi); }
+.node.approval, .node.waits { background: linear-gradient(var(--amber-soft), var(--amber-soft)), var(--card); border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
+.node.failed { background: linear-gradient(var(--red-soft), var(--red-soft)), var(--card); border: 1.5px solid var(--red); box-shadow: 0 0 0 4px var(--red-soft), var(--shadow-hi); }
+.node.sel { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-hi); }
+.node .top { display: flex; align-items: center; gap: 8px; }
+.sid { font-size: 11px; font-weight: 700; color: var(--text-2); background: var(--gray-soft); border-radius: 6px; padding: 1px 6px; letter-spacing: .02em; }
+.model { margin-left: auto; font-size: 11px; color: var(--text-3); }
+.node .title { font-weight: 620; font-size: 14px; letter-spacing: -.01em; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.node .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); min-height: 26px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.badge.done { background: var(--green-soft); color: var(--green); }  /* landed matches the progress ring; parked stays gray */
+.badge.working { color: var(--green); padding-left: 2px; }
+.badge.needs { color: var(--amber); padding-left: 2px; }
+.badge.approval { background: var(--amber-soft); color: var(--amber); }
+.badge.failed { background: var(--red-soft); color: var(--red); }
+.badge.blocked, .badge.waiting { color: var(--text-3); padding-left: 0; font-weight: 500; }
+.badge.ready { color: var(--accent); padding-left: 0; }
+.badge.grilled { background: var(--accent-soft); color: var(--accent); }
+.badge.elsewhere { background: var(--accent-soft); color: var(--accent); }
+.node.elsewhere { border-color: rgba(0,113,227,.35); }
+.release { border: 0; background: transparent; color: var(--text-3); cursor: pointer; font-size: 13px; padding: 2px 6px; border-radius: 999px; margin-left: auto; }
+.release:hover { color: var(--red); background: var(--red-soft); }
+
+.btn { border: 0; border-radius: 999px; padding: 5px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: var(--accent); color: #fff; white-space: nowrap; transition: filter .15s, opacity .15s; }
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { background: var(--gray-soft); color: var(--text-3); cursor: not-allowed; filter: none; }
+.btn.ghost { background: var(--gray-soft); color: var(--text); }
+.btn.big { padding: 8px 16px; font-size: 13.5px; }
+.node .foot .btn { margin-left: auto; }
+.node .top .badge { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.copy { border: 0; background: var(--gray-soft); color: var(--text-2); border-radius: 999px; width: 26px; height: 26px; padding: 0; display: inline-grid; place-items: center; cursor: pointer; flex: none; vertical-align: middle; margin-left: 6px; }
+.copy:hover { color: var(--text); filter: brightness(.96); }
+.btn.big + .copy { width: 34px; height: 34px; }
+
+.node.epic { background: var(--card); padding: 16px 18px; gap: 8px; border-radius: 20px; }
+.node.epic .title { font-size: 16.5px; font-weight: 680; -webkit-line-clamp: 1; }
+.node.epic > * { flex-shrink: 0; }
+.node.epic .eyebrow { display: flex; align-items: center; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; }
+.epic-row { display: flex; align-items: center; gap: 14px; margin-top: auto; }
+.ring { width: 38px; height: 38px; flex: none; }
+.ring circle { fill: none; stroke-width: 4; }
+.ring .track { stroke: var(--gray-soft); }
+.ring .val { stroke: var(--green-dot); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset .6s ease; }
+.epic-stat { font-size: 13px; color: var(--text-2); line-height: 1.3; }
+.epic-stat b { color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
+.epic-row .btn { margin-left: auto; }
+.node.artifact .title { -webkit-line-clamp: 1; }
+.node.artifact .sid { background: var(--accent-soft); color: var(--accent); }
+
+.banner.digest { background: var(--card); border-color: var(--line); box-shadow: var(--shadow); }
+.banner.digest > .btn { margin-left: auto; }
+.banner.digest .drows { flex-basis: 100%; display: grid; gap: 8px; }
+.banner.digest .drow { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: baseline; font-size: 13px; }
+.banner.digest .drow .k { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
+.banner.digest .dv { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.banner.digest .dv .wchip { box-shadow: none; padding: 3px 10px; }
+.banner.digest .dline { flex-basis: 100%; color: var(--text-2); }
+.banner.digest .dwhy { color: var(--red); font-size: 12px; margin-right: 6px; }
+.bell { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--text-3); display: grid; place-items: center; cursor: pointer; }
+.bell:hover { color: var(--text); }
+.bell.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.gitwarn { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--amber); background: var(--amber-soft); padding: 4px 10px; border-radius: 999px; white-space: nowrap; cursor: help; }
+.gitwarn[hidden] { display: none; }
+.step .sdur { font-size: 11px; font-weight: 500; color: var(--text-3); margin-left: -2px; }
+.tsum { margin-left: 10px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.tl { display: grid; gap: 6px; }
+.trow { display: grid; grid-template-columns: 110px 1fr 118px; gap: 10px; align-items: center; font-size: 13px; }
+.trow .tv { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tbar { height: 8px; border-radius: 999px; background: var(--gray-soft); overflow: hidden; }
+.tbar i { display: block; height: 100%; border-radius: 999px; background: var(--text-3); }
+.trow.open .tbar i { background: var(--accent); }
+.trow.wave { font-size: 12px; color: var(--text-2); }
+.trow.wave .tk { padding-left: 14px; }
+.trow.wave .tbar { height: 5px; }
+.trow.wave .tbar i { background: var(--green-dot); opacity: .7; }
+
+.asanabtn { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 2px 9px 2px 7px; border-radius: 999px; background: rgba(240,106,106,.12); color: #e8384f; border: 1px solid rgba(232,56,79,.55); font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.asanabtn:hover { background: #e8384f; color: #fff; }
+button.asanabtn { cursor: pointer; font-family: inherit; }
+button.asanabtn:disabled { opacity: .6; cursor: default; }
+.asanabtn.off { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-dot); cursor: pointer; font-family: inherit; }
+.asana-ask .settle { display: flex; gap: 6px; align-items: center; }
+.asana-ask .settled { font-size: 12px; font-weight: 600; color: var(--green); }
+.asana-ask .settled.reverse { color: var(--amber); }
+.asanabtn.off:hover { background: var(--amber-dot); color: #fff; }
+.node .asanabtn { margin-left: 4px; padding: 1px 7px 1px 5px; font-size: 11px; }
+.asana-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.achip { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--gray-soft); color: var(--text-2); white-space: nowrap; }
+.achip .k { color: var(--text-3); }
+.owner { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--gray-soft); color: var(--text-2); white-space: nowrap; text-transform: none; letter-spacing: 0; }
+.owner.me { background: var(--accent-soft); color: var(--accent); }
+.claim { padding: 1px 9px; border-radius: 999px; border: 1px dashed var(--line-2); background: transparent; color: var(--text-2); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; text-transform: none; letter-spacing: 0; }
+.claim:hover { border-style: solid; border-color: var(--accent); color: var(--accent); }
+.people { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--text-2); min-width: 0; }
+.people .who { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.people .who b { font-weight: 600; color: var(--text); }
+.people .who.me b { color: var(--accent); }
+.people a { cursor: pointer; color: inherit; text-decoration: underline dotted; }
+.node.epic .eyebrow .owner, .node.epic .eyebrow .claim { margin-left: 8px; }
+/* not linked yet: the Asana pill in grey, Asana red on hover */
+.asanabtn.linkasana { background: var(--card-2); color: var(--text-3); border-color: var(--line-2); cursor: pointer; font-family: inherit; }
+.asanabtn.linkasana:hover { background: rgba(240,106,106,.12); color: #e8384f; border-color: rgba(232,56,79,.55); }
+.map-head > h2 > .linkasana { margin-left: 0; }
+.page-title > .linkasana { margin: 0; }
+
+/* ---------- quality ---------- */
+.quality > summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; align-items: center; gap: 12px; font-weight: 600; }
+.quality > summary::-webkit-details-marker { display: none; }
+.quality > summary .chev { margin-left: auto; color: var(--text-3); transition: transform .2s; }
+.quality[open] > summary .chev { transform: rotate(90deg); }
+.qsum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 500; font-size: 13px; color: var(--text-2); }
+.qpill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; background: var(--gray-soft); white-space: nowrap; }
+.qpill > span:first-child { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; color: #fff; font-weight: 800; }
+.qpill.ok { background: var(--green-soft); color: var(--green); }
+.qpill.bad { background: var(--red-soft); color: var(--red); font-weight: 600; }
+.qpill.pend { color: var(--text-2); }
+.qpill.pend > span:first-child { border: 1.5px solid var(--text-3); }
+.qms { font-weight: 600; color: var(--text-2); }
+.qgrid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 0; border-top: 1px solid var(--line); }
+.qcol { padding: 14px 18px; border-left: 1px solid var(--line); min-width: 0; }
+.qcol:first-child { border-left: 0; }
+.qcol h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); font-weight: 600; }
+.qline { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; padding: 4px 0; }
+.qline .ok, .qline .bad, .qline .pend { flex: none; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; color: #fff; font-weight: 800; margin-top: 2px; }
+.ok { background: var(--green-dot); } .bad { background: var(--red); } .pend { background: var(--gray-soft); }
+.qline code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qline .when { margin-left: auto; color: var(--text-3); font-size: 12px; white-space: nowrap; }
+.muted { color: var(--text-3); font-size: 13px; }
+
+/* ---------- feed ---------- */
+.feed { position: sticky; top: 84px; max-height: calc(100vh - 104px); display: flex; flex-direction: column; }
+.feed h2 { margin: 0; padding: 14px 18px 10px; font-size: 13px; font-weight: 600; color: var(--text-2); letter-spacing: .02em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+.feed-filter { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.feed-filter button { border: 0; background: transparent; color: var(--text-2); font-size: 12px; font-weight: 500; padding: 4px 8px; border-radius: 999px; cursor: pointer; }
+.feed-filter button:hover { background: var(--gray-soft); }
+.feed-filter button.on { background: var(--text); color: var(--card); font-weight: 600; }
+.feed ol { list-style: none; margin: 0; padding: 0 10px 12px; overflow-y: auto; }
+.ev { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 8px; border-radius: 10px; font-size: 13px; }
+.ev:hover { background: var(--card-2); }
+.ev .ico { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; font-size: 11px; background: var(--gray-soft); color: var(--text-2); }
+.ev .ico.green { background: var(--green-soft); color: var(--green); }
+.ev .ico.amber { background: var(--amber-soft); color: var(--amber); }
+.ev .ico.red { background: var(--red-soft); color: var(--red); }
+.ev .ico.blue { background: var(--accent-soft); color: var(--accent); }
+.ev .meta { color: var(--text-3); font-size: 11.5px; }
+.ev a { color: var(--accent); cursor: pointer; text-decoration: none; font-weight: 600; }
+.close-x { border: 0; background: var(--gray-soft); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; color: var(--text-2); flex: none; }
+
+/* ---------- sheet ---------- */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(520px, calc(100vw - 24px)); z-index: 50;
+  background: var(--glass); backdrop-filter: saturate(180%) blur(30px); -webkit-backdrop-filter: saturate(180%) blur(30px);
+  border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow-hi);
+  transform: translateX(calc(100% + 24px)); transition: transform .32s cubic-bezier(.2,.8,.2,1); display: flex; flex-direction: column;
+}
+.sheet.on { transform: none; }
+.sheet-head { padding: 18px 20px 14px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid var(--line); }
+.sheet-head h2 { margin: 2px 0 6px; font-size: 20px; letter-spacing: -.02em; line-height: 1.2; }
+.sheet-body { overflow-y: auto; padding: 4px 20px 24px; }
+.sec { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.sec:last-child { border-bottom: 0; }
+.sec h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); font-weight: 600; }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 13px; }
+.kv dt { color: var(--text-2); } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.links { display: flex; gap: 6px; flex-wrap: wrap; }
+.link-chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.link-chip:hover { border-color: var(--accent); color: var(--accent); }
+.link-chip.landed { background: transparent; color: var(--text-3); border-style: dashed; }
+.link-chip b { flex: none; white-space: nowrap; }
+.link-chip.landed b { font-weight: 600; }
+.link-chip .tick { color: var(--green-dot); font-size: 11px; }
+.link-chip .cdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.dep-sum { font-size: 12.5px; color: var(--text-3); margin-bottom: 6px; }
+.dep-sum b { color: var(--text); font-weight: 600; }
+a.link-chip, a.file { color: inherit; text-decoration: none; }
+a.file { display: block; border-radius: 6px; padding: 1px 4px; margin: 0 -4px; }
+a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-soft); }
+.sec h3 a { float: right; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-3); text-decoration: none; border-radius: 6px; padding: 0 6px; }
+.md { font-size: 14px; }
+.md h1, .md h2, .md h3 { font-size: 14.5px; margin: 14px 0 6px; letter-spacing: -.01em; }
+.md h1:first-child, .md h2:first-child, .md h3:first-child { margin-top: 0; }
+.hicon { margin-right: 6px; font-style: normal; text-transform: none; }
+.md p { margin: 6px 0; }
+.md ul, .md ol { margin: 6px 0; padding-left: 20px; }
+.md li { margin: 3px 0; }
+.md li.task { list-style: none; margin-left: -20px; display: flex; gap: 8px; }
+.md pre { background: var(--gray-soft); border-radius: 10px; padding: 10px 12px; overflow-x: auto; }
+.md :not(pre) > code { background: var(--gray-soft); border-radius: 5px; padding: 1px 5px; }
+.log { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.log li { display: grid; grid-template-columns: 52px 86px 1fr; gap: 8px; padding: 5px 0; align-items: baseline; }
+.log .t { color: var(--text-3); font-variant-numeric: tabular-nums; font-size: 12px; }
+.commit { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; font-size: 13px; padding: 5px 0; align-items: baseline; }
+.commit a { color: var(--accent); text-decoration: none; }
+.plus { color: var(--green); } .minus { color: var(--red); }
+.failbox { background: var(--red-soft); color: var(--text); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+.approvalbox { background: var(--amber-soft); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 13px; transition: .25s; z-index: 60; pointer-events: none; max-width: calc(100vw - 32px); }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- epics ---------- */
+.back { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; white-space: nowrap; }
+.back:hover { border-color: var(--accent); }
+
+/* ---------- milestones ---------- */
+#banner { display: flex; flex-direction: column; gap: 10px; }
+[hidden] { display: none !important; }
+.step-ms { font-size: 11px; font-weight: 700; color: var(--text-2); background: var(--gray-soft); border-radius: 6px; padding: 2px 7px; margin-right: 12px; flex: none; }
+.map-head h2 a { color: var(--accent); cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.map-head h2 .crumb { margin: 0 8px; color: var(--text-3); }
+.when { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+.badge.draft { background: var(--accent-soft); color: var(--accent); }
+.badge.parked, .badge.later { background: var(--gray-soft); color: var(--text-2); }
+.badge.dropped { color: var(--text-3); padding-left: 0; text-decoration: line-through; }
+/* status icons: each badge state draws its glyph in the badge's own colour */
+.badge::before { content: none; flex: none; width: 12px; height: 12px; background: currentColor; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
+.badge.done { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); }
+.badge.merged { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='18' cy='18' r='3'/%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Cpath d='M6 21V9a9 9 0 0 0 9 9'/%3E%3C/svg%3E"); }
+.badge.failed { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E"); }
+.badge.blocked { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E"); }
+.badge.waiting { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 2h12M6 22h12M7 2c0 5 10 5 10 10S7 17 7 22M17 2c0 5-10 5-10 10s10 5 10 10'/%3E%3C/svg%3E"); }
+.badge.ready { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v16l13-8z'/%3E%3C/svg%3E"); }
+.badge.elsewhere { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='12' rx='2'/%3E%3Cpath d='M2 20h20'/%3E%3C/svg%3E"); }
+.badge.draft { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'/%3E%3C/svg%3E"); }
+.badge.parked { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5v14M15 5v14'/%3E%3C/svg%3E"); }
+.badge.later { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E"); }
+.badge.dropped { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m5.6 5.6 12.8 12.8'/%3E%3C/svg%3E"); }
+.badge.done::before, .badge.failed::before, .badge.blocked::before, .badge.waiting::before, .badge.ready::before, .badge.elsewhere::before, .badge.draft::before, .badge.parked::before, .badge.later::before, .badge.dropped::before { content: ""; }
+.badge.ready::before { width: 10px; height: 10px; }
+.badge.merged { background: var(--purple-soft); color: var(--purple); }
+.node.draft, .node.parked, .node.later { background: var(--card); border-style: dashed; }
+.node.parked .title, .node.later .title { color: var(--text-2); }
+.node.dropped { opacity: .45; }
+.node.dropped .title { text-decoration: line-through; color: var(--text-3); }
+.node.ms[data-drill] .model { color: var(--accent); }
+.node .foot .when { margin-left: auto; }
+.prlink { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.prlink:hover { text-decoration: underline; }
+.doing-inline { margin-left: 8px; font-size: 12px; color: var(--text-2); }
+.sheet .commit .sid { justify-self: start; }
+.sheet .commit a[data-drill], .sheet .commit a[data-open] { color: var(--accent); cursor: pointer; }
+
+/* ---------- repos and PRs ---------- */
+.repos { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.repo-line { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; min-width: 0; }
+.repo-chips { display: flex; gap: 4px; overflow: hidden; }
+.repo { font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--gray-soft); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+.pr { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 7px; white-space: nowrap; text-decoration: none; border: 1px solid transparent; }
+a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
+.pr.open { background: var(--green-soft); color: var(--green); }
+.pr.draft { color: var(--text-2); border: 1px dashed var(--line-2); }
+.pr.merged { background: var(--purple-soft); color: var(--purple); }
+.pr.closed { background: var(--red-soft); color: var(--red); text-decoration: line-through; }
+.pr.none { color: var(--text-3); font-weight: 500; padding-left: 0; }
+.ev .ico.purple { background: var(--purple-soft); color: var(--purple); }
+
+@media (max-width: 1100px) {
+  .page { grid-template-columns: minmax(0,1fr); }
+  .icon-btn { display: inline-block; }
+  .feed { position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(380px, calc(100vw - 24px)); max-height: none; z-index: 45; transform: translateX(calc(100% + 24px)); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
+  .feed.on { transform: none; }
+}
+@media (min-width: 1101px) { .feed .close-x { display: none; } }
+@media (max-width: 900px) {
+}
+@media (max-width: 600px) {
+  .topbar { position: static; } /* two rows of controls would take a fifth of a phone screen */
+  .topbar-inner { column-gap: 10px; }
+  .controls { gap: 8px; }
+  .human button { padding: 4px 8px; }
+  .toolbar .search { flex-basis: 100%; }
+  .banner.assumed li .row { flex-wrap: wrap; }
+  .banner.assumed li .q { flex-basis: 100%; white-space: normal; }
+  .banner.digest .drow { grid-template-columns: minmax(0,1fr); gap: 4px; }
+  .trow { grid-template-columns: 90px 1fr 96px; }
+  .page-title .back { font-size: 12px; }
+}
+@media (max-width: 720px) {
+  .page { padding-left: 16px; padding-right: 16px; }
+  .topbar-inner { padding-left: 8px; padding-right: 8px; }
+  .qgrid { grid-template-columns: minmax(0,1fr); }
+  .qcol { border-left: 0; border-top: 1px solid var(--line); }
+  .qcol:first-child { border-top: 0; }
+  .legend { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <svg class="logo" id="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg-tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#1c1c1e"/></linearGradient><linearGradient id="lg-blue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2997ff"/><stop offset="1" stop-color="#0066d6"/></linearGradient><linearGradient id="lg-amber" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb340"/><stop offset="1" stop-color="#f08c00"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#lg-tile)"/><rect x=".5" y=".5" width="63" height="63" rx="13.5" fill="none" stroke="#fff" stroke-opacity=".14"/><rect x="20" y="17" width="6" height="26" rx="3" fill="#34c759"/><rect x="29" y="9" width="6" height="34" rx="3" fill="url(#lg-blue)"/><rect x="38" y="23" width="6" height="20" rx="3" fill="url(#lg-amber)"/><rect x="18" y="46" width="28" height="5" rx="1.5" fill="#f5f5f7"/><rect x="13" y="50.5" width="38" height="5" rx="1.5" fill="#fff"/></svg>
+    <div class="brand">
+      <span class="eyebrow"><span>Podium</span><span class="live" id="live"><i></i><span>Live</span></span><button class="restart" id="restart" data-restart hidden title="The Podium's code changed after this server started, so its buttons can fail. Restart it to pick up the change; the run's state is on disk">Restart</button></span>
+      <h1 id="epic-title">Loading…</h1>
+      <div class="people" id="people" hidden></div>
+    </div>
+    <div class="corner">
+      <button class="bell" id="bell" aria-label="Notifications"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></button>
+      <div class="theme" id="theme" role="radiogroup" aria-label="Appearance">
+        <button data-theme-set="light" role="radio">Light</button><button data-theme-set="dark" role="radio">Dark</button><button data-theme-set="system" role="radio">System</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="human" id="human" hidden></div>
+      <span class="gitwarn" id="gitwarn" hidden></span>
+      <button class="icon-btn" id="feed-toggle">Activity</button>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+  <main class="main">
+    <nav class="card stepper" id="stepper" aria-label="Pipeline"></nav>
+    <section id="banner"></section>
+    <div class="toolbar">
+      <label class="search">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".55"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/></svg>
+        <input id="q" type="search" placeholder="Search stories, files, ids" autocomplete="off">
+        <span class="kbd">⌘K</span>
+      </label>
+      <div class="seg" id="filters" role="tablist"></div>
+    </div>
+    <section class="card map-card">
+      <div class="map-head">
+        <h2 id="map-title">Topology</h2>
+        <div class="map-tools">
+          <div class="legend">
+            <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
+            <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
+          </div>
+        </div>
+      </div>
+      <div class="page-title" id="page-title"></div>
+      <div class="map-wrap"><div class="waves" id="waves"></div><div class="map-scroll"><div class="map" id="map"></div></div></div>
+      <div id="ds-view"></div>
+    </section>
+    <details class="card quality" id="quality">
+      <summary>Quality <span class="qsum" id="qsum"></span><span class="chev">›</span></summary>
+      <div class="qgrid" id="qgrid"></div>
+    </details>
+  </main>
+  <aside class="card feed" id="feed">
+    <h2>Activity <button class="close-x" id="feed-close" aria-label="Close">✕</button></h2>
+    <div class="feed-filter" id="feed-filter"></div>
+    <ol id="events"></ol>
+  </aside>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" aria-hidden="true">
+  <div class="sheet-head">
+    <div style="flex:1;min-width:0" id="sheet-head"></div>
+    <button class="close-x" id="sheet-close" aria-label="Close">✕</button>
+  </div>
+  <div class="sheet-body" id="sheet-body"></div>
+</aside>
+<div class="toast" id="toast"></div>
+
+<script>
+const DEFAULT_PHASES = [
+  ["recon", "Recon"], ["spec", "Spec"], ["mock", "Mock"], ["architecture", "Architecture"],
+  ["stories", "Stories"], ["build", "Build"], ["gate", "Quality gate"], ["verify", "Verify"], ["land", "Land"],
+];
+/* the stepper's phases: the orchestrator's own (names, or [name, label] pairs) when podium.json lists them */
+function phases() {
+  const own = S.project?.orchestrator?.phases;
+  if (!Array.isArray(own) || !own.length) return DEFAULT_PHASES;
+  const known = Object.fromEntries(DEFAULT_PHASES);
+  return own.map((p) => (Array.isArray(p) ? [String(p[0]), String(p[1] ?? p[0])] : [String(p), known[p] || String(p).charAt(0).toUpperCase() + String(p).slice(1).replace(/[-_]/g, " ")]));
+}
+const maxAttempts = () => S.project?.orchestrator?.maxAttempts || 2;
+/* the orchestrator driving this run, {name, command}, or null: a run without one is shown read-only */
+const orch = () => [S.info?.orchestrator, S.project?.orchestrator].find((o) => o?.command) || null;
+const orchCmd = () => orch()?.command || "";
+const SERVER_DOWN = "The Podium server didn't accept that: is it running? Start it with podium server --detach";
+const FILTERS = [["all", "All"], ["working", "Working"], ["todo", "To do"], ["done", "Done"], ["failed", "Failed"]];
+const UNSTARTED = ["draft", "parked", "later"];
+const POLL_MS = 2000;
+// a hidden tab still polls, slower, so its notifications arrive within half a minute
+const HIDDEN_POLL_MS = 30000;
+let lastPoll = 0;
+const W = 236, H = 140, EPIC_W = 380, EPIC_W_REPOS = 460, EPIC_H = 132, GX = 22, GY = 64, PAD = 56;
+
+const S = { base: "podium/", handoffs: {}, human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: {}, briefs: {}, selected: null, view: undefined, query: "", filter: "all", online: true };
+const $ = (id) => document.getElementById(id);
+/* appearance: "system" (default) follows the OS; the choice is a per-viewer convenience in localStorage */
+function setTheme(t) {
+  if (t === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+  document.querySelectorAll("[data-theme-set]").forEach((b) => { b.classList.toggle("on", b.dataset.themeSet === t); b.setAttribute("aria-checked", b.dataset.themeSet === t); });
+  try { localStorage.setItem("podium-theme", t); } catch { /* private mode */ }
+}
+setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+/* ---------- data ---------- */
+/* vscode:// link for a run-dir path (briefs, artifacts) or a repo path (files in scope) */
+function vsc(path, base = "runDir") {
+  if (!S.info || !path) return null;
+  return "vscode://file" + encodeURI(`${S.info[base]}/${path}`.replace(/\/\.?\//g, "/"));
+}
+fetch("/info", { cache: "no-store" }).then((r) => r.json()).then(setInfo).catch(() => {});
+/* who this viewer is decides which person's active milestone, needsYou and assumptions the page shows */
+function setInfo(i) {
+  const first = !S.info, meChanged = !first && i.me !== S.info.me, orchChanged = !first && JSON.stringify(i.orchestrator) !== JSON.stringify(S.info.orchestrator);
+  const peopleChanged = first || JSON.stringify(i.people) !== JSON.stringify(S.info.people);
+  S.info = i; S.watching = i.watching; S.stale = !!i.stale;
+  if ((first || meChanged) && S.raw) loadProject();
+  if (peopleChanged || meChanged) renderPeople();
+  if ((first || meChanged || orchChanged) && S.project) { render(); if (S.selected) renderSheet(); }
+}
+/* a poll keeps the server alive only while someone is at the tab: in view and touched in the last
+   10 minutes, so a tab left open on an unattended screen lets it stop when idle */
+let lastInput = Date.now();
+["pointermove", "pointerdown", "keydown", "wheel", "focus"].forEach((t) => addEventListener(t, () => (lastInput = Date.now()), { passive: true }));
+const present = () => document.visibilityState === "visible" && Date.now() - lastInput < 10 * 60000;
+const seen = () => ({ "X-Podium-Visible": present() ? "1" : "0" });
+async function getText(path) {
+  const r = await fetch(path, { cache: "no-store", headers: seen() });
+  if (!r.ok) throw new Error(r.status);
+  return r.text();
+}
+/* every epic.json is two-level; an old single-level file becomes an epic with one milestone */
+function normalize(e) {
+  if (!e.milestones) {
+    e.milestones = [{ id: e.epic.id || "M1", title: e.epic.title, summary: e.epic.summary, status: e.completed ? "done" : "working",
+      phase: e.phase, stories: e.stories || [], quality: e.quality, artifacts: e.artifacts, brief: e.epic.spec, branch: e.epic.branch }];
+    e.active = e.milestones[0].id;
+  }
+  // a lone research milestone answers a question: its epic still opens as an epic, not as that milestone's map
+  e.single = e.milestones.length === 1 && !isResearch(e.milestones[0]);
+  return e;
+}
+/* podium.json is project > epics > milestones > stories; an older epic.json becomes a project with one epic */
+function normalizeProject(d) {
+  if (d.epics) return d;
+  const e = normalize(d);
+  const E = { ...d.epic, id: d.epic.id || "E1", milestones: e.milestones, uncovered: d.uncovered };
+  return { project: { title: d.epic.title, summary: d.epic.summary }, epics: [E], active: e.active ? { epic: E.id, milestone: e.active } : null,
+    needsYou: d.needsYou, buildAll: d.buildAll, dispatcher: d.dispatcher, repoUrl: d.repoUrl };
+}
+/* the epic in view, shaped like a single-epic file so every milestone/story view works on it */
+function epicCtx(id) {
+  const P = S.project, E = P.epics.find((x) => x.id === id);
+  if (!E) return null;
+  const on = P.active?.epic === id;
+  return normalize({ epic: E, milestones: E.milestones, stories: E.stories, phase: E.phase, quality: E.quality, artifacts: E.artifacts,
+    active: on ? P.active.milestone : null, needsYou: on ? P.needsYou : null,
+    dispatcher: P.dispatcher, repoUrl: P.repoUrl, uncovered: E.uncovered });
+}
+/* this viewer's active milestone, needsYou and assumptions: people.<me>'s, else the top-level ones of a run from before
+   `people`. A run that syncs or has a `people` block numbers the viewer's own assumptions <n> and the older top-level
+   ones t<n>; any other run numbers the top-level ones <n> */
+function personal(d) {
+  const obj = (x) => (x && typeof x === "object" && !Array.isArray(x) ? x : null);
+  const people = obj(d.people), mine = (people && obj(people[S.info?.me])) || {};
+  const pick = (k) => (k in mine ? mine[k] : d[k]);
+  const numbered = (list, pre) => (Array.isArray(list) ? list : []).map((a, i) => ({ ...a, n: `${pre}${i}` }));
+  const assumptions = d.sync?.enabled || people ? [...numbered(mine.assumptions, ""), ...numbered(d.assumptions, "t")] : numbered(d.assumptions, "");
+  return { ...d, active: pick("active"), needsYou: pick("needsYou"), assumptions };
+}
+function loadProject() {
+  S.project = personal(normalizeProject(JSON.parse(S.raw)));
+  if (S.epicView === undefined) S.epicView = S.project.active?.epic || (S.project.epics.length === 1 ? S.project.epics[0].id : null);
+  if (S.epicView && !S.project.epics.some((x) => x.id === S.epicView)) S.epicView = null;
+  S.epic = S.epicView ? epicCtx(S.epicView) : null;
+  chooseView();
+}
+const epicOfMs = (ms) => S.project.epics.find((E) => (E.milestones || []).some((m) => m.id === ms))?.id;
+function chooseView() {
+  if (!S.epic) return;
+  if (S.epic.single) S.view = S.epic.milestones[0].id;
+  else if (S.view === undefined || (S.view && !msById()[S.view])) S.view = null;
+}
+function setEpic(id, view) {
+  S.epicView = id; S.epic = id ? epicCtx(id) : null; S.view = view === undefined ? undefined : view;
+  chooseView();
+  S.selected = null; S.filter = "all"; S.query = ""; $("q").value = "";
+  $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
+  render();
+}
+async function poll() {
+  lastPoll = Date.now();
+  try {
+    let raw;
+    /* the orchestrator's files sit in the run dir's podium/ folder; an older run keeps them at the top */
+    raw = null;
+    /* probe once, then keep reading where it was found: a miss would 404 on every poll */
+    const where = [["podium/", "podium.json"], ["", "podium.json"], ["", "epic.json"]];
+    for (const [base, name] of S.found ? [S.found, ...where.filter((w) => w !== S.found)] : where) {
+      try { raw = await getText(base + name); S.base = base; S.found = [base, name]; break; } catch { /* next */ }
+    }
+    if (raw === null) throw new Error("no podium.json");
+    S.online = true;
+    let changed = raw !== S.raw;
+    if (changed) { S.raw = raw; loadProject(); }
+    try {
+      const ev = await getText(S.base + "events.jsonl");
+      if (ev !== S.eventsRaw) { S.eventsRaw = ev; S.events = parseJsonl(ev); renderEvents(); }
+    } catch { /* no events yet */ }
+    try {
+      const h = await getText(S.base + "handoffs.json");
+      if (h !== S.handoffsRaw) { S.handoffsRaw = h; S.handoffs = JSON.parse(h); changed = true; }
+    } catch { if (S.handoffsRaw) { S.handoffsRaw = ""; S.handoffs = {}; changed = true; } }
+    try {
+      /* answers already sent: an assumption stays open in podium.json until the orchestrator applies it */
+      const rq = await getText(S.base + "requests.jsonl");
+      if (rq !== S.requestsRaw) {
+        S.requestsRaw = rq;
+        S.settling = Object.fromEntries(parseJsonl(rq).filter((r) => ["confirm", "reverse"].includes(r.action)).flatMap((r) => String(r.story).split(",").map((i) => [i, r.action])));
+        S.asanaChoice = Object.fromEntries(parseJsonl(rq).filter((r) => r.action === "asana-done").map((r) => [String(r.story), r.note]));
+        changed = true;
+      }
+    } catch { /* no requests yet */ }
+    for (const bm of buildingMs()) {
+      const live = (bm.stories || []).filter((s) => ["working", "approval"].includes(s.status) || S.handoffs[key(bm.id, s.id)] || (S.view === bm.id && s.id === S.selected));
+      for (const s of live) {
+        try {
+          const p = await getText(progressPath(bm.id, s.id));
+          if (p !== S.progress[key(bm.id, s.id)]) { S.progress[key(bm.id, s.id)] = p; changed = true; }
+        } catch { /* none yet */ }
+      }
+    }
+    try {
+      const h = await (await fetch("/human", { cache: "no-store", headers: seen() })).json();
+      if (JSON.stringify(h) !== JSON.stringify(S.human)) { S.human = h; renderHuman(); }
+    } catch { /* an older server */ }
+    try {
+      const g = await (await fetch("/git", { cache: "no-store" })).json();
+      if (JSON.stringify(g) !== JSON.stringify(S.git)) { S.git = g; renderGit(); }
+    } catch { /* an older server */ }
+    if (markSeen()) changed = true;
+    if (changed) render();
+  } catch {
+    S.online = false;
+  }
+  try { setInfo(await (await fetch("/info", { cache: "no-store" })).json()); } catch { /* offline */ }
+  $("restart").hidden = !(S.online && S.stale);
+  const readOnly = S.online && !!S.info && !orch(), idle = S.online && !readOnly && S.watching === false;
+  $("live").classList.toggle("off", !S.online);
+  $("live").classList.toggle("idle", idle || readOnly);
+  $("live").title = readOnly ? "This run has no orchestrator: the Podium shows its state, and its plan and build buttons are hidden"
+    : idle ? `No orchestrator is watching this Podium, so its buttons can't act. Run ${orchCmd()} in an agent chat.` : "";
+  $("live").lastElementChild.textContent = !S.online ? "Disconnected" : S.stale ? "Update ready" : readOnly ? "Read only" : idle ? "No orchestrator" : "Live";
+}
+function parseJsonl(text) {
+  return text.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+}
+const key = (ms, id) => `${ms}/${id}`;
+const progressPath = (ms, id) => `${S.base}stories/${ms}/${id}.progress`;
+function progressLines(ms, id) {
+  return (S.progress[key(ms, id)] || "").split("\n").filter(Boolean).map((l) => {
+    const m = l.match(/^(\S+)\s+(\S+)\s*(.*)$/);
+    return m ? { at: m[1], stage: m[2], note: m[3] } : { at: "", stage: "", note: l };
+  });
+}
+/* what the agent is doing after its last progress line, and how far through the TDD cycle that is */
+const DOING = {
+  STARTED: ["Writing tests", 1], RED: ["Making them pass", 2], GREEN: ["Refactoring", 3], REFACTOR: ["Running checks", 3],
+  CONTRACT: ["Committing", 3], COMMITTED: ["Merging", 3], WAITING: ["Waiting for approval", 0], FAILED: ["Retrying", 1], FIX: ["Fixing", 2],
+};
+/* the orchestrator's own stages, {STAGE: {doing, step, time}}, over the defaults: what the agent does after that line,
+   how far through the cycle (0-3) it is, and which "where the time went" row the stretch after it counts toward */
+const ownStages = () => Object.entries(S.project?.orchestrator?.stages || {}).filter(([, v]) => v && typeof v === "object");
+const doingMap = () => ({ ...DOING, ...Object.fromEntries(ownStages().filter(([, v]) => v.doing).map(([k, v]) => [k, [String(v.doing), Number(v.step) || 0]])) });
+function doing(ms, id) { const l = progressLines(ms, id); const st = l.length ? l[l.length - 1].stage : null; return st ? doingMap()[st] || [st.toLowerCase(), 0] : ["Starting", 0]; }
+function bar3(n) { return `<span class="bar3" aria-label="step ${n} of 3">${[1, 2, 3].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`; }
+
+/* ---------- derived ---------- */
+const msById = () => Object.fromEntries(S.epic.milestones.map((m) => [m.id, m]));
+const activeMs = () => msById()[S.epic.active] || null;
+const viewMs = () => (S.view ? msById()[S.view] : null);
+/* a milestone building its stories: the active one while working, or another working one in its build phase; two can build at once */
+const isBuilding = (m) => !!m && m.status === "working" && (m.id === S.project.active?.milestone || m.phase === "build");
+const buildingMs = () => S.project.epics.flatMap((E) => E.milestones || []).filter(isBuilding);
+/* build-all is per milestone; a top-level buildAll, from an older run, is the active milestone's */
+const msBuildAll = (m) => (S.project.buildAll !== undefined && m.id === S.project.active?.milestone ? !!S.project.buildAll : !!m.buildAll);
+/* an id in a request path, <milestone>/<story> included, each part encoded */
+const idPath = (id) => String(id).split("/").map(encodeURIComponent).join("/");
+const items = () => viewMs()?.stories || (viewMs() ? [] : S.epic.milestones);
+const byId = () => Object.fromEntries(items().map((s) => [s.id, s]));
+const phaseLabel = (p) => phases().find(([k]) => k === p)?.[1] || p || "";
+function viewStatus(s, map) {
+  if (s.status !== "todo") return s.status;
+  if (S.handoffs[key(viewMs()?.id, s.id)]) return "elsewhere";
+  return (s.deps || []).every((d) => !map[d] || ["done", "dropped"].includes(map[d].status)) ? "ready" : "waiting";
+}
+function filterKey(st) {
+  return { ready: "todo", waiting: "todo", todo: "todo", draft: "todo", parked: "todo", later: "todo", approval: "working", elsewhere: "working", blocked: "failed" }[st] || st;
+}
+function matches(s) {
+  const q = S.query.trim().toLowerCase();
+  if (S.filter !== "all" && filterKey(viewStatus(s, byId())) !== S.filter) return false;
+  if (!q) return true;
+  return [s.id, s.title, s.summary, ...(s.files || []), ...(s.covers || []), ...repoNames(s)].join(" ").toLowerCase().includes(q);
+}
+
+/* ---------- repos ---------- */
+/* a milestone's `repos` map as a list; story `repos` is a plain list of names */
+const msRepos = (m) => Object.entries(m?.repos || {}).map(([repo, r]) => ({ repo, ...(r || {}) }));
+const repoNames = (x) => (Array.isArray(x.repos) ? x.repos : Object.keys(x.repos || {}));
+/* a story's commits with their repo: `commits` is {repo: [...]}, or a flat list (repo null) in single-repo runs */
+function commitsOf(s) {
+  const c = s.commits || [];
+  return Array.isArray(c) ? c.map((x) => ({ repo: null, ...x })) : Object.entries(c).flatMap(([repo, l]) => (l || []).map((x) => ({ repo, ...x })));
+}
+/* the GitHub page of a repo, from any PR url the project has for it; null repo is the single-repo run's repoUrl */
+function repoUrl(repo) {
+  if (!repo) return S.epic?.repoUrl || S.project?.repoUrl;
+  const pr = S.project.epics.flatMap((E) => (E.milestones || []).map((m) => m.repos?.[repo]?.pr)).find((x) => x?.url);
+  return pr ? pr.url.replace(/\/pull\/.*$/, "") : null;
+}
+const PR_LABEL = { draft: "Draft", open: "Open", merged: "Merged", closed: "Closed" };
+function prPill(pr, ms) {
+  if (!pr) return `<span class="pr none">no PR yet</span>`;
+  const st = PR_LABEL[pr.state] ? pr.state : "open";
+  const text = `${ms ? `${esc(ms)} ` : ""}#${esc(pr.number)} ${PR_LABEL[st]}`;
+  const tip = `title="${ms ? `${esc(ms)} · ` : ""}PR #${esc(pr.number)} ${st}"`;
+  return pr.url ? `<a class="pr ${st}" href="${esc(pr.url)}" target="_blank" rel="noopener" ${tip}>${text}</a>` : `<span class="pr ${st}" ${tip}>${text}</span>`;
+}
+/* rows of {repo, prs: [{pr, ms}]}: one per repo of a milestone, or the union over an epic's milestones */
+const msRepoRows = (m) => msRepos(m).map((r) => ({ repo: r.repo, prs: r.pr ? [{ pr: r.pr }] : [] }));
+function epicRepoRows(milestones) {
+  const rows = {};
+  for (const m of milestones || []) for (const r of msRepos(m)) {
+    rows[r.repo] ||= { repo: r.repo, prs: [] };
+    if (r.pr) rows[r.repo].prs.push({ pr: r.pr, ms: m.id });
+  }
+  return Object.values(rows);
+}
+function repoLines(rows) {
+  if (!rows.length) return "";
+  return `<div class="repos">${rows.map((r) => `<div class="repo-line"><span class="repo">${esc(r.repo)}</span>${r.prs.length ? r.prs.map((x) => prPill(x.pr, x.ms)).join("") : prPill(null)}</div>`).join("")}</div>`;
+}
+/* extra root-box height for repo lines that wrap after `perLine` PRs */
+const repoLinesHeight = (rows, perLine) => (rows.length ? 6 + rows.reduce((n, r) => n + Math.ceil(Math.max(1, r.prs.length) / perLine), 0) * 22 : 0);
+const repoChips = (names) => (names.length ? `<div class="repo-chips">${names.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div>` : "");
+/* the milestone's branch: the old top-level one, or its repos' one when they share it */
+function msBranch(m) {
+  if (m.branch) return m.branch;
+  const b = [...new Set(msRepos(m).map((r) => r.branch).filter(Boolean))];
+  return b.length > 1 ? `${b.length} branches` : b[0] || "";
+}
+
+/* ---------- people ---------- */
+const isMe = (who) => !!who && who === S.info?.me;
+const personName = (who) => (isMe(who) ? "you" : esc(who));
+const ownerChip = (m) => (m?.owner ? `<span class="owner ${isMe(m.owner) ? "me" : ""}" title="${esc(isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`)}">👤 ${personName(m.owner)}</span>` : "");
+/* a run shared by people: it has a `people` block, or a milestone has an owner */
+const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
+const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
+const ownerOrClaim = (m) => ownerChip(m) || claimBtn(m);
+/* each person's active milestone, once more than one person shares the run */
+function renderPeople() {
+  const el = $("people"), people = Object.entries(S.info?.people || {});
+  el.hidden = people.length < 2;
+  if (el.hidden) return void (el.innerHTML = "");
+  el.innerHTML = people.sort(([a], [b]) => isMe(b) - isMe(a) || a.localeCompare(b)).map(([who, p]) => {
+    const ms = typeof p?.active === "string" ? p.active : p?.active?.milestone;
+    const known = ms && S.project && epicOfMs(ms);
+    const on = ms ? (known ? `<a data-drill="${esc(ms)}">${esc(ms)}</a>` : esc(ms)) : `<span class="muted">idle</span>`;
+    return `<span class="who ${isMe(who) ? "me" : ""}" title="${esc(ms ? `${who} is on ${ms}` : `${who} has no active milestone`)}"><b>${personName(who)}</b>${on}</span>`;
+  }).join("");
+}
+
+/* ---------- layout ---------- */
+/* sz: node height h, root box rw × rh; they grow when tiles carry repo lines */
+function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
+  const map = Object.fromEntries(list.map((s) => [s.id, s]));
+  const rank = {};
+  const r = (id, seen = new Set()) => {
+    if (rank[id]) return rank[id];
+    if (seen.has(id)) return 1;
+    seen.add(id);
+    const s = map[id];
+    const ups = [...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => map[d]);
+    return (rank[id] = ups.length ? 1 + Math.max(...ups.map((d) => r(d, seen))) : 1);
+  };
+  list.forEach((s) => r(s.id));
+  const rows = [];
+  list.forEach((s) => (rows[rank[s.id]] ||= []).push(s));
+  // a wave wider than `cols` wraps onto several lines (narrow screens)
+  const lines = (row) => (cols >= row.length ? [row] : Array.from({ length: Math.ceil(row.length / cols) }, (_, i) => row.slice(i * cols, (i + 1) * cols)));
+  const xIndex = {};
+  rows.forEach((row, ri) => {
+    if (!row) return;
+    if (ri > 1) {
+      const bary = (s) => {
+        const ups = [...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => xIndex[d] !== undefined);
+        return ups.length ? ups.reduce((a, d) => a + xIndex[d], 0) / ups.length : 0;
+      };
+      row.sort((a, b) => bary(a) - bary(b) || a.id.localeCompare(b.id, undefined, { numeric: true }));
+    }
+    lines(row).forEach((line) => line.forEach((s, i) => (xIndex[s.id] = i - (line.length - 1) / 2)));
+  });
+  const maxRow = Math.max(1, ...rows.filter(Boolean).map((r) => Math.min(r.length, cols)));
+  const width = Math.max(sz.rw + 2 * PAD, maxRow * (W + GX) - GX + 2 * PAD);
+  const cx = width / 2;
+  const pos = {}, rowY = [], rowN = [], rowH = [], rowL = [];
+  let y = PAD / 2 + sz.rh + GY;
+  rows.forEach((row) => {
+    if (!row) return;
+    rowY.push(y); rowN.push(row.length); rowL.push(lines(row).length); rowH.push(lines(row).length * (sz.h + GY) - GY);
+    lines(row).forEach((line) => {
+      line.forEach((s) => (pos[s.id] = { x: cx + xIndex[s.id] * (W + GX) - W / 2, y, w: W, h: sz.h }));
+      y += sz.h + GY;
+    });
+  });
+  pos.__root = { x: cx - sz.rw / 2, y: PAD / 2, w: sz.rw, h: sz.rh };
+  return { pos, width, height: y - GY + PAD, rows: rowY.length, rowY, rowN, rowH, rowL };
+}
+// milestones run one at a time: done first, then the active one, then the rest, each after its deps
+function runOrder(list) {
+  const by = Object.fromEntries(list.map((m) => [m.id, m]));
+  const group = (m) => ({ done: 0, working: 1, dropped: 3 }[m.status] ?? 2);
+  const out = [], seen = new Set();
+  const visit = (m) => {
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
+    (m.deps || []).filter((d) => by[d]).forEach((d) => visit(by[d]));
+    out.push(m);
+  };
+  [...list].sort((a, b) => group(a) - group(b)).forEach(visit);
+  return out;
+}
+function curve(a, b) {
+  const x1 = a.x + a.w / 2, y1 = a.y + a.h, x2 = b.x + b.w / 2, y2 = b.y;
+  const m = (y2 - y1) / 2;
+  return `M${x1},${y1} C${x1},${y1 + m} ${x2},${y2 - m} ${x2},${y2}`;
+}
+
+/* ---------- render ---------- */
+function render() {
+  if (!S.project) return;
+  const P = S.project;
+  renderAttention();
+  renderPeople();
+  // the full map until a milestone is opened
+  const full = !S.epic || !S.view;
+  if (S.ds && !full && S.ds.id !== S.view) S.ds = null;
+  renderDs();
+  $("filters").hidden = full;
+  document.querySelector(".legend").hidden = full;
+  if (full) return renderFull();
+  const e = S.epic;
+  $("epic-title").textContent = e.epic.title;
+  const am = activeMs();
+  renderStepper();
+  renderBanner();
+  renderFilters();
+  renderMap();
+  renderQuality();
+  if (S.selected) renderSheet();
+}
+
+/* the header, stepper and banner for the whole project, as on the epics page */
+function projectChrome() {
+  const P = S.project;
+  $("epic-title").textContent = P.project.title;
+  const actx = P.active ? epicCtx(P.active.epic) : null;
+  S.epic = actx;
+  if (actx) { renderStepper(); renderBanner(); }
+  S.epic = null;
+  if (!actx) {
+    $("stepper").hidden = true;
+    const landed = P.epics.reduce((n, E) => n + (E.milestones || []).filter((m) => m.status === "done").length, 0);
+    $("banner").innerHTML = needsBanner() + digestBanner() + assumedBanner() + `<div class="banner idle"><span class="label">Idle</span><span class="sub">${P.epics.length} epics · ${landed} milestones landed · open an epic to plan its next milestone</span></div>`;
+  }
+  $("q").placeholder = "Search epics and milestones";
+}
+
+/* ---------- full map ---------- */
+function wavesOf(list) {
+  const by = Object.fromEntries(list.map((s) => [s.id, s])), rank = {};
+  const r = (s, seen = new Set()) => {
+    if (rank[s.id]) return rank[s.id];
+    if (seen.has(s.id)) return 1;
+    seen.add(s.id);
+    return (rank[s.id] = 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => by[d]).map((d) => r(by[d], seen))));
+  };
+  const rows = [];
+  list.forEach((s) => (rows[r(s) - 1] ||= []).push(s));
+  return rows.filter(Boolean);
+}
+// viewStatus without an open epic: todo splits into ready and waiting by its deps
+const fullStatus = (x, map) => (x.status !== "todo" ? x.status : (x.deps || []).every((d) => !map[d] || finished(d, map)) ? "ready" : "waiting");
+const planBtns = (m) => (orch() ? `<span class="fplan"><button class="btn" data-act="plan" data-id="${esc(m.id)}">Plan</button>${copyBtn("plan", m.id)}</span>` : "");
+function fullMs(m, all) {
+  const st = fullStatus(m, all), stories = m.stories || [];
+  const merged = stories.filter((s) => s.status === "done").length;
+  const left = (m.deps || []).filter((d) => all[d] && !finished(d, all));
+  let foot;
+  if (isResearch(m)) foot = st === "done" ? `<span class="badge done">Answered</span>` : `<span class="badge research">Research</span><span>${esc(m.asana?.assignee || "")}</span>`;
+  else if (st === "done") foot = `<span class="badge done">Landed${m.shippedAt ? ` ${day(m.shippedAt)}` : ""}</span>${stories.length ? `<span>${stories.length} stories</span>` : ""}`;
+  else if (st === "working") foot = msWaits(m) ? `<span class="pulse amber"></span><span class="badge needs">Waiting on you</span><span>${msDoing(m)}</span>`
+    : `<span class="pulse"></span><span class="badge working">${planning(m) ? "Planning in progress" : "Working on"}</span><span>${msDoing(m)}${stories.length ? ` · ${merged}/${stories.length} merged` : ""}</span>`;
+  else if (planAsked(m)) foot = `<span class="pulse"></span><span class="badge working">Planning requested</span><span>the orchestrator picks it up</span>`;
+  else if (grilledWaits(m)) foot = `<span class="badge grilled">Grilled</span><span>${esc(grilledWaits(m))}</span>${grilledWaits(m) === "ready to plan" ? planBtns(m) : ""}`;
+  else if (left.length) foot = `<span class="badge waiting">Needs ${esc(left.join(", "))}</span>`;
+  else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
+  const map = Object.fromEntries(stories.map((s) => [s.id, s]));
+  // only the milestone being built opens up into its waves
+  const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${fullStatus(s, map)}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
+  // a milestone with nothing to map yet opens its panel instead
+  const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
+  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : st}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span><div class="foot">${foot}</div>${waves}</div>`;
+}
+/* the strip above a milestone's map: every milestone in run order, this one ringed; click to go back out */
+function miniMap(vm) {
+  const all = Object.fromEntries(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
+  const pills = runOrder(Object.values(all).filter((x) => x.status !== "dropped")).map((x) =>
+    `<span class="mpill ${fullStatus(x, all)} ${x.id === vm.id ? "here" : ""}" ${x.id === vm.id ? "" : `data-drill="${esc(x.id)}"`} title="${esc(`${x.id} · ${x.title}${x.owner ? ` · ${isMe(x.owner) ? "yours" : x.owner}` : ""}`)}">${esc(x.id)}</span>`).join("");
+  return `<div class="mini" data-out tabindex="0" title="Back to the full map"><span class="mini-l">‹ Full map</span><span class="mpills">${pills}</span></div>`;
+}
+function renderFull() {
+  const P = S.project, open = S.epic;
+  projectChrome();
+  S.epic = open; // the chrome clears it; Focus returns to the epic that was open
+  // a quest's tile carries its Asana task
+  $("map-title").innerHTML = P.project.quest ? "Epics" : P.project.asana?.url ? `<span class="fproj">${asanaBtn(P.project)}${asanaMeta(P.project)}</span>` : linkBtn("");
+  $("page-title").innerHTML = P.project.quest ? questTile(P) : "";
+  $("quality").hidden = true;
+  $("waves").innerHTML = "";
+  const m = $("map");
+  m.style.width = ""; m.style.height = ""; m.style.zoom = 1;
+  m.classList.remove("focus");
+  const all = Object.fromEntries(P.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
+  const lane = Object.fromEntries(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
+  const listed = runOrder(Object.values(all).filter((x) => x.status !== "dropped"));
+  const order = listed.filter((x) => !isResearch(x)), research = listed.filter(isResearch);
+  const cols = `34px ${P.epics.map((E) => (E.id === P.active?.epic ? "minmax(300px, 1.7fr)" : "minmax(200px, 1fr)")).join(" ")}`;
+  const head = `<div></div>${P.epics.map((E) => {
+    const kept = (E.milestones || []).filter((x) => x.status !== "dropped"), ms = kept.filter((x) => !isResearch(x)), landed = ms.filter((x) => x.status === "done").length;
+    const rs = kept.filter(isResearch), answered = rs.filter((x) => x.status === "done").length;
+    const now = ms.find((x) => x.status === "working");
+    return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
+  }).join("")}`;
+  const next = order.findIndex((x) => !["done", "working"].includes(x.status));
+  const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
+  const rows = order.map((x, i) => `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
+  // lanes share the card's width; below their minimums the map scrolls sideways
+  const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
+  m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${rrow}${rows}</div>`;
+  requestAnimationFrame(drawQueue);
+  applyFilter();
+}
+// the queue line: row to row across the lanes, solid where it has run
+function drawQueue() {
+  const g = document.querySelector("#map .full");
+  if (!g) return;
+  const gr = g.getBoundingClientRect();
+  const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.left - gr.left, y: r.top - gr.top, w: r.width, h: r.height }; };
+  const cards = [...g.querySelectorAll(".fms:not(.research)")];
+  const paths = cards.slice(1).map((c, i) => `<path class="edge ${c.matches(".done, .working, .waits") ? "" : "overlap"}" d="${curve(box(cards[i]), box(c))}"/>`).join("");
+  g.querySelector("svg.edges")?.remove();
+  g.insertAdjacentHTML("afterbegin", `<svg class="edges" width="${g.scrollWidth}" height="${g.scrollHeight}">${paths}</svg>`);
+}
+
+// landing dates may arrive as full ISO times: show the local day
+function day(v) {
+  if (!v || !String(v).includes("T")) return esc(v || "");
+  const d = new Date(v);
+  return isNaN(d) ? esc(String(v).slice(0, 10)) : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+/* a milestone's PRs: its own and, across repos, each repo's */
+function msPrs(m) {
+  return [m.pr, ...Object.entries(m.repos || {}).map(([repo, r]) => r?.pr && { ...r.pr, repo })].filter(Boolean);
+}
+const PR_WORD = { draft: "Draft PR", open: "PR open", merged: "PR merged", closed: "PR closed" };
+const prLink = (pr) => `<a class="prlink" href="${esc(pr.url)}" target="_blank" rel="noopener">${PR_WORD[pr.state] || "PR"}${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)} ↗</a>`;
+/* planning: the milestone's phases up to its breakdown, from Plan until the stories exist (the grill runs in the orchestrator's chat) */
+const PLANNING = ["recon", "spec", "mock", "architecture", "stories"];
+const planningPhases = () => ((ks) => (ks.indexOf("build") > 0 ? ks.slice(0, ks.indexOf("build")) : PLANNING))(phases().map(([k]) => k));
+const planning = (m) => m.status === "working" && planningPhases().includes(m.phase);
+/* a Plan click the orchestrator hasn't picked up yet: shown for two minutes, or until the milestone is working */
+const planAsked = (m) => m.status !== "working" && Date.now() - (S.planAsked?.[m.id] || 0) < 120000;
+/* a milestone grilled while another was active: "next after <ids>", "ready to plan" once nothing is ahead of it
+   (it starts on the user's Plan, never by itself), or "" when it isn't one */
+function grilledWaits(m) {
+  if (!m.grilled || ["working", "done", "dropped"].includes(m.status)) return "";
+  const all = Object.fromEntries(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
+  const after = [...new Set([S.project.active?.milestone, ...(m.deps || []).filter((d) => all[d] && all[d].status !== "done")].filter(Boolean))];
+  return after.length ? `next after ${after.join(", ")}` : "ready to plan";
+}
+/* what a working milestone is doing now: its open PRs, else the stories being built, else its phase */
+function msDoing(m) {
+  const prs = msPrs(m).filter((pr) => pr.state !== "closed");
+  if (prs.length) return prs.map(prLink).join(" ");
+  const w = (m.stories || []).filter((s) => ["working", "approval"].includes(s.status)).map((s) => s.id);
+  return w.length ? `Building ${esc(w.join(", "))}` : esc(phaseLabel(m.phase));
+}
+/* the milestone needsYou is about: its story's <milestone>/ prefix, else the active one */
+const needsMs = () => (String(S.project.needsYou?.story || "").includes("/") ? S.project.needsYou.story.split("/")[0] : S.project.active?.milestone);
+/* a working milestone that waits on the user: needsYou is set on it, or it has an open/draft PR, and no story is being built or approved */
+function msWaits(m) {
+  if (m.status !== "working" || (m.stories || []).some((s) => ["working", "approval"].includes(s.status))) return false;
+  const pr = msPrs(m).some((p) => ["draft", "open"].includes(p.state));
+  return pr || (!!S.project.needsYou && needsMs() === m.id);
+}
+/* a story is complete only once its milestone has landed; before that it is merged into the milestone branch */
+const storyDone = (m) => (m.status === "done" ? "Completed" : "Merged to branch");
+const doneCls = (m) => (m.status === "done" ? "done" : "done merged");
+
+
+/* the stepper follows the milestone being planned or built */
+function renderStepper() {
+  const m = activeMs();
+  $("stepper").hidden = !m || m.status === "done";
+  if ($("stepper").hidden) return;
+  const now = phases().findIndex(([k]) => k === m.phase);
+  const pt = phaseTimes(m);
+  $("stepper").innerHTML = `<span class="step-ms">${esc(m.id)}</span>` + phases().map(([k, label], i) => {
+    const cls = i < now ? "past" : i === now ? "now" : "";
+    const bar = i ? `<span class="step-bar ${i <= now ? "past" : ""}"></span>` : "";
+    const t = cls && pt[k] ? pt[k] : null;
+    return `${bar}<span class="step ${cls}"${t ? ` title="${label}: ${dur(t.ms)}${t.open ? " so far" : ""}"` : ""}><span class="dot">${cls === "past" ? "✓" : i + 1}</span>${label}${t ? `<span class="sdur">${shortDur(t.ms)}</span>` : ""}</span>`;
+  }).join("");
+  const cur = $("stepper").querySelector(".step.now");
+  if (cur) $("stepper").scrollLeft = cur.offsetLeft - $("stepper").clientWidth / 2 + cur.clientWidth / 2;
+}
+
+function renderBanner() {
+  const e = S.epic, am = activeMs();
+  const stories = am?.stories || [];
+  const ms = e.milestones;
+  // [milestone, story] for each story being built, in every building milestone of the epic
+  const working = ms.filter(isBuilding).flatMap((m) => (m.stories || []).filter((s) => s.status === "working" || s.status === "approval").map((s) => [m, s]));
+  let html;
+  const allDone = ms.every((m) => ["done", "dropped"].includes(m.status));
+  if (e.needsYou) {
+    html = working.length ? workingBanner(working) : ""; // what it needs is in the top banner
+  } else if (working.length) {
+    html = workingBanner(working);
+  } else if (allDone) {
+    html = `<div class="banner done"><span class="label">✓ ${e.single ? "Completed" : "Epic completed"}</span><span class="sub">${ms.filter((m) => m.status === "done").length} ${e.single ? "" : "milestones "}landed</span></div>`;
+  } else if (am && am.status === "working") {
+    const map = Object.fromEntries(stories.map((s) => [s.id, s]));
+    const ready = stories.filter((s) => viewStatus(s, map) === "ready").length;
+    const sub = stories.length ? `${am.id}: ${ready} ${ready === 1 ? "story is" : "stories are"} ready to assign` : `${am.id}: ${phaseLabel(am.phase)} in progress — stories appear after breakdown`;
+    html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${esc(sub)}</span></div>`;
+  } else {
+    const next = ms.filter((m) => [...UNSTARTED, "todo"].includes(m.status));
+    html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${ms.filter((m) => m.status === "done").length} milestones landed · next: pick one to plan</span><div class="chips">${next.map((m) => `<span class="wchip" data-open="${esc(m.id)}" data-ms=""><b>${esc(m.id)}</b> ${esc(m.title)} <span class="cycle">· ${esc(m.status)}</span></span>`).join("")}</div></div>`;
+  }
+  $("banner").innerHTML = needsBanner() + digestBanner() + assumedBanner() + html;
+}
+/* every draft PR in the project: the orchestrator opens PRs as drafts, and marking one ready is the user's call */
+function draftPrs() {
+  return S.project.epics.flatMap((E) => (E.milestones || []).flatMap((m) =>
+    [m.pr, ...Object.entries(m.repos || {}).map(([repo, r]) => r?.pr && { ...r.pr, repo })]
+      .filter((pr) => pr?.state === "draft").map((pr) => ({ ...pr, ms: m.id }))));
+}
+/* one "Needs you" banner: the orchestrator's ask, the draft PRs to review, and a way into each milestone's map */
+function needsBanner() {
+  const prs = draftPrs(), n = S.project.needsYou;
+  if (!prs.length && !n) return "";
+  const nms = n ? needsMs() : null, nid = n?.story ? String(n.story).split("/").pop() : null;
+  const ids = [...new Set([...prs.map((pr) => pr.ms), ...(nms ? [nms] : [])])];
+  const story = nid && nms ? `<span class="wchip" data-open="${esc(nid)}" data-ms="${esc(nms)}"><b>${esc(nid)}</b> open story ›</span>` : "";
+  const chips = prs.map((pr) => `<a class="wchip" href="${esc(pr.url)}" target="_blank" rel="noopener"><b>${esc(pr.ms)}</b>${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)} <span class="cycle">· draft ↗</span></a>`).join("")
+    + story + ids.map((id) => `<span class="wchip" data-drill="${esc(id)}"><b>${esc(id)}</b> go to milestone in map ›</span>`).join("");
+  const what = prs.length ? ` · ${prs.length === 1 ? "a draft PR" : `${prs.length} draft PRs`}` : "";
+  return `<div class="banner needs"><span class="label"><span class="pulse amber"></span>Needs you${what}</span><span class="sub">${n ? esc(n.reason) : "Review it, then mark it ready or ask for changes"}</span><div class="chips">${chips}</div></div>`;
+}
+/* the topbar toggle: the user's availability, from their hours or the toggle until the next change of hours */
+function renderHuman() {
+  const h = S.human, el = $("human");
+  el.hidden = !h;
+  if (!h) return;
+  const on = h.mode === "available";
+  const until = h.until ? new Date(h.until) : null;
+  const sameDay = until && until.toDateString() === new Date().toDateString();
+  const end = until ? (sameDay ? "" : until.toLocaleDateString([], { weekday: "short" }) + " ") + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+  el.classList.toggle("away", !on);
+  el.title = `Hours ${h.hours.days} ${h.hours.from}–${h.hours.to}. Away, the orchestrator keeps going on its own and records each decision for you to review.`;
+  const states = [["available", "Available", "At your desk: the orchestrator asks you its questions"], ["mobile", "Mobile", "On your phone: questions only when they block, pictures instead of Podium links"], ["unavailable", "Away", "The orchestrator decides on its own and records each decision for you"]];
+  el.innerHTML = states.map(([m, label, tip]) => `<button class="${h.mode === m ? "state" : ""} ${m}" data-act="human" data-id="${m}" title="${tip}"><i></i>${label}${h.mode === m && end ? `<span class="until">until ${esc(end)}</span>` : ""}</button>`).join("")
+    + (h.source === "toggle" ? `<button class="flip" data-act="human" data-id="auto">Use hours</button>` : "");
+}
+/* decisions the orchestrator took while the user was away, until they review them */
+function assumedBanner() {
+  const open = (S.project?.assumptions || []).filter((a) => a.status === "open");
+  if (!open.length) return "";
+  const word = { confirm: "Confirmed", reverse: "Reversed" };
+  const items = open.map((a) => {
+    const p = S.settling?.[a.n], on = S.expanded?.has(a.n);
+    const act = p ? `<span class="settled ${p}">${word[p]}</span>`
+      : `<span class="settle"><button class="btn" data-settle="confirm" data-id="${esc(a.n)}">Confirm</button><button class="btn ghost" data-settle="reverse" data-id="${esc(a.n)}">Reverse…</button></span>`;
+    const more = on ? `<div class="more"><div><span class="k">Question</span>${a.story ? `<a data-open="${esc(a.story)}" data-ms="${esc(a.milestone || "")}">${esc(a.story)}</a> · ` : ""}${esc(a.question)}</div><div><span class="k">Decided</span><b>${esc(a.choice)}</b></div><div><span class="k">Why</span>${esc(a.why)}</div></div>` : "";
+    return `<li class="${on ? "open" : ""}"><div class="row" data-expand="${esc(a.n)}"><span class="q"><b class="aid">A${esc(a.n)}</b>${a.milestone ? `<span class="ams">${esc(a.milestone)}</span>` : ""}${esc(a.short || a.question)}</span>${act}<button class="chev" data-expand="${esc(a.n)}" title="${on ? "Less" : "More"}" aria-expanded="${on}"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>${more}</li>`;
+  }).join("");
+  const left = open.filter((a) => !S.settling?.[a.n]).length;
+  return `<div class="banner assumed"><span class="label">Decided while you were away · ${left ? `${left} to settle` : "all answered"}</span><span class="sub">Confirm or reverse each; the arrow on the right shows the details</span>${left > 1 ? `<button class="btn confirm-all" data-settle="confirm" data-id="all">Confirm all ${left}</button>` : ""}<ul class="assumed-list">${items}</ul></div>`;
+}
+/* the user's answer to an assumption: a request the orchestrator applies (it owns podium.json) */
+async function settle(action, id) {
+  let note = "";
+  const all = id === "all", open = (S.project?.assumptions || []).filter((a) => a.status === "open" && !S.settling?.[a.n]).map((a) => a.n);
+  if (all && !window.confirm(`Confirm all ${open.length} decisions the orchestrator made while you were away?`)) return;
+  if (action === "reverse") {
+    note = window.prompt(`Reverse A${id}: what should it be instead? (optional)`, "");
+    if (note === null) return;
+  }
+  try {
+    const r = await fetch(`/${action}/${encodeURIComponent(id)}${note ? `?note=${encodeURIComponent(note)}` : ""}`, { method: "POST" });
+    if (!r.ok) throw new Error(r.status);
+    S.settling = { ...(S.settling || {}), ...Object.fromEntries((all ? open : [id]).map((i) => [i, action])) };
+    render();
+    toast(all ? `${open.length} decisions confirmed` : action === "confirm" ? `A${id} confirmed` : `A${id} reversed: the orchestrator reworks what it shaped`);
+  } catch {
+    toast(SERVER_DOWN);
+  }
+}
+function workingBanner(working) {
+  const chips = working.map(([m, s]) => {
+    const [label, n] = s.status === "approval" ? ["Waiting for approval", 0] : doing(m.id, s.id);
+    const dot = s.status === "approval" ? `<span class="pulse amber"></span>` : `<span class="pulse"></span>`;
+    return `<span class="wchip" data-open="${esc(s.id)}" data-ms="${esc(m.id)}">${dot}<b>${esc(s.id)}</b> ${esc(s.title)} <span class="cycle">· ${esc(label)}${n ? bar3(n) : ""}</span></span>`;
+  }).join("");
+  const ids = [...new Set(working.map(([m]) => m.id))];
+  return `<div class="banner working"><span class="label"><span class="pulse"></span>Working on${S.epic.single ? "" : ` · ${esc(ids.join(", "))}`}</span><div class="chips">${chips}</div></div>`;
+}
+
+function renderFilters() {
+  const map = byId(), counts = { all: 0 };
+  items().forEach((s) => { counts.all++; const k = filterKey(viewStatus(s, map)); counts[k] = (counts[k] || 0) + 1; });
+  const vm = viewMs(), merged = vm && vm.status !== "done"; // a story is done only once its milestone lands
+  $("filters").innerHTML = FILTERS.map(([k, l]) => [k, k === "done" && merged ? "Merged" : l]).map(([k, l]) => `<button class="${S.filter === k ? "on" : ""}" data-filter="${k}">${l}<span class="n">${counts[k] || 0}</span></button>`).join("");
+  $("q").placeholder = viewMs() ? "Search stories, files, ids" : "Search milestones, brief items, ids";
+}
+
+/* a milestone's or epic's UI mock: its \`mock\` ({path, url}) or a planning artifact named a mock. A path is
+   relative to the run dir, which this server hosts; "../" reaches the repo, hosted under /repo/. The url is a
+   published copy (a claude.ai artifact), used when there is no local file. */
+function mockOf(x) {
+  const a = (x?.artifacts || []).find((a) => a.phase === "mock" || /mock/i.test(a.name || ""));
+  const m = x?.mock || (a && { path: a.path });
+  if (!m || !(m.path || m.url)) return null;
+  const href = m.path ? (m.path.startsWith("../") ? `/repo/${m.path.replace(/^(\.\.\/)+/, "")}` : `/${m.path.replace(/^\.?\//, "")}`) : m.url;
+  return { href, url: m.path ? m.url : null };
+}
+/* ---------- domain stories ---------- */
+/* an epic's or a milestone's domainStories: {status: drawing|ready|failed, at, stories: [{title, path, spec}], questions, reason}; paths in the run dir */
+const DS_ICO = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><rect x="9" y="15" width="6" height="5" rx="1"/><path d="M7.5 6h9M6.5 8.5l3.5 6M17.5 8.5l-3.5 6"/></svg>`;
+const runHref = (path) => "/" + path.replace(/^\.?\//, "").split("/").map(encodeURIComponent).join("/");
+const isEpic = (id) => S.project.epics.some((x) => x.id === id);
+// the epic or milestone with that id
+const dsOwner = (id) => S.project.epics.find((x) => x.id === id) || S.project.epics.flatMap((x) => x.milestones || []).find((m) => m.id === id);
+// asked here and not yet picked up, or being drawn
+const dsDrawing = (E) => E.domainStories?.status === "drawing" || (Date.now() - (S.dsAsked?.[E.id] || 0) < 120000 && (E.domainStories?.at || "") < new Date(S.dsAsked[E.id]).toISOString());
+function dsBtn(E) {
+  const d = E.domainStories, what = isEpic(E.id) ? "epic" : "milestone";
+  if (dsDrawing(E) && !d?.stories?.length) return `<span class="dsbtn busy" title="The orchestrator is drawing it"><i></i>Drawing…</span>`;
+  if (d?.stories?.length) return `<button class="dsbtn has" data-ds="${esc(E.id)}" title="Open this ${what}'s domain stories">${DS_ICO}Story</button>`;
+  const tip = d?.status === "failed" ? `The last drawing failed: ${d.reason || "no reason given"}. Draw it again`
+    : what === "epic" ? "Draw this epic's process as domain stories, from its brief" : "Draw what this milestone changes as domain stories, starting from the epic's when it has them";
+  return orch() ? `<button class="dsbtn" data-act="domain-story" data-id="${esc(E.id)}" title="${esc(tip)}">${DS_ICO}Domain story</button>` : "";
+}
+// a milestone's stories open over its own map when it is the one in view; anything else opens over the full map
+function openDs(id) { S.ds = { id, tab: 0 }; if (S.epic && S.view && S.view !== id) S.view = null; render(); requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - document.querySelector(".topbar").offsetHeight - 12, behavior: "smooth" })); }
+function closeDs() { S.ds = null; render(); } // the map was hidden, so its queue lines are drawn again
+function renderDs() {
+  const E = S.ds && dsOwner(S.ds.id);
+  document.querySelector(".map-card").classList.toggle("ds-on", !!E);
+  if (!E) return ($("ds-view").innerHTML = "");
+  const d = E.domainStories || {}, list = d.stories || [], s = list[S.ds.tab] || list[0];
+  const spec = s && specOf(s);
+  const redraw = dsDrawing(E) ? `<span class="dsbtn busy"><i></i>Drawing…</span>` : !orch() ? "" : `<button class="btn" data-act="domain-story" data-id="${esc(E.id)}" title="Draw it again from the brief as it is now">Redraw</button>`;
+  const acts = [s && `<a class="btn ghost" href="${esc(runHref(s.path))}" download title="The picture with the model inside; it imports at egon.io">Download .egn.svg</a>`,
+    s && `<a class="btn ghost" href="https://egon.io" target="_blank" rel="noopener">Open egon.io ↗</a>`,
+    d.questions && `<a class="btn ghost" href="${esc(runHref(d.questions))}" target="_blank" rel="noopener">Open questions</a>`, redraw].filter(Boolean).join("");
+  const sc = spec?.scope || {};
+  const n = (x) => specOf(x)?.sentences?.length;
+  $("ds-view").innerHTML = `<div class="ds-head"><button class="ds-back" data-ds-back>‹ Back to map</button>
+    <div class="ds-title"><span class="eyebrow">Domain story · ${isEpic(E.id) ? "epic" : `milestone ${esc(E.id)}`}</span><b>${esc(E.title)}</b></div><div class="ds-acts">${acts}</div></div>
+    ${list.length > 1 ? `<div class="ds-tabs">${list.map((x, i) => `<button class="ds-tab ${x === s ? "on" : ""}" data-ds-tab="${i}">${esc(x.title)}${n(x) ? `<span class="n">${n(x)}</span>` : ""}</button>`).join("")}</div>` : ""}
+    ${s ? `<div class="ds-meta">${[sc.granularity, sc.time, sc.purity].filter(Boolean).map((t) => `<span class="chip">${esc(t)}</span>`).join("")}<span>${esc(spec?.description || "")}</span>${d.at ? `<span class="when">drawn ${esc(when(d.at))}</span>` : ""}</div>
+    <div class="ds-paper ${S.ds.zoom ? "zoom" : ""}" data-ds-zoom><img src="${esc(runHref(s.path))}" alt="${esc(s.title)}"></div>`
+    : `<div class="ds-empty">${d.status === "failed" ? `The last drawing failed: ${esc(d.reason || "no reason given")}` : "Nothing drawn yet"}</div>`}`;
+}
+/* a story's spec JSON, fetched once; renders again when it arrives */
+function specOf(s) {
+  if (!s.spec) return null;
+  const t = S.briefs[s.spec];
+  if (t === undefined) { S.briefs[s.spec] = null; getText(runHref(s.spec)).then((x) => { S.briefs[s.spec] = x; if (S.ds) renderDs(); }).catch(() => {}); return null; }
+  try { return t && JSON.parse(t); } catch { return null; }
+}
+
+const mockBtn = (x) => ((m) => (m ? `<a class="mockbtn" href="${esc(m.href)}" target="_blank" rel="noopener" title="Open the UI mock in a new tab"><span>🎨</span>Mock</a>` : ""))(mockOf(x));
+
+
+function renderMap() {
+  const e = S.epic, vm = viewMs();
+  const stories = vm?.stories || [];
+  let list, kind;
+  if (stories.length) { list = stories; kind = "story"; }
+  else { list = (vm.artifacts || []).map((a, i) => ({ id: `A${i + 1}`, title: a.name, summary: a.path, artifact: a })); kind = "artifact"; }
+  $("map-title").innerHTML = e.single ? "" : miniMap(vm);
+  $("page-title").innerHTML = "";
+  const rootRows = vm ? msRepoRows(vm) : epicRepoRows(e.milestones);
+  const nodeLines = kind === "milestone" ? Math.max(0, ...list.map((m) => msRepos(m).length)) : kind === "story" && list.some((s) => (s.repos || []).length) ? 1 : 0;
+  const sz = { h: H + (nodeLines ? 4 + nodeLines * 20 : 0), rw: rootRows.length ? EPIC_W_REPOS : EPIC_W, rh: EPIC_H + repoLinesHeight(rootRows, 3) };
+  // below the feed breakpoint a wave wraps onto lines that fit, instead of scrolling sideways
+  const avail = $("map").parentElement.clientWidth - 8;
+  const cols = innerWidth <= 1100 ? Math.max(1, Math.floor((avail / 0.6 - 2 * PAD + GX) / (W + GX))) : Infinity;
+  const L = layout(list, sz, cols);
+  const map = Object.fromEntries(list.map((s) => [s.id, s]));
+  const edges = [];
+  list.forEach((s) => {
+    const deps = (s.deps || []).filter((d) => L.pos[d]);
+    const from = deps.length ? deps : (s.overlapAfter || []).filter((d) => L.pos[d]).length ? [] : ["__root"];
+    from.forEach((d) => {
+      const hi = S.selected && (d === S.selected || s.id === S.selected);
+      const done = d !== "__root" && map[d]?.status === "done";
+      edges.push(`<path class="edge ${done ? "done" : ""} ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
+    });
+    (s.overlapAfter || []).filter((d) => L.pos[d]).forEach((d) => {
+      const hi = S.selected && (d === S.selected || s.id === S.selected);
+      edges.push(`<path class="edge overlap ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
+    });
+  });
+  const m = $("map");
+  m.style.width = L.width + "px";
+  m.style.height = L.height + "px";
+  m.classList.toggle("focus", !!S.selected && S.selected !== "__root");
+  const box = m.parentElement;
+  const fit = Math.min(1, Math.max(innerWidth <= 1100 ? 0.6 : 0.75, (box.clientWidth - 8) / L.width));
+  m.style.zoom = fit;
+  // map y scaled by the zoom, below the scroller's 8px top padding
+  $("waves").innerHTML = kind === "story" ? Array.from({ length: L.rows }, (_, i) => `<span class="rowlabel" style="top:${8 + (L.rowY[i] - 22) * fit}px">Wave ${i + 1}${L.rowN[i] > 1 ? ` · ${L.rowN[i]} in parallel` : ""}</span>`).join("") : "";
+  const node = kind === "story" ? storyNode : artifactNode;
+  const bands = kind === "story" ? L.rowH.map((h, i) => (L.rowL[i] > 1 ? `<rect class="waveband" x="${PAD / 4}" y="${L.rowY[i] - 14}" width="${L.width - PAD / 2}" height="${h + 28}" rx="18"/>` : "")).join("") : "";
+  m.innerHTML = `<svg class="edges" width="${L.width}" height="${L.height}">${bands}${edges.join("")}</svg>${milestoneRoot(L.pos.__root, vm)}${list.map((s) => node(s, L.pos[s.id], map)).join("")}`;
+  if (S.centeredFor !== S.view && box.scrollWidth > box.clientWidth) { box.scrollLeft = (box.scrollWidth - box.clientWidth) / 2; }
+  S.centeredFor = S.view;
+  applyFilter();
+}
+
+function ring(frac) {
+  const C = 2 * Math.PI * 15;
+  return `<svg class="ring" viewBox="0 0 38 38"><circle class="track" cx="19" cy="19" r="15"/><circle class="val" cx="19" cy="19" r="15" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>`;
+}
+function rootBox(p, eyebrow, title, body, repos = "") {
+  return `<div class="node epic" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;min-height:${p.h}px" data-open="__root" tabindex="0">
+    <span class="eyebrow">${eyebrow}</span><span class="title">${esc(title)}</span>${repos}<div class="epic-row">${body}</div></div>`;
+}
+function milestoneRoot(p, m) {
+  const stories = m.stories || [];
+  const done = stories.filter((s) => s.status === "done").length;
+  let btn = "";
+  if (orch() && isBuilding(m) && stories.some((s) => s.status !== "done")) {
+    btn = msBuildAll(m)
+      ? `<button class="btn ghost big" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
+      : `<button class="btn big" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
+  }
+  const stat = stories.length
+    ? `<div class="epic-stat"><b>${done}</b> of ${stories.length} stories ${m.status === "done" ? "done" : "merged to branch"}<br>${m.status === "done" ? `Landed${m.shippedAt ? ` ${day(m.shippedAt)}` : ""}` : done === stories.length ? msDoing(m) : msBuildAll(m) ? "Building wave by wave" : "Assign stories or build all"}</div>`
+    : `<div class="epic-stat">Breakdown pending<br>${esc(phaseLabel(m.phase))} in progress</div>`;
+  return rootBox(p, `${S.epic.single ? "Epic" : `Milestone · ${esc(m.id)}`}${ownerOrClaim(m)}<span class="ftools">${mockBtn(m) || mockBtn(S.epic.epic)}${dsBtn(m)}${asanaBtn(m, true)}</span>`, S.epic.single ? S.epic.epic.title : m.title, `${ring(stories.length ? done / stories.length : 0)}${stat}${btn}`, repoLines(msRepoRows(m)));
+}
+
+
+function artifactNode(s, p) {
+  return `<div class="node artifact" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(s.id)}" data-path="${esc(s.artifact.path)}" tabindex="0">
+    <div class="top"><span class="sid">${esc(s.artifact.phase || "doc")}</span></div>
+    <span class="title">${esc(s.title)}</span>
+    <div class="foot"><span class="mono">${esc(s.artifact.path)}</span></div></div>`;
+}
+
+/* a Paseo agent's deep link, opening its chat in Paseo Desktop */
+function agentHref(s) {
+  return s.agent?.backend === "paseo" && s.agent.id && S.info?.paseoServer ? `paseo://h/${encodeURIComponent(S.info.paseoServer)}/agent/${encodeURIComponent(s.agent.id)}` : null;
+}
+const agentLink = (s) => ((h) => (h ? `<a class="agentlink" href="${esc(h)}" title="Open this story's agent in Paseo">Paseo ↗</a>` : ""))(agentHref(s));
+const since = (at) => (at ? `<span class="since" data-since="${esc(at)}" title="Running since ${esc(clock(at))}">${dur(Date.now() - Date.parse(at))}</span>` : "");
+/* why a story failed: its last FAILED progress line, else the orchestrator's note */
+function failReason(ms, s) {
+  const f = progressLines(ms, s.id).filter((l) => l.stage === "FAILED").pop();
+  return f?.note || s.note || "";
+}
+
+function storyNode(s, p, map) {
+  const vm = viewMs(), live = isBuilding(vm), sk = key(vm.id, s.id);
+  const st = viewStatus(s, map);
+  let foot = "", top = "";
+  const first = commitsOf(s)[0];
+  if (st === "done") foot = `<span class="badge ${doneCls(vm)}">${storyDone(vm)}</span>${first ? `<span class="when mono">${esc(shortSha(first.sha))}</span>` : ""}`;
+  else if (st === "working") foot = `<span class="pulse"></span><span class="badge working">Working on</span>${since(s.startedAt)}${agentLink(s)}`;
+  else if (st === "approval") foot = `<span class="pulse amber"></span><span class="badge approval">Waiting for approval</span>${agentLink(s)}`;
+  else if (st === "elsewhere") foot = `<span class="badge elsewhere">In another session</span>${releaseBtn(sk)}`;
+  else if (st === "failed") foot = `<span class="badge failed">Failed · ${s.attempts || 0}/${maxAttempts()}</span>${agentLink(s)}`;
+  else if (st === "blocked") foot = `<span class="badge blocked">Blocked by ${esc((s.deps || []).filter((d) => map[d]?.status !== "done").join(", "))}</span>`;
+  else if (st === "dropped") foot = `<span class="badge dropped">Dropped</span>`;
+  // with its buttons in the foot, a story's status moves up beside its id so the foot fits
+  else if (st === "ready") {
+    const badge = `<span class="badge ready">Ready</span>`;
+    if (live && orch()) { top = badge; foot = `<button class="btn" data-act="assign" data-id="${esc(sk)}">Assign subagent</button>${copyBtn("assign", sk)}`; } else foot = badge;
+  } else {
+    const wait = (s.deps || []).filter((d) => map[d]?.status !== "done");
+    const badge = `<span class="badge waiting" title="Waiting on ${esc(wait.join(", "))}">Waiting on ${esc(wait.join(", "))}</span>`;
+    if (live && orch()) { top = badge; foot = `<button class="btn" disabled title="Waiting on ${esc(wait.join(", "))}">Assign subagent</button>`; } else foot = badge;
+  }
+  return `<div class="node ${st} ${S.selected === s.id ? "sel" : ""}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(s.id)}" data-id="${esc(s.id)}" tabindex="0">
+    <div class="top"><span class="sid">${esc(s.id)}</span>${top}<span class="model">${esc(s.model || "")}</span></div>
+    <span class="title">${esc(s.title)}</span>
+    ${repoChips(s.repos || [])}
+    ${st === "elsewhere" && !progressLines(vm.id, s.id).length ? `<div class="doing">Copied · not started yet</div>` : ""}${["working", "elsewhere"].includes(st) && (st === "working" || progressLines(vm.id, s.id).length) ? (([l, n]) => `<div class="doing">${esc(l)}${bar3(n)}</div>`)(doing(vm.id, s.id)) : ""}${st === "failed" && failReason(vm.id, s) ? `<div class="doing why" title="${esc(failReason(vm.id, s))}">${esc(failReason(vm.id, s))}</div>` : ""}
+    <div class="foot">${foot}</div></div>`;
+}
+
+function applyFilter() {
+  if (!S.epic || !S.view) {
+    const q = S.query.trim().toLowerCase();
+    document.querySelectorAll(".fms, .fsc").forEach((c) => c.classList.toggle("dim", !!q && !c.textContent.toLowerCase().includes(q)));
+    return;
+  }
+  const map = byId();
+  document.querySelectorAll(".node[data-id]").forEach((n) => map[n.dataset.id] && n.classList.toggle("dim", !matches(map[n.dataset.id])));
+}
+
+/* quality of the milestone in view, else of the active one */
+function renderQuality() {
+  const m = viewMs() || activeMs();
+  $("quality").hidden = !m;
+  if (!m) return;
+  const q = m.quality || {};
+  const contract = q.contract || [], gate = q.gate, criteria = q.criteria || [];
+  const passing = contract.filter((c) => c.ok).length;
+  const crit = criteria.filter((c) => c.pass).length;
+  const mark = (v) => (v === true ? `<span class="ok">✓</span>` : v === false ? `<span class="bad">✕</span>` : `<span class="pend"></span>`);
+  // one pill per column: green when it passed, red when something failed, grey while it waits
+  const state = (vals) => (vals.includes(false) ? "bad" : vals.length && vals.every((v) => v === true) ? "ok" : "pend");
+  const pill = (st, text) => `<span class="qpill ${st}">${st === "ok" ? `<span class="ok">✓</span>` : st === "bad" ? `<span class="bad">✕</span>` : "<span></span>"}${text}</span>`;
+  const gateOk = gate ? gate.findings === gate.fixed + gate.skipped : null;
+  const failing = criteria.filter((c) => c.pass === false), open = criteria.filter((c) => c.pass == null);
+  const critNote = failing.length ? ` · ${failing.map((c) => esc(c.id || "")).join(", ")} failed` : open.length ? ` · ${open.map((c) => esc(c.id || "")).join(", ")} open` : "";
+  const pills = [
+    pill(state(contract.map((c) => c.ok)), `Contract ${passing}/${contract.length}`),
+    pill(gate ? state([gateOk]) : "pend", gate ? `Gate · ${gate.fixed} of ${gate.findings} fixed` : "Gate not run"),
+    pill(state(criteria.map((c) => c.pass)), `Criteria ${crit}/${criteria.length}${critNote}`),
+  ];
+  $("qsum").innerHTML = `${S.epic.single ? "" : `<span class="qms">${esc(m.id)}</span>`}${pills.join("")}`;
+  $("qgrid").innerHTML = `
+    <div class="qcol"><h3>Contract</h3>${contract.map((c) => `<div class="qline">${mark(c.ok)}<code>${esc(c.cmd)}</code><span class="when">${esc(clock(c.at))}</span></div>`).join("") || `<div class="muted">No runs yet</div>`}</div>
+    <div class="qcol"><h3>Quality gate</h3>${gate ? `<div class="qline">${mark(gate.findings === gate.fixed + gate.skipped)}<span><b>${gate.findings}</b> findings · ${gate.fixed} fixed · ${gate.skipped} skipped</span></div>${gate.note ? `<div class="qline muted">${esc(gate.note)}</div>` : ""}<div class="qline muted"><code>${esc(gate.file || "")}</code></div>` : `<div class="muted">Runs after the last story merges</div>`}</div>
+    <div class="qcol"><h3>Success criteria</h3>${criteria.map((c) => `<div class="qline">${mark(c.pass)}<span>${esc(c.text)}</span></div>`).join("") || `<div class="muted">Defined in the spec</div>`}</div>`;
+  // stays one line while nothing is red; opens itself when a check fails
+  if (!S.qualityTouched) $("quality").open = contract.some((c) => c.ok === false) || gateOk === false || failing.length > 0;
+}
+
+const EV = {
+  dispatched: ["→", "blue", (e) => `${link(e)} dispatched to ${esc(e.backend || "subagent")}${e.model ? ` · ${esc(e.model)}` : ""}`],
+  commit: ["●", "", (e) => `${link(e)} committed <code>${esc(shortSha(e.sha))}</code>${e.repo ? ` in ${esc(e.repo)}` : ""} ${esc(e.subject || "")}`],
+  merged: ["✓", "green", (e) => `${link(e)} merged${e._commit?.subject ? `: ${esc(e._commit.subject)}` : ` into ${esc(e.into || "the milestone branch")}`}`],
+  conflict: ["!", "amber", (e) => `${link(e)} merge conflict — rebasing`],
+  retry: ["↻", "amber", (e) => `${link(e)} retry ${esc(e.attempt || "")} — ${esc(e.reason || "")}`],
+  failed: ["✕", "red", (e) => `${link(e)} failed — ${esc(e.reason || "")}`],
+  approval: ["?", "amber", (e) => `${link(e)} waiting for approval: ${esc(e.tool || "")}`],
+  phase: ["◆", "blue", (e) => `${msLink(e.milestone)}Phase → <b>${esc(phaseLabel(e.phase))}</b>`],
+  planned: ["◆", "blue", (e) => `${msLink(e.milestone)}planning started`],
+  landed: ["✓", "green", (e) => `${msLink(e.milestone)}landed${shortSha(e.sha) ? ` <code>${esc(shortSha(e.sha))}</code>` : ""}${e.repo ? ` in ${esc(e.repo)}` : ""} ${esc(e.subject || "")}`],
+  status: ["◇", "", (e) => `${msLink(e.milestone)}${esc(e.text || "")}`],
+  finding: ["⚑", "amber", (e) => `${msLink(e.milestone)}Gate finding: ${esc(e.text || "")}`],
+  needs: ["?", "amber", (e) => `${msLink(e.milestone)}Needs you: ${esc(e.reason || e.text || "a decision")}`],
+  request: ["⌘", "", (e) => `Podium: ${esc(e.text || "")}`],
+  "domain-story": ["✎", "blue", (e) => ((t) => (e.reason ? `Drawing ${t} failed — ${esc(e.reason)}` : `<a data-ds="${esc(e.epic || e.milestone || "")}">${t}</a> drawn as ${esc(e.count || "")} domain ${e.count === 1 ? "story" : "stories"}`))(esc((S.project && dsOwner(e.epic || e.milestone))?.title || e.epic || e.milestone || "an epic"))],
+  human: ["◐", "", (e) => e.mode === "available" ? "You're available — open decisions go to you" : e.mode === "mobile" ? "You're on mobile — only blocking questions, with pictures" : "You're away — the orchestrator decides on its own"],
+  assumed: ["◇", "blue", (e) => `${link(e)} Decided: ${esc(e.question || "")} → <b>${esc(e.choice || "")}</b>`],
+  denied: ["⊘", "amber", (e) => `${link(e)} permission denied while you're away: ${esc(e.tool || "")} — finding another way`],
+  settled: ["✓", "", (e) => e.count ? `You ${e.status === "reversed" ? "reversed" : "confirmed"} ${esc(e.count)} decisions` : `${link(e)} You ${e.status === "reversed" ? "reversed" : "confirmed"}: ${esc(e.question || "")}`],
+  pr: ["⇡", (e) => ({ merged: "purple", closed: "red", open: "green" }[e.state] || "blue"), (e) => `${msLink(e.milestone)}${esc(e.repo || "")} ${prPill({ number: e.number, url: e.url, state: e.state })}${e.was ? ` <span class="meta">was ${esc(e.was)}</span>` : ""}`],
+};
+function link(e) {
+  if (!e.story) return msLink(e.milestone);
+  const pre = multiMs() && e.milestone ? `${esc(e.milestone)} · ` : "";
+  return `<a data-open="${esc(e.story)}" data-ms="${esc(e.milestone || S.project?.active?.milestone || "")}">${pre}${esc(e.story)}</a>`;
+}
+const multiMs = () => !!S.project && S.project.epics.reduce((n, E) => n + (E.milestones || [1]).length, 0) > 1;
+function msLink(id) { return id && multiMs() ? `<a data-drill="${esc(id)}">${esc(id)}</a> ` : ""; }
+/* feed filters: which event types each chip shows; All folds a story's commit into its merge */
+const FEED = {
+  all: null,
+  decisions: ["assumed", "settled", "needs", "human", "request", "denied", "approval"],
+  stories: ["dispatched", "merged", "failed", "retry", "conflict", "commit"],
+  phases: ["phase", "planned", "landed", "pr", "status", "gate", "finding", "note", "adopted", "build-all"],
+  commits: ["commit"],
+};
+function feedEvents() {
+  const f = S.feedFilter || "all", types = FEED[f];
+  const merged = new Map(S.events.filter((e) => e.type === "merged" && e.story).map((e) => [key(e.milestone || "", e.story), e]));
+  const commitOf = new Map();
+  S.events.forEach((e) => { if (e.type === "commit" && e.story) commitOf.set(key(e.milestone || "", e.story), e); });
+  const out = [];
+  for (const e of S.events.slice().reverse()) {
+    if (types && !types.includes(e.type)) continue;
+    if (f === "stories" && e.type === "commit" && !e.story) continue;
+    // a story's commit says nothing its merge doesn't: show one line per story
+    if (f !== "commits" && e.type === "commit" && e.story && merged.has(key(e.milestone || "", e.story))) continue;
+    const prev = out[out.length - 1];
+    if (prev && prev.type === e.type && (prev.text || prev.subject || prev.question) === (e.text || e.subject || e.question) && prev.story === e.story) continue;
+    out.push(e.type === "merged" && e.story ? { ...e, _commit: commitOf.get(key(e.milestone || "", e.story)) } : e);
+    if (out.length >= 300) break;
+  }
+  return out;
+}
+function renderEvents() {
+  const f = S.feedFilter || "all";
+  $("feed-filter").innerHTML = Object.keys(FEED).map((k) => `<button class="${k === f ? "on" : ""}" data-feed="${k}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("");
+  $("events").innerHTML = feedEvents().map((e) => {
+    const [ico, cls, fn] = EV[e.type] || ["•", "", () => esc(e.text || e.type)];
+    return `<li class="ev"><span class="ico ${typeof cls === "function" ? cls(e) : cls}">${ico}</span><div><div>${fn(e)}</div><div class="meta">${esc(when(e.at))}${e.by ? ` · ${personName(e.by)}` : ""}</div></div></li>`;
+  }).join("") || `<li class="muted" style="padding:8px">${f === "all" ? "Nothing yet" : "Nothing here yet"}</li>`;
+}
+
+/* ---------- while you were away ---------- */
+// What moved since the user last had the Podium in view. Asks, draft PRs and decisions have
+// their own banners, so the digest leaves them out.
+const AWAY_MS = 30 * 60000;
+const DIGEST_SKIP = new Set(["assumed", "settled", "needs", "human", "request", "commit", "status", "note"]);
+const seenKey = () => `podium-seen:${S.project?.project?.title || location.port}`;
+/* stamp the visit; true when this visit follows an absence, which opens the digest */
+function markSeen() {
+  if (document.visibilityState !== "visible" || !S.project) return false;
+  const k = seenKey(), prev = Number(localStorage.getItem(k) || 0), now = Date.now();
+  localStorage.setItem(k, String(now));
+  if (prev && now - prev > AWAY_MS && S.digestSince == null) { S.digestSince = prev; return true; }
+  return false;
+}
+function digestBanner() {
+  if (S.digestSince == null) return "";
+  const ev = S.events.filter((e) => Date.parse(e.at) > S.digestSince && !DIGEST_SKIP.has(e.type) && !(e.type === "pr" && e.state === "draft"));
+  const of = (...t) => ev.filter((e) => t.includes(e.type));
+  const id = (e) => `${e.milestone || ""}/${e.story}`;
+  const uniq = (list) => [...new Map(list.filter((e) => e.story).map((e) => [id(e), e])).values()];
+  const story = (e) => `<span class="wchip" data-open="${esc(e.story)}" data-ms="${esc(e.milestone || "")}"><b>${multiMs() && e.milestone ? `${esc(e.milestone)} · ` : ""}${esc(e.story)}</b></span>`;
+  const ended = new Set(of("merged", "failed").map(id));
+  // one chip per milestone: where it got to
+  const moves = [...new Map(of("planned", "phase", "landed").map((e) => [e.milestone, e])).values()];
+  const shown = ["merged", "failed", "dispatched", "planned", "phase", "landed", "pr"];
+  const rows = [
+    ["Merged", uniq(of("merged")).map(story).join("")],
+    ["Failed", uniq(of("failed")).map((e) => `${story(e)}<span class="dwhy">${esc(e.reason || "")}</span>`).join("")],
+    ["Started", uniq(of("dispatched")).filter((e) => !ended.has(id(e))).map(story).join("")],
+    ["Milestones", moves.map((e) => `<span class="wchip" data-drill="${esc(e.milestone || "")}"><b>${esc(e.milestone || "")}</b> ${e.type === "phase" ? `→ ${esc(phaseLabel(e.phase))}` : e.type === "landed" ? "landed" : "planning started"}</span>`).join("")],
+    ["PRs", of("pr").map((e) => `<a class="wchip" href="${esc(e.url || "")}" target="_blank" rel="noopener"><b>${esc(e.milestone || "")}</b> #${esc(e.number)} ${esc(e.state || "")} ↗</a>`).join("")],
+    ["Other", ev.filter((e) => !shown.includes(e.type)).map((e) => `<div class="dline">${(EV[e.type] || [0, 0, () => esc(e.text || e.type)])[2](e)}</div>`).join("")],
+  ].filter(([, html]) => html);
+  if (!rows.length) return "";
+  return `<div class="banner digest"><span class="label">While you were away</span><span class="sub">since ${esc(when(new Date(S.digestSince).toISOString()))}</span><button class="btn ghost" data-digest-done>Got it</button><div class="drows">${rows.map(([k, html]) => `<div class="drow"><span class="k">${k}</span><div class="dv">${html}</div></div>`).join("")}</div></div>`;
+}
+
+/* ---------- attention: tab title, icon dot, notifications ---------- */
+/* everything waiting on the user: [key, line, colour] */
+function attention() {
+  const P = S.project, out = [];
+  if (!P) return out;
+  if (P.needsYou) out.push([`needs:${P.needsYou.reason}`, `Needs you: ${P.needsYou.reason}`, "amber"]);
+  draftPrs().forEach((pr) => out.push([`pr:${pr.ms}:${pr.repo || ""}:${pr.number}`, `${pr.ms} draft PR #${pr.number} to review`, "amber"]));
+  (P.assumptions || []).forEach((a) => { if (a.status === "open" && !S.settling?.[a.n]) out.push([`a:${a.n}`, `A${a.n} to settle: ${a.short || a.question}`, "amber"]); });
+  P.epics.forEach((E) => (E.milestones || []).forEach((m) => (m.stories || []).forEach((s) => {
+    if (s.status === "failed") out.push([`f:${m.id}/${s.id}`, `${m.id} · ${s.id} failed`, "red"]);
+    if (s.status === "approval") out.push([`p:${m.id}/${s.id}`, `${m.id} · ${s.id} waits for approval`, "amber"]);
+  })));
+  P.epics.forEach((E) => (E.milestones || []).forEach((m) => { if (asanaOff(m) && !S.asanaChoice?.[m.id]) out.push([`asana:${m.id}`, `${m.id} is done in Asana: skip building it?`, "amber"]); }));
+  return out;
+}
+/* the favicon is the header logo, so the two never drift; a dot when something waits on the user */
+function setFavicon(dot) {
+  const svg = $("logo").outerHTML.replace(/<\/svg>\s*$/, `${dot ? `<circle cx="52" cy="12" r="11" fill="${dot}" stroke="#fff" stroke-width="3"/>` : ""}</svg>`);
+  $("favicon").href = "data:image/svg+xml," + encodeURIComponent(svg);
+}
+const NOTIFY_KEY = "podium-notify";
+const notifyOn = () => localStorage.getItem(NOTIFY_KEY) === "1" && "Notification" in window && Notification.permission === "granted";
+function renderAttention() {
+  const items = attention(), n = items.length;
+  document.title = `${n ? `(${n}) ` : ""}Podium · ${S.project.project.title}`;
+  const dot = items.some((x) => x[2] === "red") ? "#ff3b30" : n ? "#ff9f0a" : "";
+  if (dot !== S.dot) { S.dot = dot; setFavicon(dot); }
+  // notify only about what is new since the last render, and only while the tab is out of view
+  if (S.attnKeys && notifyOn() && document.visibilityState !== "visible") {
+    const fresh = items.filter((x) => !S.attnKeys.has(x[0]));
+    if (fresh.length) new Notification(`Podium · ${S.project.project.title}`, { body: fresh.map((x) => x[1]).join("\n"), tag: "podium" });
+  }
+  S.attnKeys = new Set(items.map((x) => x[0]));
+  $("bell").classList.toggle("on", notifyOn());
+  $("bell").title = notifyOn() ? "Notifications on: you get one when something new needs you while this tab is in the background. Click to turn off." : "Notify me when something needs you while this tab is in the background";
+}
+
+/* ---------- timeline ---------- */
+/* time spent in each phase of milestone m, from its phase events (a phase entered twice adds up) */
+function phaseTimes(m) {
+  const evs = S.events.filter((e) => e.milestone === m.id && ["planned", "phase", "landed"].includes(e.type))
+    .map((e) => ({ ...e, t: Date.parse(e.at) })).filter((e) => !isNaN(e.t)).sort((a, b) => a.t - b.t);
+  const out = {};
+  evs.forEach((e, i) => {
+    const p = e.type === "phase" ? e.phase : e.type === "planned" && !evs.some((x) => x.phase === "recon") ? "recon" : null;
+    if (!p) return;
+    const next = evs[i + 1];
+    const end = next ? next.t : m.status === "done" ? null : Date.now();
+    if (end == null) return;
+    const o = (out[p] ||= { ms: 0, start: e.t, open: false });
+    o.ms += end - e.t;
+    o.open = !next;
+  });
+  return out;
+}
+/* each build wave's span, from its stories' start and finish */
+function waveTimes(m) {
+  const st = m.stories || [], by = Object.fromEntries(st.map((s) => [s.id, s])), depth = {};
+  const d = (s) => (depth[s.id] ??= 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((x) => by[x]).map((x) => d(by[x]))));
+  const waves = [];
+  st.forEach((s) => {
+    if (!s.startedAt) return;
+    const a = Date.parse(s.startedAt), b = s.finishedAt ? Date.parse(s.finishedAt) : Date.now(), w = d(s) - 1;
+    const o = (waves[w] ||= { start: a, end: b, n: 0, open: false });
+    o.start = Math.min(o.start, a); o.end = Math.max(o.end, b); o.n++; o.open ||= !s.finishedAt;
+  });
+  return waves;
+}
+const shortDur = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? "<1m" : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`; };
+function timelineSec(m) {
+  const pt = phaseTimes(m), wv = waveTimes(m);
+  const rows = phases().filter(([k]) => pt[k]).map(([k, label]) => ({ k, label, ...pt[k] }));
+  if (!rows.length) return "";
+  // scaled to the finished phases, so a phase still waiting (on the user, say) doesn't flatten the rest; it fills the bar
+  const done = [...rows.filter((r) => !r.open).map((r) => r.ms), ...wv.filter((w) => w && !w.open).map((w) => w.end - w.start)];
+  const max = Math.max(1, ...(done.length ? done : rows.map((r) => r.ms)));
+  const row = (label, ms, open, cls = "") => `<div class="trow ${cls} ${open ? "open" : ""}"><span class="tk">${label}</span><span class="tbar"><i style="width:${Math.min(100, Math.max(1.5, (ms / max) * 100))}%"></i></span><span class="tv">${dur(ms)}${open ? " so far" : ""}</span></div>`;
+  const total = rows.reduce((n, r) => n + r.ms, 0);
+  return `<div class="sec"><h3>Timeline<span class="muted tsum">${dur(total)} in all</span></h3><div class="tl">${rows.map((r) =>
+    row(esc(r.label), r.ms, r.open) + (r.k === "build" ? wv.map((w, i) => (w ? row(`Wave ${i + 1} <span class="muted">· ${w.n}</span>`, w.end - w.start, w.open, "wave") : "")).join("") : "")).join("")}</div></div>`;
+}
+
+/* ---------- git: a run that moved on another machine ---------- */
+function renderGit() {
+  const repos = S.git?.repos || [], bad = repos.filter((r) => r.behind || r.baseBehind), el = $("gitwarn");
+  el.hidden = !bad.length;
+  if (!bad.length) return;
+  el.textContent = "⚠ " + bad.map((r) => `${repos.length > 1 ? `${r.name}: ` : ""}${[r.behind && `${r.branch} ${r.behind}`, r.baseBehind && `${r.base} ${r.baseBehind}`].filter(Boolean).join(", ")}`).join(" · ") + " behind origin";
+  el.title = `Fetched ${clock(S.git.at)}. Work landed from another machine: pull before resuming the run, and check podium.json against what landed there.`;
+}
+
+/* ---------- Asana ---------- */
+const ASANA_ICO = `<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6.5" r="4.6" fill="currentColor"/><circle cx="5.4" cy="16.4" r="4.6" fill="currentColor"/><circle cx="18.6" cy="16.4" r="4.6" fill="currentColor"/></svg>`;
+/* an epic's task or a milestone's subtask; amber when Asana has it completed but it hasn't landed here */
+/* completed in Asana, not landed here, and not yet kept by the user */
+const asanaOff = (x) => !!(x?.asana?.completed && x.status && x.status !== "done" && !x.asana.keep && !isResearch(x));
+function asanaBtn(x, compact) {
+  const a = x?.asana;
+  if (!a?.url) return "";
+  // done in Asana asks a question instead: skip building it, or keep it
+  if (asanaOff(x)) return `<button class="asanabtn off" data-asana-ask="${esc(x.id)}" title="Completed in Asana but not landed here: skip building it?">${ASANA_ICO}${compact ? "Done?" : "Done in Asana?"}</button>`;
+  return `<a class="asanabtn" href="${esc(a.url)}" target="_blank" rel="noopener" title="Open in Asana">${ASANA_ICO}Asana</a>`;
+}
+/* the question in a milestone's panel, or the answer already sent */
+function asanaAsk(m) {
+  if (!asanaOff(m)) return "";
+  const sent = S.asanaChoice?.[m.id];
+  const act = sent ? `<span class="settled ${sent === "drop" ? "reverse" : ""}">${sent === "drop" ? "Skipping it" : "Keeping it"}: the orchestrator applies it next</span>`
+    : `<button class="btn" data-asana-done="drop" data-id="${esc(m.id)}">Skip it</button><button class="btn ghost" data-asana-done="keep" data-id="${esc(m.id)}">Keep building</button>`;
+  return `<div class="sec"><div class="approvalbox asana-ask"><b>Completed in Asana</b>, but not landed here. Skip building it?<div class="muted" style="margin:4px 0 8px">Skip drops the milestone${m.status === "working" ? " and stops its running stories" : ""}; Keep building leaves the subtask as it is in Asana. <a class="prlink" href="${esc(m.asana.url)}" target="_blank" rel="noopener">Open in Asana ↗</a></div><div class="settle">${act}</div></div></div>`;
+}
+async function asanaDone(choice, id) {
+  try {
+    const r = await fetch(`/asana-done/${encodeURIComponent(id)}?choice=${choice}`, { method: "POST" });
+    if (!r.ok) throw new Error(r.status);
+    S.asanaChoice = { ...(S.asanaChoice || {}), [id]: choice };
+    render(); if (S.selected) renderSheet();
+    toast(choice === "drop" ? `${id}: skipping it` : `${id}: keeping it`);
+  } catch { toast(SERVER_DOWN); }
+}
+/* who owns it in Asana and its custom fields, as small chips */
+function asanaMeta(x) {
+  const a = x?.asana;
+  if (!a) return "";
+  const chips = [a.assignee && `<span class="achip">👤 ${esc(a.assignee)}</span>`,
+    ...(a.fields || []).filter((f) => f.value).map((f) => `<span class="achip"><span class="k">${esc(f.name)}</span> ${esc(f.value)}</span>`)].filter(Boolean);
+  return chips.length ? `<div class="asana-meta">${chips.join("")}</div>` : "";
+}
+const asanaRow = (x) => (x?.asana?.url ? `<dt>Asana</dt><dd>${asanaBtn(x)}${asanaMeta(x)}</dd>` : "");
+const linkBtn = (epic) => `<button class="asanabtn linkasana" data-link-asana="${esc(epic || "")}" title="${epic ? "Link this epic to its Asana task; its subtasks become milestones" : "Link an Asana project (its tasks become epics) or a task (it becomes an epic)"}">${ASANA_ICO}${epic ? "Asana" : "Link Asana project"}</button>`;
+/* a request the orchestrator maps, asking about whatever isn't obvious (it owns podium.json) */
+async function linkAsana(epic) {
+  const what = epic ? `the Asana task for epic ${epic}` : "an Asana project or task";
+  const url = (window.prompt(`Paste the link to ${what}`, "") || "").trim();
+  if (!url) return;
+  if (!/^https:\/\/app\.asana\.com\//.test(url)) return toast("That isn't an Asana link (https://app.asana.com/…)");
+  try {
+    const r = await fetch(`/asana${epic ? `/${encodeURIComponent(epic)}` : ""}?url=${encodeURIComponent(url)}`, { method: "POST" });
+    if (!r.ok) throw new Error(r.status);
+    toast("Queued: the orchestrator maps it and asks you about anything unclear");
+  } catch { toast(SERVER_DOWN); }
+}
+
+/* ---------- navigation ---------- */
+/* make the epic holding milestone `ms` the one in view; `ms` "" means the epic's milestone map */
+function enterEpicOf(ms) {
+  const ep = epicOfMs(ms);
+  if (ep && ep !== S.epicView) { S.epicView = ep; S.epic = epicCtx(ep); S.view = undefined; chooseView(); }
+}
+function setView(id) {
+  if (S.epic.single) return;
+  S.view = id; S.selected = null; S.filter = "all";
+  $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
+  render();
+}
+
+/* ---------- sheet ---------- */
+async function openSheet(id) {
+  S.selected = id;
+  $("sheet").classList.add("on"); $("scrim").classList.add("on");
+  $("sheet").setAttribute("aria-hidden", "false");
+  render();
+  renderSheet();
+  if (id === "__quest") {
+    const p = questOf()?.doc;
+    if (p && S.briefs[p] === undefined) { S.briefs[p] = await getText(p).catch(() => null); if (S.selected === id) renderSheet(); }
+    return;
+  }
+  const vm = viewMs();
+  const target = id === "__root" ? (vm || null) : byId()[id];
+  const path = id === "__root" && !vm ? S.epic.epic.spec || (S.epic.epic.quest && questOf()?.doc) : target?.brief || document.querySelector(`[data-open="${CSS.escape(id)}"]`)?.dataset.path;
+  if (path && S.briefs[path] === undefined) {
+    try { S.briefs[path] = await getText(path); } catch { try { S.briefs[path] = await getText(`podium/${path}`); } catch { S.briefs[path] = null; } }
+    if (S.selected === id) renderSheet();
+  }
+  // a building milestone's logs are fresh on every open; another's once, for where its stories' time went
+  if (vm && target && target !== vm && (isBuilding(vm) || S.progress[key(vm.id, id)] === undefined)) {
+    try { S.progress[key(vm.id, id)] = await getText(progressPath(vm.id, id)); } catch { S.progress[key(vm.id, id)] = ""; }
+    if (S.selected === id) renderSheet();
+  }
+}
+function closeSheet() {
+  S.selected = null;
+  $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
+  $("sheet").setAttribute("aria-hidden", "true");
+  if (!S.epic || !S.view) renderFull(); else renderMap();
+}
+const CHIP_DOT = { working: "var(--green-dot)", approval: "var(--amber-dot)", failed: "var(--red)", blocked: "var(--red)" };
+const finished = (x, map) => ["done", "dropped"].includes(map[x]?.status);
+const chip = (x, map) => {
+  const st = map[x]?.status;
+  const mark = finished(x, map) ? `<span class="tick">✓</span>` : CHIP_DOT[st] ? `<span class="cdot" style="background:${CHIP_DOT[st]}"></span>` : "";
+  return `<span class="link-chip ${finished(x, map) ? "landed" : ""}" data-open="${esc(x)}">${mark}<b>${esc(x)}</b> ${esc(map[x]?.title || "")}</span>`;
+};
+// what's left first, finished ones flat after; a count on top when there are several
+function depChips(ids, map, none, doneWord) {
+  if (!ids.length) return `<span class="muted">${none}</span>`;
+  const left = ids.filter((x) => !finished(x, map));
+  const sum = doneWord && ids.length > 1 ? `<div class="dep-sum">${left.length ? `<b>${left.length} left</b> · ${ids.length - left.length} ${doneWord}` : `All ${ids.length} ${doneWord}`}</div>` : "";
+  return `${sum}<div class="links">${[...left, ...ids.filter((x) => finished(x, map))].map((x) => chip(x, map)).join("")}</div>`;
+}
+const briefSec = (path, title = "Brief") => {
+  const text = S.briefs[path];
+  return `<div class="sec"><h3>${title}${vsc(path) ? `<a href="${esc(vsc(path))}">Open in VS Code ↗</a>` : ""}</h3>${text ? `<div class="md">${md(text)}</div>` : text === null ? `<div class="muted">${esc(path)} not readable from the Podium</div>` : path ? `<div class="muted">Loading…</div>` : `<div class="muted">No brief</div>`}</div>`;
+};
+const fileLink = (p, base) => (vsc(p, base) ? `<a class="file mono" href="${esc(vsc(p, base))}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
+function shaLink(sha, repo = null) {
+  if (!sha || typeof sha !== "string") return "—";
+  const url = repoUrl(repo);
+  return url ? `<a class="mono" href="${esc(url)}/commit/${esc(sha)}" target="_blank" rel="noopener">${esc(sha.slice(0, 7))}</a>` : `<span class="mono">${esc(sha.slice(0, 7))}</span>`;
+}
+/* `landedSha` is {repo: sha}, or one sha in single-repo runs */
+function landedLinks(landed) {
+  if (!landed || typeof landed !== "object") return shaLink(landed);
+  const pairs = Object.entries(landed).filter(([, sha]) => sha);
+  return pairs.length ? pairs.map(([repo, sha]) => `<span class="repo">${esc(repo)}</span> ${shaLink(sha, repo)}`).join(" · ") : "—";
+}
+const shortSha = (sha) => (typeof sha === "string" ? sha.slice(0, 7) : "");
+
+function renderSheet() {
+  const id = S.selected, e = S.epic, vm = viewMs();
+  if (id === "__quest") return questSheet();
+  if (id === "__root" && !vm) return epicSheet();
+  if (id === "__root" || (!vm && msById()[id])) return milestoneSheet(id === "__root" ? vm : msById()[id]);
+  const map = byId(), s = map[id];
+  if (!s) {
+    const el = document.querySelector(`[data-open="${CSS.escape(id)}"]`);
+    const path = el?.dataset.path;
+    $("sheet-head").innerHTML = `<span class="sid">Artifact</span><h2>${esc(el?.querySelector(".title")?.textContent || id)}</h2><div class="muted mono">${esc(path)}</div>`;
+    $("sheet-body").innerHTML = briefSec(path, "Document");
+    return;
+  }
+  const live = isBuilding(vm), sk = key(vm.id, id);
+  const st = viewStatus(s, map);
+  const blocks = items().filter((x) => (x.deps || []).includes(id));
+  const label = { done: storyDone(vm), working: "Working on", elsewhere: "In another session", approval: "Waiting for approval", failed: "Failed", blocked: "Blocked", ready: "Ready", waiting: "Waiting on dependencies", dropped: "Dropped" }[st];
+  const action = st === "ready" && live && orch() ? `<button class="btn big" data-act="assign" data-id="${esc(sk)}">Assign subagent</button>${copyBtn("assign", sk)}`
+    : st === "elsewhere" ? `<button class="btn big ghost" data-release="${esc(sk)}">✕ Take it back</button>${copyBtn("assign", sk)}` : "";
+  const log = progressLines(vm.id, id);
+  const elapsed = s.startedAt ? dur((s.finishedAt ? Date.parse(s.finishedAt) : Date.now()) - Date.parse(s.startedAt)) : "—";
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${e.single ? "" : `${esc(vm.id)} · `}${esc(id)}</span>${st === "working" ? `<span class="pulse"></span>` : st === "approval" ? `<span class="pulse amber"></span>` : ""}<span class="badge ${st === "done" ? doneCls(vm) : st}">${label}</span></div><h2>${esc(s.title)}</h2><div class="muted">${esc(s.summary || "")}</div>${action ? `<div style="margin-top:12px">${action}</div>` : ""}`;
+  $("sheet-body").innerHTML = `
+    ${s.approval ? `<div class="sec"><div class="approvalbox"><b>Waiting for approval</b> — ${esc(s.approval.tool)}<div class="mono" style="margin-top:4px">${esc(s.approval.detail || "")}</div><div class="muted" style="margin-top:6px">Answer it in Paseo, or in the orchestrator terminal.</div></div></div>` : ""}
+    ${s.failure ? `<div class="sec"><div class="failbox"><b>Failure</b> — ${esc(s.failure)}</div></div>` : ""}
+    ${s.note ? `<div class="sec"><div class="muted">${esc(s.note)}</div></div>` : ""}
+    ${s.brief ? briefSec(s.brief) : ""}
+    <div class="sec"><h3>Dependencies</h3><dl class="kv"><dt>Blocked by</dt><dd>${depChips(s.deps || [], map, "Nothing — starts from the milestone", "merged")}</dd><dt>Blocks</dt><dd>${depChips(blocks.map((x) => x.id), map, "Nothing")}</dd>${(s.overlapAfter || []).length ? `<dt>After (files)</dt><dd>${depChips(s.overlapAfter, map, "", "merged")}</dd>` : ""}</dl></div>
+    ${(s.repos || []).length ? `<div class="sec"><h3>Repos</h3><div class="links">${s.repos.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div></div>` : ""}
+    ${(s.files || []).length ? `<div class="sec"><h3>Files in scope</h3>${s.files.map((f) => fileLink(f, "repoDir")).join("")}</div>` : ""}
+    ${(s.tasks || []).length ? `<div class="sec"><h3>Tasks</h3><div class="links">${s.tasks.map((t) => `<span class="link-chip mono">${esc(t)}</span>`).join("")}</div></div>` : ""}
+    ${live || s.agent ? `<div class="sec"><h3>Run</h3><dl class="kv"><dt>Status</dt><dd>${label}</dd><dt>Attempts</dt><dd>${s.attempts || 0} of ${maxAttempts()}</dd><dt>Model</dt><dd>${esc(s.model || "—")}</dd><dt>Agent</dt><dd class="mono">${s.agent ? `${esc(s.agent.backend)} · ${esc(s.agent.id)}${agentHref(s) ? ` · <a class="prlink" href="${esc(agentHref(s))}">open in Paseo ↗</a>` : ""}` : "—"}</dd><dt>Branch</dt><dd class="mono">${esc(s.branch || "—")}</dd><dt>Elapsed</dt><dd>${elapsed}</dd></dl></div>` : ""}
+    ${live ? `<div class="sec"><h3>Progress</h3>${log.length ? `<ul class="log">${log.map((l) => `<li><span class="t">${esc(clock(l.at))}</span><span><span class="stage ${esc(l.stage)}">${esc(l.stage)}</span></span><span>${esc(l.note)}</span></li>`).join("")}</ul>` : `<div class="muted">No progress yet</div>`}</div>` : ""}
+    <div class="sec"><h3>Commits</h3>${commitsOf(s).map((c) => `<div class="commit">${shaLink(c.sha, c.repo)}<span>${c.repo ? `<span class="repo">${esc(c.repo)}</span> ` : ""}${esc(c.subject)}</span><span class="mono">${c.plus != null ? `<span class="plus">+${c.plus}</span> <span class="minus">−${c.minus || 0}</span>` : ""}</span></div>`).join("") || `<div class="muted">None yet</div>`}</div>
+    ${["done", "failed"].includes(s.status) ? timeSec(log, s) : ""}`;
+}
+
+/* ---------- where a story's time went ---------- */
+/* each stretch between two progress lines counts toward the step its first line began; a FIX line says
+   whether a bug or a test is being fixed; every stretch of an attempt that ended FAILED counts as that attempt */
+const TW = [["tests", "Writing tests", "var(--purple)"], ["build", "Building the feature", "var(--accent)"], ["bug", "Fixing bugs", "var(--red)"],
+  ["test", "Fixing tests", "var(--amber-dot)"], ["fix", "Fixing", "#ff6b81"], ["refactor", "Refactoring", "var(--green-dot)"],
+  ["checks", "Running checks", "#8e8e93"], ["wait", "Waiting on you", "#c7c7cc"]];
+const TW_OF = { STARTED: "tests", RED: "build", GREEN: "refactor", REFACTOR: "checks", CONTRACT: "checks", WAITING: "wait" };
+const TW_END = { tests: "RED", build: "GREEN", refactor: "REFACTOR", checks: "CONTRACT" }; // the line that reports how a step went
+const twOf = () => ({ ...TW_OF, ...Object.fromEntries(ownStages().filter(([, v]) => v.time).map(([k, v]) => [k, String(v.time)])) });
+function timeWent(log, endAt) {
+  const of = twOf();
+  const lines = log.filter((l) => !isNaN(Date.parse(l.at)));
+  let attempt = 1;
+  const att = lines.map((l) => { const a = attempt; if (l.stage === "FAILED") attempt++; return a; });
+  const failed = Object.fromEntries(lines.map((l, i) => [att[i], l.stage === "FAILED" ? l.note : undefined]).filter(([, n]) => n !== undefined));
+  const rows = {};
+  let prev = null;
+  lines.forEach((l, i) => {
+    if (["COMMITTED", "FAILED"].includes(l.stage)) return;
+    const next = lines[i + 1], to = next ? Date.parse(next.at) : endAt ? Date.parse(endAt) : NaN;
+    const ms = to - Date.parse(l.at);
+    if (!(ms > 0)) return;
+    const kindWord = l.stage === "FIX" ? (l.note.match(/^(bug|test)\b/i)?.[1] || "").toLowerCase() : "";
+    const key = att[i] in failed ? `failed${att[i]}` : l.stage === "FIX" ? kindWord || "fix" : of[l.stage];
+    if (!key) return;
+    // what the stretch was about: a FIX or WAITING line says it up front, a step's own closing line says how it went
+    const note = ["FIX", "WAITING"].includes(l.stage) ? l.note.replace(/^(bug|test)\b\s*/i, "") : key.startsWith("failed") ? failed[att[i]]
+      : next && next.stage === TW_END[key] ? next.note : null;
+    const r = (rows[key] ||= { key, ms: 0, n: 0, note: "", longest: 0 });
+    r.ms += ms;
+    if (prev !== key) r.n++; // a round is a run of stretches on the same work
+    prev = key;
+    if (note != null && ms > r.longest) { r.longest = ms; r.note = note; }
+  });
+  const known = TW.filter(([k]) => rows[k]).map(([k, label, color]) => ({ ...rows[k], label, color }));
+  // a row an orchestrator's own stage names is labelled by that name
+  const own = Object.values(rows).filter((r) => !r.key.startsWith("failed") && !TW.some(([k]) => k === r.key)).map((r) => ({ ...r, label: r.key, color: "#5ac8fa" }));
+  const lost = Object.values(rows).filter((r) => r.key.startsWith("failed")).sort((a, b) => a.key.localeCompare(b.key))
+    .map((r) => ({ ...r, label: `Failed attempt ${r.key.slice(6)}`, color: "repeating-linear-gradient(135deg, #aeaeb2 0 3px, #d1d1d6 3px 6px)", n: 1 }));
+  return [...known, ...own, ...lost];
+}
+function timeSec(log, s) {
+  const rows = timeWent(log, s.finishedAt);
+  if (!rows.length) return "";
+  const total = rows.reduce((a, r) => a + r.ms, 0);
+  const from = log.find((l) => !isNaN(Date.parse(l.at)))?.at;
+  return `<div class="sec"><h3>Where the time went<span class="tw-tot">${dur(total)}</span></h3>
+    <div class="tw-bar">${rows.map((r) => `<i style="flex:${r.ms};background:${r.color}" title="${esc(r.label)} · ${dur(r.ms)}"></i>`).join("")}</div>
+    <div class="tw">${rows.map((r) => `<span class="d" style="background:${r.color}"></span><span>${esc(r.label)}</span><span class="n" title="${esc(r.note)}">${r.n > 1 ? `${r.n} rounds · ` : ""}${esc(r.note)}</span><span class="m">${dur(r.ms)}</span><span class="p">${Math.round((100 * r.ms) / total)}%</span>`).join("")}</div>
+    <div class="tw-foot">From the agent's progress log${from ? `, ${esc(clock(from))}–${esc(clock(s.finishedAt || log[log.length - 1].at))}` : ""}</div></div>`;
+}
+
+function milestoneSheet(m) {
+  const map = msById(), st = viewStatus(m, map);
+  const stories = m.stories || [];
+  const wt = st === "working" && msWaits(m), bst = wt ? "needs" : grilledWaits(m) ? "grilled" : st;
+  const label = isResearch(m) ? (st === "done" ? "Answered" : "Research") : wt ? "Waiting on you" : grilledWaits(m) ? `Grilled · ${grilledWaits(m)}` : st === "working" && planning(m) ? "Planning in progress" : planAsked(m) ? "Planning requested" : { done: "Completed", working: "Working on", ready: "Ready", waiting: "Waiting on dependencies", draft: "Draft", parked: "Parked", later: "Later", dropped: "Dropped" }[st] || st;
+  const blocks = S.epic.milestones.filter((x) => (x.deps || []).includes(m.id));
+  const actions = [
+    stories.length && S.view !== m.id && !S.epic.single ? `<button class="btn big" data-drill="${esc(m.id)}">Open story map ›</button>` : "",
+    orch() && !isResearch(m) && [...UNSTARTED, "ready"].includes(st) && !planAsked(m) && ["", "ready to plan"].includes(grilledWaits(m)) ? `<button class="btn big ${stories.length ? "ghost" : ""}" data-act="plan" data-id="${esc(m.id)}">Plan milestone</button>${copyBtn("plan", m.id)}` : "",
+    claimBtn(m),
+  ].join(" ");
+  const q = m.quality?.gate;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : bst}">${label}</span>${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
+  $("sheet-body").innerHTML = `
+    ${asanaAsk(m)}
+    ${m.note ? `<div class="sec"><div class="muted">${esc(m.note)}</div></div>` : ""}
+    <div class="sec"><h3>Run</h3><dl class="kv">
+      <dt>Status</dt><dd>${label}${m.status === "working" ? ` · ${msDoing(m)}` : ""}</dd>
+      ${m.owner ? `<dt>Owner</dt><dd>${ownerChip(m)}</dd>` : ""}
+      ${((k) => (k ? `<dt>Mock</dt><dd><a class="prlink" href="${esc(k.href)}" target="_blank" rel="noopener">Open mock ↗</a>${k.url ? ` · <a class="prlink" href="${esc(k.url)}" target="_blank" rel="noopener">published ↗</a>` : ""}</dd>` : ""))(mockOf(m))}
+      ${asanaRow(m)}
+      ${m.shippedAt ? `<dt>Landed</dt><dd>${day(m.shippedAt)} · ${landedLinks(m.landedSha)}</dd>` : ""}
+      ${m.branch ? `<dt>Branch</dt><dd class="mono">${esc(m.branch)}</dd>` : ""}
+      ${m.spec ? `<dt>Spec</dt><dd>${fileLink(m.spec, "repoDir")}</dd>` : ""}
+      ${m.archive ? `<dt>Ledger</dt><dd>${fileLink(m.archive)}</dd>` : ""}
+      ${stories.length ? `<dt>Stories</dt><dd>${stories.filter((s) => s.status === "done").length} of ${stories.length} ${m.status === "done" ? "done" : "merged to branch"}</dd>` : ""}
+      ${q ? `<dt>Quality gate</dt><dd>${q.findings} findings · ${q.fixed} fixed · ${q.skipped} skipped${q.note ? `<div class="muted">${esc(q.note)}</div>` : ""}</dd>` : ""}
+    </dl></div>
+    ${msRepos(m).length ? `<div class="sec"><h3>Repos</h3>${msRepos(m).map((r) => `<div class="commit"><span class="repo">${esc(r.repo)}</span><span class="mono">${esc(r.branch || "—")} → ${esc(r.base || "—")}</span>${prPill(r.pr)}</div>`).join("")}</div>` : ""}
+    ${timelineSec(m)}
+    ${(m.covers || []).length ? `<div class="sec"><h3>Covers brief items</h3><div class="links">${m.covers.map((c) => `<span class="link-chip">${esc(c)}</span>`).join("")}</div></div>` : ""}
+    <div class="sec"><h3>Dependencies</h3><dl class="kv"><dt>Depends on</dt><dd>${depChips(m.deps || [], map, "Nothing", "landed")}</dd><dt>Unblocks</dt><dd>${depChips(blocks.map((x) => x.id), map, "Nothing")}</dd></dl></div>
+    ${(m.open || []).length ? `<div class="sec"><h3>Open questions</h3><ul class="md">${m.open.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    ${briefSec(m.brief, isResearch(m) ? "Findings" : "Brief")}`;
+}
+
+function epicSheet() {
+  const e = S.epic, map = msById();
+  $("sheet-head").innerHTML = `<span class="sid">Epic</span><h2>${esc(e.epic.title)}</h2><div class="muted">${esc(e.epic.summary || "")}</div>`;
+  $("sheet-body").innerHTML = `
+    <div class="sec"><h3>Milestones</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-drill="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${viewStatus(m, map)}">${esc(m.status)}</span></div>`).join("")}</div>
+    ${epicRepoRows(e.milestones).length ? `<div class="sec"><h3>Repos touched</h3>${repoLines(epicRepoRows(e.milestones))}</div>` : ""}
+    ${(e.uncovered || []).length ? `<div class="sec"><h3>Brief items no milestone covers yet</h3><div class="links">${e.uncovered.map((c) => `<span class="link-chip">${esc(c)}</span>`).join("")}</div></div>` : ""}
+    <div class="sec"><h3>Run</h3><dl class="kv">${asanaRow(e.epic)}<dt>Active</dt><dd>${esc(e.active || "none")}</dd><dt>Dispatcher</dt><dd>${esc(e.dispatcher || "")}</dd><dt>Podium</dt><dd class="mono">${esc(location.href)}</dd></dl></div>
+    ${e.epic.spec || !e.epic.quest || !questOf() ? briefSec(e.epic.spec, "Brief") : questSec(e.epic.quest)}`;
+}
+
+/* ---------- quest ---------- */
+/* a project can answer a quest: one problem document whose user stories are the epics */
+const questOf = () => S.project?.project?.quest;
+const isResearch = (m) => m?.kind === "research";
+/* the app a link opens, by its address: its icon, and its name, which a label like "Figma: Admin UI" then drops */
+const GDOC = (c) => `<svg class="lico" viewBox="0 0 48 66" aria-hidden="true"><path fill="${c}" d="M30 0H5a5 5 0 0 0-5 5v56a5 5 0 0 0 5 5h38a5 5 0 0 0 5-5V18z"/><path fill="#fff" fill-opacity=".55" d="M30 0v13a5 5 0 0 0 5 5h13z"/><path fill="#fff" d="M11 32h26v3.5H11zm0 8h26v3.5H11zm0 8h18v3.5H11z"/></svg>`;
+const LINK_APPS = [
+  [/figma\.com\//, "Figma", `<svg class="lico" viewBox="0 0 38 57" aria-hidden="true"><path fill="#1abcfe" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z"/><path fill="#0acf83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z"/><path fill="#ff7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19z"/><path fill="#f24e1e" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z"/><path fill="#a259ff" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z"/></svg>`],
+  [/docs\.google\.com\/document\//, "Google Doc", GDOC("#4285f4")],
+  [/docs\.google\.com\/spreadsheets\//, "Google Sheet", GDOC("#0f9d58")],
+  [/docs\.google\.com\/presentation\//, "Google Slides", GDOC("#f4b400")],
+  [/app\.asana\.com\//, "Asana", ASANA_ICO],
+];
+function appLink(l) {
+  const [, name, ico] = LINK_APPS.find(([re]) => re.test(l.url)) || [];
+  const label = name ? l.label.replace(new RegExp(`^${name}s?:\\s*`, "i"), "") : l.label;
+  return `<a class="applink" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(name ? `${name}: ${label}` : l.label)}">${ico || ""}${esc(label)} ↗</a>`;
+}
+const questLinks = (q) => (q.links || []).map(appLink).join("");
+function questTile(P) {
+  const q = P.project.quest, all = P.epics.flatMap((E) => E.milestones || []).filter((x) => x.status !== "dropped");
+  const rs = all.filter(isResearch), ms = all.filter((x) => !isResearch(x)), open = (q.tasks || []).filter((t) => !t.asana?.completed).length;
+  const counts = [`${P.epics.length} epics`, rs.length && `${rs.filter((x) => x.status === "done").length} of ${rs.length} research answered`,
+    `${ms.filter((x) => x.status === "done").length} of ${ms.length} milestones landed`, open && `${open} open quest ${open === 1 ? "task" : "tasks"}`].filter(Boolean);
+  return `<div class="quest" data-quest tabindex="0"><span class="eyebrow">Quest<span class="ftools">${asanaBtn(P.project, true)}${syncBtn(P.project)}</span></span><span class="title">${esc(P.project.title)}</span>${P.project.summary ? `<span class="gist">${esc(P.project.summary)}</span>` : ""}<div class="qfoot">${counts.map((c) => `<span>${c}</span>`).join("")}${asanaMeta(P.project)}<span class="qlinks">${questLinks(q)}</span></div></div>`;
+}
+/* re-read the quest's Asana task and subtasks: a queued link to the task it already holds, which the orchestrator takes as a refresh */
+function syncBtn(x) {
+  if (!x.asana?.url) return "";
+  const busy = S.asanaSync && !(Date.parse(x.asana.syncedAt) > Date.parse(S.asanaSync));
+  return `<button class="asanabtn" data-asana-sync ${busy ? "disabled" : ""} title="${busy ? "Queued: the orchestrator re-reads Asana" : `Re-read the Asana task and its subtasks${x.asana.syncedAt ? ` · last read ${when(x.asana.syncedAt)}` : ""}`}">${busy ? "Syncing…" : "↻ Sync"}</button>`;
+}
+async function asanaSync() {
+  try {
+    const r = await fetch(`/asana?url=${encodeURIComponent(S.project.project.asana.url)}`, { method: "POST" });
+    if (!r.ok) throw new Error(r.status);
+    S.asanaSync = new Date().toISOString(); render(); if (S.selected) renderSheet();
+    toast(S.info?.watching ? "Queued: the orchestrator re-reads the quest's Asana subtasks" : `Queued: picked up the next time ${orchCmd() || "the orchestrator"} runs`);
+  } catch { toast(SERVER_DOWN); }
+}
+function questSheet() {
+  const P = S.project, q = P.project.quest, tasks = q.tasks || [];
+  const tally = (E) => ((ms) => `${ms.filter((x) => x.status === "done").length}/${ms.length}`)((E.milestones || []).filter((x) => !isResearch(x) && x.status !== "dropped"));
+  $("sheet-head").innerHTML = `<span class="sid">Quest</span><h2>${esc(P.project.title)}</h2><div class="muted">${esc(P.project.summary || "")}</div>`;
+  $("sheet-body").innerHTML = `
+    <div class="sec"><div class="qlinks-sheet">${asanaBtn(P.project)}${syncBtn(P.project)}${questLinks(q)}</div>${asanaMeta(P.project)}</div>
+    <div class="sec"><h3>Epics</h3>${P.epics.map((E) => `<div class="commit"><span class="sid">${esc(E.quest || "")}</span><span><a data-epic-sheet="${esc(E.id)}">${esc(E.title)}</a></span><span class="muted">${tally(E)} landed</span></div>`).join("")}</div>
+    ${tasks.length ? `<div class="sec"><h3>Tasks</h3>${tasks.map((t) => `<div class="commit"><span>${t.asana?.completed ? "✓" : "○"}</span><span>${t.asana?.url ? `<a href="${esc(t.asana.url)}" target="_blank" rel="noopener">${esc(t.title)} ↗</a>` : esc(t.title)}</span><span></span></div>`).join("")}</div>` : ""}
+    ${briefSec(q.doc, "Document")}`;
+}
+/* an epic's part of the quest: its heading (### US1: …) down to the next heading as high */
+function questSection(text, ref) {
+  const lines = text.split("\n"), lvl = (l) => l.match(/^#+(?=\s)/)?.[0].length || 0;
+  const re = new RegExp(`^#{1,6}\\s+${ref.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  const i = lines.findIndex((l) => re.test(l));
+  if (i < 0) return null;
+  const end = lines.findIndex((l, j) => j > i && lvl(l) && lvl(l) <= lvl(lines[i]));
+  return lines.slice(i, end < 0 ? undefined : end).join("\n");
+}
+function questSec(ref) {
+  const p = questOf().doc, t = S.briefs[p], part = t && questSection(t, ref);
+  return `<div class="sec"><h3>Brief<a data-quest>Whole quest ›</a></h3>${part ? `<div class="md">${md(part)}</div>` : t === undefined ? `<div class="muted">Loading…</div>` : `<div class="muted">${esc(ref)} not found in ${esc(p)}</div>`}</div>`;
+}
+
+/* ---------- tiny markdown ---------- */
+/* a section heading's icon, by what the section is about (brief, spec and sheet headings) */
+const HEAD_ICONS = [["goal", "🎯"], ["objective", "🎯"], ["acceptance", "✅"], ["success criteria", "🏆"], ["files in scope", "📁"], ["files", "📁"],
+  ["context", "🧭"], ["depends on", "🔗"], ["dependencies", "🔗"], ["contract", "📜"], ["done when", "🏁"], ["brief items", "📌"], ["covers", "📌"],
+  ["brief", "📝"], ["document", "📄"], ["run", "⚙️"], ["progress", "⏱️"], ["timeline", "🗓️"], ["commits", "🔀"], ["where the time went", "⏳"], ["tasks", "🗂️"], ["open questions", "❓"],
+  ["unknowns", "❓"], ["milestones", "🗺️"], ["decisions", "⚖️"], ["constraints", "🚧"], ["non-goals", "🚫"], ["risks", "⚠️"],
+  ["danger", "⚠️"], ["requirements", "📋"], ["edge cases", "🧩"], ["user scenarios", "👤"], ["user story", "👤"], ["reuse", "♻️"],
+  ["budget", "💰"], ["data sources", "🛰️"], ["module", "🧱"], ["shape", "🧱"], ["seams", "🧵"], ["story graph", "🕸️"], ["quality gate", "🛡️"]];
+const headIcon = (text) => HEAD_ICONS.find(([k]) => text.trim().toLowerCase().startsWith(k))?.[1];
+const withIcon = (text, html) => ((i) => (i ? `<span class="hicon">${i}</span>` : "") + html)(headIcon(text));
+/* the sheet's own section headings (Brief, Run, Commits…) get theirs once rendered */
+function iconSheetHeads() {
+  for (const h of $("sheet-body").querySelectorAll(".sec > h3")) {
+    const t = h.firstChild;
+    if (t?.nodeType === Node.TEXT_NODE && !h.querySelector(".hicon") && headIcon(t.textContent)) t.before(Object.assign(document.createElement("span"), { className: "hicon", textContent: headIcon(t.textContent) }));
+  }
+}
+
+function md(src) {
+  const inline = (t) => esc(t).replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, `<a href="$2" target="_blank" rel="noopener">$1 ↗</a>`).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\W)_([^_]+)_(?=\W|$)/g, "$1<i>$2</i>");
+  const out = [];
+  let list = null, code = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const line of src.split("\n")) {
+    if (code !== null) { if (/^```/.test(line)) { out.push(`<pre><code>${esc(code)}</code></pre>`); code = null; } else code += (code ? "\n" : "") + line; continue; }
+    if (/^```/.test(line)) { closeList(); code = ""; continue; }
+    let m;
+    if ((m = line.match(/^(#{1,3})\s+(.*)/))) { closeList(); out.push(`<h${m[1].length}>${withIcon(m[2], inline(m[2]))}</h${m[1].length}>`); }
+    else if ((m = line.match(/^\s*[-*]\s+\[( |x)\]\s+(.*)/i))) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li class="task">${m[1].trim() ? "☑" : "☐"} <span>${inline(m[2])}</span></li>`); }
+    else if ((m = line.match(/^\s*[-*]\s+(.*)/))) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = line.match(/^\s*\d+\.\s+(.*)/))) { if (list !== "ol") { closeList(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if (!line.trim()) closeList();
+    else { closeList(); out.push(`<p>${inline(line)}</p>`); }
+  }
+  closeList();
+  if (code !== null) out.push(`<pre><code>${esc(code)}</code></pre>`);
+  return out.join("");
+}
+
+/* ---------- time ---------- */
+function clock(iso) { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+function when(iso) {
+  const d = new Date(iso); if (isNaN(d)) return iso || "";
+  const ms = Date.now() - d; const m = Math.round(ms / 60000);
+  if (m < 1440) return `${clock(iso)} · ${m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`}`;
+  return d.toLocaleDateString([], { day: "numeric", month: "short" }) + ` · ${clock(iso)}`;
+}
+function dur(ms) { const m = Math.max(0, Math.round(ms / 60000)); return m < 1 ? "<1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
+
+/* ---------- actions ---------- */
+const NO_ORCHESTRATOR = () => (orchCmd() ? `No orchestrator is watching — run ${orchCmd()} in an agent chat, then click again` : "This run has no orchestrator to act on that");
+/* the prompt behind a button, for a session of the user's own; the server builds it from the orchestrator's text */
+const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
+const releaseBtn = (id) => `<button class="release" data-release="${esc(id)}" title="Take it back: the orchestrator may dispatch it again" aria-label="Take it back">✕</button>`;
+async function release(id) {
+  try {
+    const r = await fetch(`/handoff/${idPath(id)}`, { method: "DELETE" });
+    if (!r.ok) throw new Error(r.status);
+    toast(`${id} is back with the orchestrator`);
+    poll();
+  } catch {
+    toast("Couldn't take it back — is the Podium server running? Start it with podium server --detach");
+  }
+}
+const copyBtn = (action, id) => `<button class="copy" data-copy="${action}" data-id="${esc(id)}" title="Copy the prompt to run it in another session" aria-label="Copy prompt">${COPY_ICON}</button>`;
+async function copyPrompt(action, id) {
+  try {
+    let r = action === "assign"
+      ? await fetch(`/handoff/${idPath(id)}`, { method: "POST" })
+      : await fetch(`/prompt/${action}/${idPath(id)}`, { cache: "no-store" });
+    const unmarked = r.status === 409;  // no orchestrator to keep it from: copy it without the hand-off
+    if (unmarked) r = await fetch(`/prompt/${action}/${idPath(id)}`, { cache: "no-store" });
+    if (r.status === 404 && !r.headers.get("Content-Type")?.includes("json")) return toast("This Podium server predates the copy button — restart it");
+    if (r.status === 501) return toast(`${orch()?.name || "This run's orchestrator"} has no prompt to copy for that`);
+    if (!r.ok) throw new Error(r.status);
+    await navigator.clipboard.writeText(await r.text());
+    if (unmarked) return toast(`Prompt for ${id} copied — no orchestrator is running, so nothing else will build it`);
+    toast(action === "assign" ? `${id} is yours — prompt copied; the orchestrator leaves it alone until you take it back` : `Prompt for ${id} copied — paste it in another session`);
+    if (action === "assign") poll();
+  } catch {
+    toast("Couldn't copy the prompt — is the Podium server running? Start it with podium server --detach");
+  }
+}
+// the server replaces itself on the same port; reload once it answers again
+async function restartServer() {
+  try { await fetch("/restart", { method: "POST" }); } catch { return toast("The Podium server didn't answer — start it again with podium server --detach"); }
+  toast("Restarting the Podium server…");
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    try { if (!(await (await fetch("/info", { cache: "no-store" })).json()).stale) return location.reload(); } catch { /* still restarting */ }
+  }
+  toast("The Podium server didn't come back — start it again with podium server --detach");
+}
+async function act(action, id) {
+  const path = ["assign", "plan", "human", "domain-story", "build-all", "stop", "claim"].includes(action) ? `/${action}/${idPath(id)}` : `/${action}`;
+  try {
+    const r = await fetch(path, { method: "POST" });
+    if (action === "claim" && !r.ok) return toast(`Couldn't claim ${id}: ${(await r.text()).trim() || r.status}`);
+    if (r.status === 409) return toast(NO_ORCHESTRATOR());
+    if (!r.ok) throw new Error(r.status);
+    if (action === "domain-story") { S.dsAsked = { ...(S.dsAsked || {}), [id]: Date.now() }; render(); setTimeout(render, 121000); }
+    if (action === "plan") { S.planAsked = { ...(S.planAsked || {}), [id]: Date.now() }; render(); setTimeout(render, 121000); }
+    if (action === "human") { S.human = await r.json(); renderHuman(); return toast({ available: "You're available — the orchestrator brings its questions to you", mobile: "On mobile — questions only when they block, pictures instead of Podium links", unavailable: "You're away — the orchestrator keeps going and records its decisions", auto: "Back on your hours" }[id]); }
+    toast({ assign: `Queued ${id} — the orchestrator picks it up next`, plan: `Planning ${id} — answer its questions in the orchestrator's chat`, "build-all": `Build all queued for ${id} — wave by wave`, "domain-story": `Drawing ${id} as domain stories — it opens from the Story button when ready`, stop: `${id} stops after this wave`, claim: `Claiming ${id} — it shows as yours once the claim is saved` }[action]);
+  } catch {
+    toast(S.stale ? "The Podium server runs older code than this page — press Restart at the top, then click again" : SERVER_DOWN);
+  }
+}
+let toastT;
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3200); }
+
+document.addEventListener("click", (ev) => {
+  if (ev.target.closest("a[href]")) return; // a PR link inside a card opens itself, not the card
+  if (ev.target.closest("a.pr")) return;
+  const th = ev.target.closest("[data-theme-set]");
+  if (th) { setTheme(th.dataset.themeSet); return; }
+  const rl = ev.target.closest("[data-release]");
+  if (rl) { ev.stopPropagation(); release(rl.dataset.release); return; }
+  if (ev.target.closest("[data-restart]")) { restartServer(); return; }
+  if (ev.target.closest("[data-ds-back]")) { closeDs(); return; }
+  const dt = ev.target.closest("[data-ds-tab]");
+  if (dt) { S.ds.tab = +dt.dataset.dsTab; renderDs(); return; }
+  if (ev.target.closest("[data-ds-zoom]")) { S.ds.zoom = !S.ds.zoom; renderDs(); return; }
+  const ds = ev.target.closest("[data-ds]");
+  if (ds) { ev.stopPropagation(); openDs(ds.dataset.ds); return; }
+  const cp = ev.target.closest("[data-copy]");
+  if (cp) { ev.stopPropagation(); copyPrompt(cp.dataset.copy, cp.dataset.id); return; }
+  const ex = !ev.target.closest("[data-settle]") && ev.target.closest("[data-expand]"); // the whole line toggles, not its buttons
+  if (ex) {
+    ev.stopPropagation();
+    const i = ex.dataset.expand, y = scrollY;
+    S.expanded ||= new Set(); S.expanded.has(i) ? S.expanded.delete(i) : S.expanded.add(i);
+    render();
+    /* render() rebuilds the page and can lose the scroll: stay put, then scroll only as far as needed to show the details */
+    const keep = () => {
+      scrollTo({ top: y });
+      if (S.expanded.has(i)) document.querySelector(`.assumed-list [data-expand="${CSS.escape(i)}"]`)?.closest("li")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+    keep(); requestAnimationFrame(keep);
+    return;
+  }
+  const st = ev.target.closest("[data-settle]");
+  if (st) { ev.stopPropagation(); settle(st.dataset.settle, st.dataset.id); return; }
+  const a = ev.target.closest("[data-act]");
+  if (a) { ev.stopPropagation(); if (!a.disabled) act(a.dataset.act, a.dataset.id); return; }
+  const f = ev.target.closest("[data-filter]");
+  if (f) { S.filter = f.dataset.filter; renderFilters(); applyFilter(); return; }
+  const aq = ev.target.closest("[data-asana-ask]");
+  if (aq) { enterEpicOf(aq.dataset.asanaAsk); openSheet(S.view === aq.dataset.asanaAsk ? "__root" : aq.dataset.asanaAsk); return; } // the milestone's panel holds the question
+  const ad = ev.target.closest("[data-asana-done]");
+  if (ad) { asanaDone(ad.dataset.asanaDone, ad.dataset.id); return; }
+  if (ev.target.closest("[data-asana-sync]")) { asanaSync(); return; }
+  const la = ev.target.closest("[data-link-asana]");
+  if (la) { linkAsana(la.dataset.linkAsana || null); return; }
+  if (ev.target.closest("[data-digest-done]")) { S.digestSince = null; render(); return; }
+  if (ev.target.closest("[data-quest]")) { openSheet("__quest"); return; }
+  const es = ev.target.closest("[data-epic-sheet]");
+  if (es) { S.epicView = es.dataset.epicSheet; S.epic = epicCtx(S.epicView); S.view = null; openSheet("__root"); return; }
+  const narrow = window.matchMedia("(max-width: 1100px)").matches;
+  if (ev.target.closest("[data-out]") && !ev.target.closest("[data-drill]")) { setView(null); return; }
+  const d = ev.target.closest("[data-drill]");
+  if (d) {
+    if (narrow) $("feed").classList.remove("on");
+    enterEpicOf(d.dataset.drill);
+    if (S.epic.single) render(); else setView(d.dataset.drill);
+    if (d.dataset.story) openSheet(d.dataset.story);
+    // a link outside the map (Needs you, digest, a sheet) brings the map into view, below the sticky header
+    if (!d.closest(".map-card")) requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - document.querySelector(".topbar").offsetHeight - 12, behavior: "smooth" }));
+    return;
+  }
+  const o = ev.target.closest("[data-open]");
+  if (o) {
+    if (narrow) $("feed").classList.remove("on");
+    if (o.dataset.ms !== undefined) {
+      enterEpicOf(o.dataset.ms || o.dataset.open);
+      if (S.epic && !S.epic.single && (o.dataset.ms || null) !== S.view) { S.view = o.dataset.ms || null; S.filter = "all"; }
+    }
+    if (S.epic) openSheet(o.dataset.open);
+  }
+});
+document.addEventListener("keydown", (ev) => {
+  if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); $("q").focus(); $("q").select(); }
+  else if (ev.key === "Escape") {
+    if (S.selected) closeSheet();
+    else if (S.ds) closeDs();
+    else if (document.activeElement === $("q")) { $("q").value = ""; S.query = ""; applyFilter(); $("q").blur(); }
+    else if (S.epic && S.view && !S.epic.single) setView(null);
+    else if (S.epic && S.project.epics.length > 1) setEpic(null);
+  }
+  else if (ev.key === "Enter" && ev.target.matches(".node, .fms, .fepic, .mini, .quest")) ev.target.click();
+});
+$("q").addEventListener("input", (ev) => { S.query = ev.target.value; applyFilter(); });
+new MutationObserver(iconSheetHeads).observe($("sheet-body"), { childList: true });
+$("scrim").addEventListener("click", closeSheet);
+$("sheet-close").addEventListener("click", closeSheet);
+$("feed-toggle").addEventListener("click", () => $("feed").classList.toggle("on"));
+$("feed-close").addEventListener("click", () => $("feed").classList.remove("on"));
+$("bell").addEventListener("click", async () => {
+  if (localStorage.getItem(NOTIFY_KEY) === "1") { localStorage.removeItem(NOTIFY_KEY); toast("Notifications off"); }
+  else if (!("Notification" in window)) toast("This browser can't show notifications");
+  else if ((await Notification.requestPermission()) === "granted") { localStorage.setItem(NOTIFY_KEY, "1"); toast("You'll get a notification when something new needs you and this tab is in the background"); }
+  else toast("Notifications are blocked for this page in the browser's settings");
+  if (S.project) renderAttention();
+});
+document.addEventListener("visibilitychange", () => { if (markSeen()) render(); });
+$("feed-filter").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-feed]");
+  if (b) { S.feedFilter = b.dataset.feed; renderEvents(); $("events").scrollTop = 0; }
+});
+window.addEventListener("resize", () => { if (!S.project) return; if (!S.epic || !S.view) drawQueue(); else renderMap(); });
+$("quality").addEventListener("toggle", () => (S.qualityTouched = true), { once: true });
+
+setFavicon("");
+poll();
+setInterval(() => { if (!document.hidden || Date.now() - lastPoll >= HIDDEN_POLL_MS) poll(); }, POLL_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+setInterval(() => { if (S.events.length) renderEvents(); }, 60000);
+setInterval(() => document.querySelectorAll("[data-since]").forEach((el) => (el.textContent = dur(Date.now() - Date.parse(el.dataset.since)))), 30000);
+</script>
+</body>
+</html>
