@@ -8,10 +8,11 @@ import tempfile
 import textwrap
 import time
 import unittest
+import unittest.mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from podium_dashboard import sync  # noqa: E402
+from podium_dashboard import human, sync  # noqa: E402
 from podium_dashboard.state import Podium  # noqa: E402
 
 REF = "refs/heads/podium-run/api"
@@ -39,6 +40,9 @@ class SyncCase(unittest.TestCase):
         os.environ.update({"HOME": self.tmp, "GIT_CONFIG_NOSYSTEM": "1", "PODIUM_HUMAN": os.path.join(self.tmp, "human.json"),
                            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+        patched = unittest.mock.patch.object(human, "HUMAN_FILE", os.environ["PODIUM_HUMAN"])
+        patched.start()
+        self.addCleanup(patched.stop)
         self.bare = os.path.join(self.tmp, "remote.git")
         git("init", "-q", "--bare", "-b", "main", self.bare)
         seed = os.path.join(self.tmp, "seed")
@@ -289,12 +293,12 @@ class Pull(SyncCase):
         top = {".claude/settings.json": "{}\n", ".husky/pre-commit": "x\n", ".envrc": "x\n", "Makefile": "x\n",
                "notes.md": "notes\n"}
         self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["**"]}}), **top})
-        b = self.run_in(self.clone("b"), None, hidden=False)
+        b = self.run_in(self.clone("b"), None, hidden=False, include=["podium/**"])
         self.assertRegex(sync.pull(b), r"^PULLED ")
         for rel in top:
             self.assertFalse(os.path.exists(os.path.join(b.root, rel)), rel)
-        self.assertEqual(b.data["sync"], {"enabled": True, "ref": REF})
-        c = self.run_in(self.clone("c"), None, hidden=False, include=["podium/**", "*.md"])
+        self.assertEqual(b.data["sync"], {"enabled": True, "ref": REF, "include": ["podium/**"]})
+        c = self.run_in(self.clone("c"), None, hidden=False)
         self.assertRegex(sync.pull(c), r"^PULLED ")
         self.assertEqual(self.read(os.path.join(c.root, "notes.md")), "notes\n")
         for rel in set(top) - {"notes.md"}:
@@ -816,6 +820,78 @@ class Ref(SyncCase):
         self.assertNotEqual(g.rev(REF), tip)
 
 
+class Defaults(SyncCase):
+    def set_defaults(self, **lists):
+        os.makedirs(os.path.dirname(sync.defaults_path()), exist_ok=True)
+        with open(sync.defaults_path(), "w") as f:
+            json.dump(lists, f)
+
+    def test_a_run_with_no_lists_syncs_the_state_and_planning_docs_but_never_machine_files_or_code(self):
+        p = self.run_in(self.clone("a"), hidden=False)
+        for rel in ("notes.md", "spec/x.md", "mock/m.html", "domain-stories/d.egn", "docs/deep.md", ".envrc",
+                    "spec/gen.py", "Makefile"):
+            self.write(os.path.join(p.root, rel), "x\n")
+        self.assertRegex(sync.save(p), r"^SAVED ")
+        self.assertEqual(self.remote_files(), ["README.md", "domain-stories/d.egn", "mock/m.html", "notes.md",
+                                               "podium/podium.json", "spec/x.md"])
+
+    def test_the_machine_default_applies_to_a_run_with_no_lists(self):
+        self.set_defaults(include=["podium/podium.json", "docs/*.md"], exclude=["docs/draft-*"])
+        p = self.run_in(self.clone("a"))
+        for rel in ("docs/plan.md", "docs/draft-idea.md", "notes.md"):
+            self.write(os.path.join(p.root, rel), "x\n")
+        self.assertRegex(sync.save(p), r"^SAVED ")
+        self.assertEqual(self.remote_files(), ["docs/plan.md", "podium/podium.json"])
+        self.assertEqual(sync.sources(p), 'include ["podium/podium.json", "docs/*.md"] (default) '
+                                          'exclude ["docs/draft-*"] (default)')
+
+    def test_a_runs_own_list_beats_the_default_and_each_list_resolves_on_its_own(self):
+        self.set_defaults(include=["**"], exclude=["notes.md"])
+        p = self.run_in(self.clone("a"), include=["podium/podium.json", "*.md"])
+        for rel in ("notes.md", "plan.md", "docs/deep.md"):
+            self.write(os.path.join(p.root, rel), "x\n")
+        self.assertRegex(sync.save(p), r"^SAVED ")
+        self.assertEqual(self.remote_files(), ["plan.md", "podium/podium.json"])
+        self.assertEqual(sync.sources(p), 'include ["podium/podium.json", "*.md"] (run) exclude ["notes.md"] (default)')
+
+    def test_with_no_default_a_run_falls_back_to_the_built_in_lists(self):
+        p = self.run_in(self.clone("a"))
+        self.assertEqual(sync.sources(p), 'include ["podium/podium.json", "podium/events.jsonl", "podium/handoffs.json", '
+                                          '"podium/stories/**", "*.md", "spec/**", "mock/**", "domain-stories/**"] '
+                                          '(built-in) exclude [] (built-in)')
+
+    def test_widening_the_default_restores_the_files_it_now_covers_and_narrowing_it_deletes_none(self):
+        a = self.machine("a")
+        a.data["sync"]["include"] = ["podium/**", "docs/*.md"]
+        a.save()
+        self.write(os.path.join(a.root, "docs", "plan.md"), "# plan\n")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        b = self.machine("b")
+        self.assertFalse(os.path.exists(os.path.join(b.root, "docs")))
+        self.set_defaults(include=["podium/**", "docs/*.md"])
+        self.set_status(b, "M2", "working")
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.md")), "# plan\n")
+        self.set_defaults(include=["podium/**"])
+        self.set_status(b, "M2", "done")
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertRegex(sync.pull(b), r"^(UP-TO-DATE|PULLED )")
+        self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.md")), "# plan\n")
+        self.assertIn("docs/plan.md", self.remote_files())
+
+    def test_a_pull_never_touches_the_machine_default(self):
+        self.set_defaults(include=["podium/**"])
+        before = self.read(sync.defaults_path())
+        self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["**"], "exclude": ["*"]},
+                                                          "defaults": {"include": ["**"]}}),
+                        "podium/sync.json": json.dumps({"include": ["**"]}), "sync.json": "{}\n"})
+        b = self.run_in(self.clone("b"), None)
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual(self.read(sync.defaults_path()), before)
+        self.assertEqual(os.path.dirname(sync.defaults_path()), self.tmp)
+        self.assertEqual(sync.lists(b), {"include": ["podium/**"], "exclude": []})
+
+
 class Major(SyncCase):
     def test_status_landed_core_phases_and_a_wave_merge_are_major(self):
         p = self.run_in(os.path.join(self.tmp, "plain"))
@@ -873,7 +949,7 @@ class AutoSave(SyncCase):
         self.assertIn("not in a git repo", r.stderr)
         self.assertEqual(self.podium(p, "sync", "on", "--remote", self.bare), f"ON {self.bare} ref {REF}\n")
         self.assertRegex(self.podium(p, "sync", "save"), r"^SAVED ")
-        self.assertRegex(self.podium(p, "sync", "status"), rf"^ref {REF} ON .* last save [0-9a-f]{{7}}\n$")
+        self.assertRegex(self.podium(p, "sync", "status"), rf"^ref {REF} ON .* last save [0-9a-f]{{7}}\ninclude .*\n$")
 
 
 if __name__ == "__main__":

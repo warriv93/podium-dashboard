@@ -195,5 +195,35 @@ class Extension(Cli):
         self.assertIn("not loadable: SystemExit: no", self.podium("--dir", run, "hello", code=2).stderr)
 
 
+class SyncDefaults(Cli):
+    def defaults_file(self):
+        with open(os.path.join(self.tmp, "sync.json")) as f:
+            return json.load(f)
+
+    def test_prints_none_for_each_list_until_set_and_needs_no_run(self):
+        self.assertEqual(self.podium("sync", "defaults").stdout, "DEFAULTS include none exclude none\n")
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "sync.json")))
+
+    def test_sets_both_lists_beside_human_json_and_clears_one_with_an_empty_value(self):
+        out = self.podium("sync", "defaults", 'include=["podium/**", "*.md"]', 'exclude=["draft-*"]').stdout
+        self.assertEqual(out, 'DEFAULTS include ["podium/**", "*.md"] exclude ["draft-*"]\n')
+        self.assertEqual(self.defaults_file(), {"include": ["podium/**", "*.md"], "exclude": ["draft-*"]})
+        self.assertEqual(self.podium("sync", "defaults", "include=").stdout, 'DEFAULTS include none exclude ["draft-*"]\n')
+        self.assertEqual(self.defaults_file(), {"exclude": ["draft-*"]})
+
+    def test_refuses_anything_but_a_json_list_of_strings_and_writes_nothing(self):
+        for arg in ('include={"a": 1}', "include=[1]", "include=*.md", 'exclude="x"'):
+            self.assertIn("must be a JSON list of strings", self.podium("sync", "defaults", arg, code=1).stderr)
+        for args in (["bogus=[]"], ["include"], ["include=[]", "include=[]"]):
+            self.assertIn("sync on", self.podium("sync", "defaults", *args, code=1).stderr)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "sync.json")))
+
+    def test_a_run_without_lists_shows_the_default_as_its_source(self):
+        run = self.run_at(os.path.join(self.tmp, "feature"), {**DATA, "sync": {"exclude": ["x"]}})
+        self.podium("sync", "defaults", 'include=["podium/**"]')
+        out = self.podium("--dir", run, "sync", "status").stdout.splitlines()
+        self.assertEqual(out[1], 'include ["podium/**"] (default) exclude ["x"] (run)')
+
+
 if __name__ == "__main__":
     unittest.main()

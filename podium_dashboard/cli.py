@@ -1,7 +1,8 @@
 """podium [--dir <run dir>] <command> ...
 
 The run dir is --dir, else $PODIUM_DIR, else the nearest directory at or above the cwd holding
-podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, init and --version need no run.
+podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, init, sync defaults and --version
+need no run.
 
 TARGETS
     .                  the project (top level); in a run with one state per person, its
@@ -81,20 +82,31 @@ COMMANDS
           ACT <confirm|reverse|asana|asana-done> <id> [note=…]   the user's answers
           LIST <action> <id> [note=…]                           the rest
         The cursor lives in podium/cursor.json, local to this machine.
-    sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status
+    sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status | defaults ...
         Opt-in git sync of the run state (podium.json's `sync` block), committed
         onto <ref> (default refs/heads/podium-run/<run dir name, or the repo's for
         .deep-plan, in kebab case>; each machine must use the same) without touching a working tree,
         index or HEAD, and pushed to <remote>: a remote of the run's repo
-        (default origin), or a URL, which needs no repo. sync.include globs
-        (relative to the run dir) pick the files; the request queue, its
-        cursor, the watcher's heartbeat, the server log, repos/, worktrees/ and
-        *.logs/ folders never sync.
+        (default origin), or a URL, which needs no repo. By default the state
+        files and the planning docs sync: *.md at the run dir's top, spec/,
+        mock/ and domain-stories/. sync.include and sync.exclude globs
+        (relative to the run dir) change that for one run, `sync defaults` for
+        every run on this machine. The request queue, its cursor, the
+        watcher's heartbeat, the server log, Python code, repos/, worktrees/
+        and *.logs/ folders never sync.
         The sync block, include and exclude too, is this machine's: a save
         never pushes it and a pull never takes it. While on, every command
         that appends a major event saves on its own.
           save: SAVED <sha> <message>[ (not pushed: <why>)] | UNCHANGED | BEHIND | FAILED <why>
           pull: PULLED <sha> | UP-TO-DATE | KEPT <why> | FAILED <why>
+          status: the ref and ON/OFF, then `include <JSON> (run|default|built-in)
+          exclude <JSON> (...)`, each list and where it comes from
+        sync defaults [include=<JSON list>] [exclude=<JSON list>]
+          Print (`DEFAULTS include <JSON>|none exclude <JSON>|none`) or set this
+          machine's default lists, ~/.podium/sync.json beside human.json, for
+          every run without its own; `include=` alone clears one. Changing them
+          acts like changing a run's lists: the next save or pull restores the
+          files they now cover from the last one and deletes nothing.
         Two machines that both saved merge: podium.json as concurrent commands
         do, events and progress lines as their union; a text conflict keeps this
         machine's file, writes the other as <file>.remote, and adds to your
@@ -187,7 +199,7 @@ def main(argv=None):
     verb, args = argv[0], argv[1:]
     if verb in SUBCOMMANDS:
         return subcommand(verb)((["--dir", root] if root else []) + args)
-    if verb in NO_PODIUM:
+    if verb in NO_PODIUM or argv[:2] == ["sync", "defaults"]:
         COMMANDS[verb](None, args)
         return
     if not root and verb != "init":

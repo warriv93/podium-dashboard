@@ -3,7 +3,9 @@
 The state is committed onto `ref` (default refs/heads/podium-run/<run slug>) through a throwaway index, never touching a working
 tree, index or HEAD, and pushed to `remote`: a remote name of the run's own repo (default origin), or a URL, whose
 commits live in a private bare cache per run under ~/.podium/sync, so a run outside any repo syncs too. `include`
-globs (relative to the run dir) pick the files; this machine's own files never go: the request queue and its cursor,
+globs (relative to the run dir) pick the files, and `exclude` ones drop some: each list the run's own, else this
+machine's default (sync.json beside human.json), else the state files plus the planning docs (*.md at the run dir's
+top, spec/, mock/, domain-stories/) and no exclude; this machine's own files never go: the request queue and its cursor,
 the watcher's heartbeat, the server log; nor does Python code or a native module. The whole `sync` block, `include` and `exclude` too,
 is this machine's and stays out of the synced podium.json: a remote's save never widens what lands here. The
 orchestrator's `extension` is this machine's too: the run carries the value its first save seeded, and only a first
@@ -29,7 +31,7 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 
-from podium_dashboard import extension
+from podium_dashboard import extension, human
 from podium_dashboard.files import MACHINE_FILES, SHARED_FILES, git_argv, write_atomic
 from podium_dashboard.merge import rebase
 from podium_dashboard.state import person_of, watcher_running
@@ -42,8 +44,11 @@ LOCAL = [*MACHINE_FILES, "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth", "*.so", 
          "**/__pycache__/**", "__pycache__/**"]
 IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 APPEND_ONLY = ["events.jsonl", "*.progress"]
+PLANNING_DOCS = ["*.md", "spec/**", "mock/**", "domain-stories/**"]
+LISTS = ("include", "exclude")
 CACHE = "~/.podium/sync"
-USAGE = "sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status"
+USAGE = ("sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status"
+         " | defaults [include=<JSON list>] [exclude=<JSON list>]")
 
 
 class SyncError(Exception):
@@ -161,12 +166,47 @@ def podium_json(p):
     return os.path.relpath(p.path, p.root).replace(os.sep, "/")
 
 
-def includes(p, block=None):
-    found = (settings(p) if block is None else block).get("include")
-    if isinstance(found, list):
-        return [str(g) for g in found]
+def defaults_path():
+    return os.path.join(os.path.dirname(human.HUMAN_FILE), "sync.json")
+
+
+def machine_defaults():
+    """This machine's default include and exclude lists, sync.json beside human.json; a key only when set."""
+    try:
+        with open(defaults_path()) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    data = data if isinstance(data, dict) else {}
+    return {key: [str(g) for g in data[key]] for key in LISTS if isinstance(data.get(key), list)}
+
+
+def built_in(p, key):
+    if key == "exclude":
+        return []
     prefix = os.path.relpath(p.dir, p.root).replace(os.sep, "/")
-    return [g if prefix == "." else f"{prefix}/{g}" for g in SHARED_FILES]
+    return [g if prefix == "." else f"{prefix}/{g}" for g in SHARED_FILES] + PLANNING_DOCS
+
+
+def resolved(p):
+    """{include|exclude: (globs, run|default|built-in)}: each the run's own list, else this machine's default, else
+    the built-in one."""
+    own, default, out = settings(p), machine_defaults(), {}
+    for key in LISTS:
+        if isinstance(own.get(key), list):
+            out[key] = ([str(g) for g in own[key]], "run")
+        elif key in default:
+            out[key] = (default[key], "default")
+        else:
+            out[key] = (built_in(p, key), "built-in")
+    return out
+
+
+def includes(p, block=None):
+    if block is None:
+        return lists(p)["include"]
+    found = block.get("include")
+    return [str(g) for g in found] if isinstance(found, list) else built_in(p, "include")
 
 
 def glob_pattern(pattern):
@@ -182,7 +222,7 @@ def folded(name):
 def local_only(p, rel, block=None):
     """Whether the run dir's `rel` is this machine's alone: LOCAL or the block's exclude, in any case. A pattern with a
     `/` matches the path from the run dir, one without it the file name."""
-    patterns = LOCAL + [str(g) for g in (settings(p) if block is None else block).get("exclude") or []]
+    patterns = LOCAL + (lists(p)["exclude"] if block is None else [str(g) for g in block.get("exclude") or []])
     rel = folded(rel)
     return any(glob_pattern(folded(pattern)).fullmatch(rel) if "/" in pattern
                else fnmatch.fnmatchcase(posixpath.basename(rel), folded(pattern)) for pattern in patterns)
@@ -210,12 +250,13 @@ def inside_run(p, rel):
 
 
 def covered(p, rel, block=None):
-    """Whether the `sync` block's include and exclude lists, by default this machine's, carry the run dir's `rel`."""
+    """Whether the `sync` block's include and exclude lists, by default the run's resolved ones, carry the run dir's
+    `rel`."""
     return any(glob_pattern(g).fullmatch(rel) for g in includes(p, block)) and restorable(p, rel, block)
 
 
 def lists(p):
-    return {"include": includes(p), "exclude": [str(g) for g in settings(p).get("exclude") or []]}
+    return {key: globs for key, (globs, _) in resolved(p).items()}
 
 
 def widen(p, g):
@@ -707,9 +748,43 @@ def status(p):
     return f"ref {ref} ON {g.remote}, last save {local[:7]}" + ("; changed since" if changed else "")
 
 
+def sources(p):
+    """`include <JSON> (<source>) exclude <JSON> (<source>)`: each list as the run resolves it, and where from."""
+    return " ".join(f"{key} {json.dumps(globs)} ({source})" for key, (globs, source) in resolved(p).items())
+
+
+def defaults_line():
+    found = machine_defaults()
+    return "DEFAULTS " + " ".join(f"{key} {json.dumps(found[key]) if key in found else 'none'}" for key in LISTS)
+
+
+def cmd_defaults(args):
+    """Print this machine's default lists, or set them: `include=<JSON list of globs>`, an empty value clears one."""
+    changes = {}
+    for arg in args:
+        key, eq, value = arg.partition("=")
+        if not eq or key not in LISTS or key in changes:
+            sys.exit(USAGE)
+        try:
+            globs = json.loads(value) if value else None
+        except ValueError:
+            globs = value
+        if value and not (isinstance(globs, list) and all(isinstance(g, str) for g in globs)):
+            sys.exit(f"podium: sync defaults {key} must be a JSON list of strings, got {value}")
+        changes[key] = globs
+    if changes:
+        found = machine_defaults()
+        found.update(changes)
+        os.makedirs(os.path.dirname(defaults_path()), exist_ok=True)
+        write_atomic(defaults_path(), json.dumps({key: found[key] for key in LISTS if found.get(key) is not None}))
+    print(defaults_line())
+
+
 def cmd_sync(p, args):
     verb, rest = (args[0], args[1:]) if args else ("status", [])
-    if verb == "on":
+    if verb == "defaults":
+        cmd_defaults(rest)
+    elif verb == "on":
         opts = dict(zip(rest[::2], rest[1::2]))
         if len(rest) % 2 or set(opts) - {"--remote", "--ref"}:
             sys.exit(USAGE)
@@ -731,5 +806,6 @@ def cmd_sync(p, args):
         print(pull(p))
     elif verb == "status" and not rest:
         print(status(p))
+        print(sources(p))
     else:
         sys.exit(USAGE)
