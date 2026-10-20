@@ -100,6 +100,17 @@ class SyncCase(unittest.TestCase):
         sha = plumb("commit-tree", tree(files), *(["-p", tip] if tip else []), "-m", "by hand")
         plumb("update-ref", REF, sha)
 
+    def reject_pushes(self, times):
+        hook = os.path.join(self.bare, "hooks", "pre-receive")
+        self.write(hook, textwrap.dedent(f"""\
+            #!/bin/sh
+            n=$(cat rejected 2>/dev/null || echo 0)
+            [ "$n" -ge {times} ] && exit 0
+            echo $((n + 1)) > rejected
+            exit 1
+        """))
+        os.chmod(hook, 0o755)
+
     def remote_tip(self):
         return git("--git-dir", self.bare, "for-each-ref", "--format=%(objectname)", REF).strip() or None
 
@@ -158,17 +169,6 @@ class Save(SyncCase):
         self.write(os.path.join(p.root, "docs", "draft-idea.md"), "# idea\n")
         sync.save(p)
         self.assertEqual(self.remote_files(), ["docs/plan.md", "podium/podium.json"])
-
-    def reject_pushes(self, times):
-        hook = os.path.join(self.bare, "hooks", "pre-receive")
-        self.write(hook, textwrap.dedent(f"""\
-            #!/bin/sh
-            n=$(cat rejected 2>/dev/null || echo 0)
-            [ "$n" -ge {times} ] && exit 0
-            echo $((n + 1)) > rejected
-            exit 1
-        """))
-        os.chmod(hook, 0o755)
 
     def test_a_rejected_push_is_retried(self):
         p = self.run_in(self.clone("a"))
@@ -291,13 +291,18 @@ class Pull(SyncCase):
         self.assertEqual(a.data["sync"], {"enabled": True, "remote": "origin", "ref": REF})
         self.assertEqual(b.data["sync"], {"enabled": True, "ref": REF, "remote": self.bare})
 
-    def test_pull_keeps_changes_made_since_the_last_save(self):
+    def test_pull_merges_with_changes_made_since_the_last_save_and_leaves_them_unsaved(self):
         a, b = self.machine("a"), self.machine("b")
         self.set_status(a, "M1", "done")
         sync.save(a)
         self.set_status(b, "M2", "working")
-        self.assertEqual(sync.pull(b), "KEPT this machine has changes since its last save")
-        self.assertEqual(b.milestone("M1")["status"], "working")
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual((b.milestone("M1")["status"], b.milestone("M2")["status"]), ("done", "working"))
+        self.assertTrue(sync.status(b).endswith("; changed since"))
+        self.assertIn('"todo"', self.remote_file("podium/podium.json"))
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertEqual([m["status"] for m in json.loads(self.remote_file("podium/podium.json"))["epics"][0]["milestones"]],
+                         ["done", "working"])
 
     def test_pull_keeps_the_state_while_the_watcher_runs(self):
         a, b = self.machine("a"), self.machine("b")
@@ -309,18 +314,14 @@ class Pull(SyncCase):
         self.assertRegex(sync.pull(b), r"^PULLED ")
         self.assertEqual(b.milestone("M1")["status"], "done")
 
-    def test_the_watcher_pulls_past_its_own_heartbeat_but_not_past_local_changes(self):
+    def test_the_watcher_pulls_past_its_own_heartbeat_and_past_local_changes(self):
         a, b = self.machine("a"), self.machine("b")
         self.set_status(a, "M1", "done")
         sync.save(a)
         self.write(os.path.join(b.dir, "watcher.json"), json.dumps({"pid": 1, "at": time.time()}))
         self.set_status(b, "M2", "working")
-        self.assertEqual(sync.pull(b, from_watcher=True), "KEPT this machine has changes since its last save")
-        sync.save(b)
-        self.set_status(a, "M1", "working")
-        sync.save(a)
         self.assertRegex(sync.pull(b, from_watcher=True), r"^PULLED ")
-        self.assertEqual(b.milestone("M1")["status"], "working")
+        self.assertEqual((b.milestone("M1")["status"], b.milestone("M2")["status"]), ("done", "working"))
 
     def test_pull_restores_only_what_the_incoming_lists_carry(self):
         self.push_tree({"podium/podium.json": json.dumps({**DATA, "sync": {"include": ["podium/podium.json", "podium/stories/**"]}}),
@@ -398,6 +399,63 @@ class Pull(SyncCase):
         self.set_status(a, "M1", "done")
         sync.save(a)
         self.assertEqual(sync.save(b), "BEHIND")
+
+
+class MidBuild(SyncCase):
+    def podium(self, p, *args, me):
+        r = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", p.root, *args], capture_output=True,
+                           text=True, env={**os.environ, "PYTHONPATH": ROOT, "PODIUM_ME": me})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r.stdout
+
+    def test_a_watcher_pull_mid_build_brings_anothers_claim_and_keeps_the_unsaved_progress(self):
+        a, b = self.machine("a"), self.machine("b")
+        progress = os.path.join(a.dir, "stories", "M1", "S1.progress")
+        self.podium(a, "log", "M1/S1", "RED", "first", me="a")
+        self.assertTrue(self.podium(b, "claim", "M2", me="b").startswith("claimed M2\n"))
+        self.podium(a, "log", "M1/S1", "GREEN", "second", me="a")
+        self.assertRegex(sync.pull(a, from_watcher=True), r"^PULLED ")
+        self.assertEqual(a.milestone("M2")["owner"], "b")
+        self.assertEqual([line.split()[1:] for line in self.read(progress).splitlines()], [["RED", "first"], ["GREEN", "second"]])
+        self.assertNotIn("podium/stories/M1/S1.progress", self.remote_files())
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertEqual(self.remote_file("podium/stories/M1/S1.progress"), self.read(progress))
+        self.assertEqual(json.loads(self.remote_file("podium/podium.json"))["epics"][0]["milestones"][1]["owner"], "b")
+
+    def test_a_text_file_both_changed_keeps_the_local_one_writes_the_remote_beside_it_and_needs_you(self):
+        a = self.machine("a")
+        story = os.path.join("stories", "M1", "S1.md")
+        self.write(os.path.join(a.dir, story), "plan\n")
+        sync.save(a)
+        b = self.machine("b")
+        self.write(os.path.join(b.dir, story), "b's plan\n")
+        self.write(os.path.join(a.dir, story), "a's plan\n")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertRegex(sync.pull(b, from_watcher=True), r"^PULLED ")
+        self.assertEqual((self.read(os.path.join(b.dir, story)), self.read(os.path.join(b.dir, story + ".remote"))),
+                         ("b's plan\n", "a's plan\n"))
+        self.assertIn("sync conflict in podium/stories/M1/S1.md", str(b.needs_you()))
+
+    def test_a_pull_after_an_unpushed_save_merges_the_unsaved_changes_too(self):
+        a, b = self.machine("a"), self.machine("b")
+        self.set_status(b, "M2", "working")
+        self.reject_pushes(3)
+        self.assertIn("(not pushed: push rejected three times)", sync.save(b))
+        self.set_status(a, "M1", "done")
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        b.story("S1", "M2")[1]["status"] = "working"
+        b.save()
+        self.assertRegex(sync.pull(b, from_watcher=True), r"^PULLED ")
+        self.assertEqual((b.milestone("M1")["status"], b.milestone("M2")["status"], b.story("S1", "M2")[1]["status"]),
+                         ("done", "working", "working"))
+
+    def test_a_progress_line_logged_while_a_pull_merged_stays(self):
+        p = self.run_in(self.clone("a"))
+        rel = "podium/stories/M1/S1.progress"
+        self.write(os.path.join(p.root, rel), "2026-10-20T10:00:00+00:00 RED a\n2026-10-20T10:05:00+00:00 GREEN a\n")
+        sync.apply(p, {rel: b"2026-10-20T10:00:00+00:00 RED a\n2026-10-20T10:02:00+00:00 RED b\n"}, set())
+        self.assertEqual(self.read(os.path.join(p.root, rel)), "2026-10-20T10:00:00+00:00 RED a\n"
+                         "2026-10-20T10:02:00+00:00 RED b\n2026-10-20T10:05:00+00:00 GREEN a\n")
 
 
 class Join(SyncCase):

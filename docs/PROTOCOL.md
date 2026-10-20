@@ -105,7 +105,7 @@ A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 | `SYNCED <sha> <summary>` | a pull brought someone else's changes: their new event types by `by`, as in `ann: status×2, owner`, else the commit subject |
 | `LAPSE <mode>, nothing building` | the last line |
 
-When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. Progress lines that arrive with a pull belong to the other person's stories and are not printed.
+When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. It pulls during a build too: the pull merges the remote's saves with the unsaved changes here (see Merge), so another person's claim arrives within a minute. Progress lines that arrive with a pull belong to the other person's stories and are not printed.
 
 `podium requests` prints the requests nobody has passed on yet, as `ACT <confirm|reverse|asana|asana-done> <id> [note=...]` (the user's answers, to act on at once) and `LIST <action> <id> [note=...]` (the rest). It moves the cursor in `cursor.json`; lines the running watcher already printed are skipped.
 
@@ -140,13 +140,13 @@ Files: `sync.include` globs (relative to the run dir) pick them, by default `pod
 Results, one line each:
 
 - `save`: `SAVED <sha> <message>`, `SAVED <sha> <message> (not pushed: <why>)`, `UNCHANGED`, `BEHIND` (the remote has newer saves: pull), `FAILED <why>`, or `OFF`.
-- `pull`: `PULLED <sha>`, `UP-TO-DATE`, `KEPT <why>` (local changes since the last save, or a live watcher), `FAILED <why>`, or `OFF`.
+- `pull`: `PULLED <sha>`, `UP-TO-DATE`, `KEPT <why>` (a live watcher, or the remote out of reach), `FAILED <why>`, or `OFF`. A pull merges the remote's saves with this machine's files as they are, changes since the last save included, and never pushes: those changes stay unsaved until the next save, or, when this machine also has saves the remote lacks, go into the local merge commit the next save pushes.
 
 With sync on, every command, core or extension, that appended a major event (see `SCHEMA.md`) saves afterwards.
 
 ### Merge
 
-When both machines saved since their common save, files merge one by one against it, and nothing is overwritten:
+When both machines changed the run since their common save (saved or not), files merge one by one against it, and nothing is overwritten:
 
 - `podium.json`: a three-way merge as concurrent commands do. Items with an `id` (epics, milestones, stories) pair up by id; where both sides changed one value, the local one wins. A milestone both sides gave a new owner keeps the remote's: the first claim to reach the remote wins.
 - `events.jsonl` and `*.progress`: the union of their lines, ordered by `at`.

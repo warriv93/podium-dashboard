@@ -318,7 +318,8 @@ def on_disk(p, rel):
 
 def apply(p, files, gone):
     """Write each of `files` ({path relative to the run dir: content}) that differs, with this machine's own keys kept
-    in podium.json, and delete the files in `gone`. podium.json is written only when `files` has it."""
+    in podium.json and the lines an append-only file gained meanwhile kept in it, and delete the files in `gone`.
+    podium.json is written only when `files` has it."""
     files, pj = dict(files), podium_json(p)
     if pj in files:
         files[pj] = with_machine_keys(p, files[pj])
@@ -335,10 +336,13 @@ def apply(p, files, gone):
             path = os.path.join(p.root, *rel.split("/"))
             try:
                 with open(path, "rb") as f:
-                    if f.read() == content:
-                        continue
+                    here = f.read()
             except OSError:
-                pass
+                here = None
+            if here is not None and appended(rel):
+                content = union(here, content, appended(rel))
+            if here == content:
+                continue
             os.makedirs(os.path.dirname(path), exist_ok=True)
             tmp = f"{path}.{os.getpid()}.tmp"
             with open(tmp, "wb") as f:
@@ -378,6 +382,14 @@ def union(mine, theirs, when):
     return "".join(line + "\n" for _, line in keyed).encode(errors="surrogateescape")
 
 
+def appended(rel):
+    """The line timer of an append-only file, None for any other."""
+    name = posixpath.basename(rel)
+    if any(fnmatch.fnmatchcase(name, pattern) for pattern in APPEND_ONLY):
+        return event_time if name.endswith(".jsonl") else lambda line: instant(line.split(" ", 1)[0])
+    return None
+
+
 def owners(data):
     """{milestone id: owner} of a podium.json's data."""
     epics = data.get("epics") if isinstance(data, dict) else None
@@ -398,15 +410,14 @@ def first_claim(base, mine, theirs, out):
 
 def merge_file(p, rel, base, mine, theirs):
     """(merged content, whether it merged cleanly) of a file both sides changed."""
-    name = posixpath.basename(rel)
     if rel == podium_json(p):
         try:
             b, m, t = json.loads(base) if base else {}, json.loads(mine), json.loads(theirs)
             return dump(first_claim(b, m, t, rebase(b, m, t))), True
         except ValueError:
             pass
-    if any(fnmatch.fnmatchcase(name, pattern) for pattern in APPEND_ONLY):
-        return union(mine, theirs, event_time if name.endswith(".jsonl") else lambda l: instant(l.split(" ", 1)[0])), True
+    if appended(rel):
+        return union(mine, theirs, appended(rel)), True
     with tempfile.TemporaryDirectory() as tmp:
         paths = [os.path.join(tmp, n) for n in ("mine", "base", "theirs")]
         for path, content in zip(paths, (mine, base or b"", theirs)):
@@ -501,10 +512,10 @@ def merged(p, g, base, mine, theirs):
     return out, gone
 
 
-def merge_into(p, g, head, remote, message):
-    """Merge the remote's commit into this machine's: the run dir gets the merged files, the ref a commit with both
-    parents. Returns that commit."""
-    apply(p, *merged(p, g, g.merge_base(head, remote), head, remote))
+def merge_into(p, g, head, remote, message, mine=None):
+    """Merge the remote's commit into this machine's, `mine` (default `head`) the tree that stands for this machine's
+    files: the run dir gets the merged files, the ref a commit with both parents. Returns that commit."""
+    apply(p, *merged(p, g, g.merge_base(head, remote), mine or head, remote))
     tree = state_tree(p, g, remote) or g.out("mktree", input="").strip()
     return g.commit(tree, [head, remote], message)
 
@@ -581,9 +592,10 @@ def watcher_running(p):
 
 
 def pull(p, from_watcher=False):
-    """Bring this machine's run state up to the remote's saves. One line: PULLED <sha>, UP-TO-DATE, KEPT <why>
-    (changes since the last save, a live watcher, or the remote out of reach), FAILED <why>, or OFF. The watcher
-    itself pulls `from_watcher`, past its own heartbeat. A run never saved or pulled here whose state is only the
+    """Bring this machine's run state up to the remote's saves, merging them with changes made here since the last
+    save, which stay unsaved until the next save unless the two sides had diverged (then the merge commit holds
+    them; a pull never pushes). One line: PULLED <sha>, UP-TO-DATE, KEPT <why> (a live watcher, or the remote out of
+    reach), FAILED <why>, or OFF. The watcher itself pulls `from_watcher`, past its own heartbeat. A run never saved or pulled here whose state is only the
     skeleton `podium init` writes takes the remote's state whole, keeping this machine's `sync` keys."""
     if not enabled(p):
         return "OFF"
@@ -615,16 +627,14 @@ def _pull(p, g, from_watcher):
             if not local or g.ancestor(local, remote):
                 g.update_ref(remote, local)
             return "UP-TO-DATE"
-        if local and tree and tree != g.tree_of(local):
-            return "KEPT this machine has changes since its last save"
         if not from_watcher and watcher_running(p):
             return "KEPT the watcher is running"
         if tree and not local:
             head = merge_into(p, g, g.commit(tree, [], "podium: save"), remote, "podium: merge")
         elif local and not g.ancestor(local, remote):
-            head = merge_into(p, g, local, remote, "podium: merge")
+            head = merge_into(p, g, local, remote, "podium: merge", tree)
         else:
-            apply(p, *merged(p, g, local, local, remote))
+            apply(p, *merged(p, g, local, tree or local, remote))
             head = remote
         g.update_ref(head, local)
     return f"PULLED {head[:7]}"

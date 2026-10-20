@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -282,6 +283,10 @@ class TwoMachines(Case):
         git("push", "-q", self.bare, "HEAD:refs/heads/main", cwd=seed)
         self.a, self.b = self.machine("a", DATA), self.machine("b", None)
 
+    def watching(self, run):
+        with open(os.path.join(run, "podium", "watcher.json"), "w") as f:
+            json.dump({"pid": 1, "at": time.time()}, f)
+
     def machine(self, name, data):
         clone = os.path.join(self.tmp, name)
         git("clone", "-q", self.bare, clone)
@@ -343,7 +348,8 @@ class TwoMachines(Case):
         self.assertIn(("handover", "a", "b"), [(e["type"], e.get("from"), e.get("to")) for e in self.remote_events()])
 
     def test_two_claims_racing_for_one_milestone_leave_the_first_to_reach_the_remote(self):
-        self.podium(self.b, "set", "me", "needsYou=busy", me="b")  # unsaved, so b's pull before its claim keeps its state
+        self.podium(self.b, "set", "me", "needsYou=busy", me="b")
+        self.watching(self.b)  # b's pull before its claim keeps its state, so the claim races a's
         self.podium(self.a, "claim", "M3", me="a")
         r = self.podium(self.b, "claim", "M3", me="b", code=1)
         self.assertEqual(r.stderr, "podium: milestone M3 is owned by a\n")
@@ -371,7 +377,8 @@ class TwoMachines(Case):
 
     def test_a_verb_whose_auto_claim_loses_the_race_is_refused_and_changes_nothing(self):
         self.with_launch()
-        self.podium(self.b, "set", "me", "needsYou=busy", me="b")  # unsaved, so b's pull before its claim keeps its state
+        self.podium(self.b, "set", "me", "needsYou=busy", me="b")
+        self.watching(self.b)  # b's pull before its claim keeps its state, so the claim races a's
         self.podium(self.a, "launch", "M3", me="a")
         r = self.podium(self.b, "launch", "M3", me="b", code=1)
         self.assertEqual(r.stderr, "podium: milestone M3 is owned by a\n")
