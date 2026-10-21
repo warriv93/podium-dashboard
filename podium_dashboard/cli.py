@@ -40,11 +40,21 @@ COMMANDS
     ready [--milestone ID]
         The active (or named) milestone's ready story ids, space-separated. A story
         the user handed off to a session of their own (handoffs.json) is never ready.
-    human
+    ls stories|milestones [--milestone ID] [--fields a,b,...]
+        One line per story (of the active or named milestone) or per milestone:
+        `<id> <status> [deps=S1,S2] [wave=2] [repos=...]` for stories,
+        `<id> <status> [phase=build] [owner=simon] [deps=M1]` for milestones; an
+        empty key is left out. --fields picks the item's own keys instead, each as
+        key=value (missing: `-`; a list of ids comma-joined, other nested values as
+        compact JSON). Read-only.
+    human [set <available|mobile|unavailable|auto> [--until HH:MM]]
         Whether the user is available, mobile or unavailable, until when, and why:
         their hours (default Mon-Fri 07:00-17:00 local time) or the Podium's
         toggle (holding until the next change of hours). Both live in
         ~/.podium/human.json ($PODIUM_HUMAN), one per machine: every run shares them.
+        `human set` writes the toggle as the Podium's buttons do, until HH:MM (the
+        next one) or the next change of hours, `auto` clearing it, and prints the
+        same line. It needs no run and records no event.
     hours [<days> <HH:MM>-<HH:MM>]
         Print the user's hours, or set them for every run: `hours Mon-Fri 07:00-17:00`
         (days as `Mon-Fri` or `Mon,Wed,Fri-Sun`).
@@ -136,13 +146,13 @@ import sys
 
 from podium_dashboard import __version__, extension, sync
 from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
-                                       cmd_init, cmd_log, cmd_ready, cmd_release, cmd_requests, cmd_set, cmd_settle,
+                                       cmd_init, cmd_log, cmd_ls, cmd_ready, cmd_release, cmd_requests, cmd_set, cmd_settle,
                                        cmd_status, cmd_whoami)
 from podium_dashboard.plugins import asana
 from podium_dashboard.state import Podium, find_run
 
 COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_batch, "ready": cmd_ready,
-            "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
+            "ls": cmd_ls, "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
             "settle": cmd_settle, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
             "asana": asana.cmd_asana}

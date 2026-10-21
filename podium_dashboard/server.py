@@ -80,7 +80,7 @@ from urllib.parse import parse_qs, urlparse
 
 from podium_dashboard import extension
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
-from podium_dashboard.human import availability, human_hours, human_state, next_change, write_human
+from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
 from podium_dashboard.plugins import paseo
 from podium_dashboard.state import ACT_ON, ID, NOW, Podium, checkout_path, find_run, podium_dir, watcher_running
 
@@ -183,10 +183,6 @@ def handoffs(root):
             return json.load(f)
     except (OSError, ValueError):
         return {}
-
-
-def write_toggle(mode, end):
-    write_human(mode=mode, until=end.astimezone().isoformat(timespec="minutes"), at=NOW())
 
 
 RUN_FILES = [f.replace("**", "") for f in SHARED_FILES + MACHINE_FILES]
@@ -484,20 +480,12 @@ def make_handler(root):
 
         def toggle(self, mode, until):
             """Override the hours until `until` (HH:MM, the next one) or the next change of hours; `auto` clears it."""
-            if mode == "auto":
-                write_human(mode=None, until=None, at=None)
-                return self.reply(200, availability())
-            if mode not in ("available", "mobile", "unavailable"):
+            if mode not in ("available", "mobile", "unavailable", "auto"):
                 return self.reply(404, {"error": "unknown mode"})
-            now = datetime.now()
-            if until:
-                if not re.fullmatch(r"\d\d:\d\d", until):
-                    return self.reply(400, {"error": "until is HH:MM"})
-                end = datetime.combine(now.date(), datetime.strptime(until, "%H:%M").time())
-                end += timedelta(days=end <= now)
-            else:
-                end = next_change(human_hours(), now) or now + timedelta(days=1)
-            write_toggle(mode, end)
+            try:
+                set_toggle(mode, None if mode == "auto" else until)
+            except ValueError as e:
+                return self.reply(400, {"error": str(e)})
             self.reply(200, availability())
 
         def link_asana(self, epic, link):

@@ -195,6 +195,84 @@ class Extension(Cli):
         self.assertIn("not loadable: SystemExit: no", self.podium("--dir", run, "hello", code=2).stderr)
 
 
+LS_DATA = {"project": {"title": "T"}, "active": {"epic": "e", "milestone": "M2"},
+           "epics": [{"id": "e", "milestones": [
+               {"id": "M1", "status": "done", "phase": "land", "stories": []},
+               {"id": "M2", "status": "working", "phase": "build", "owner": "ann", "deps": ["M1"],
+                "stories": [{"id": "S1", "status": "done", "deps": [], "repos": ["api"]},
+                            {"id": "S2", "status": "working", "deps": ["S1"], "wave": 2, "repos": ["api", "web"],
+                             "agent": {"id": "a1"}, "title": "Add the form"}]}]}]}
+
+
+class Ls(Cli):
+    def lines(self, *args):
+        run = self.run_at(os.path.join(self.tmp, "feature"), LS_DATA)
+        return self.podium("--dir", run, "ls", *args).stdout.splitlines()
+
+    def test_lists_the_active_milestones_stories_with_their_default_fields(self):
+        self.assertEqual(self.lines("stories"), ["S1 done repos=api", "S2 working deps=S1 wave=2 repos=api,web"])
+
+    def test_lists_the_named_milestones_stories(self):
+        self.assertEqual(self.lines("stories", "--milestone", "M1"), [])
+
+    def test_lists_every_milestone_with_its_default_fields(self):
+        self.assertEqual(self.lines("milestones"), ["M1 done phase=land", "M2 working phase=build owner=ann deps=M1"])
+
+    def test_fields_pick_the_items_keys_with_a_dash_for_a_missing_one(self):
+        self.assertEqual(self.lines("stories", "--fields", "status,wave,agent,title"),
+                         ["S1 status=done wave=- agent=- title=-",
+                          'S2 status=working wave=2 agent={"id":"a1"} title="Add the form"'])
+
+    def test_fields_on_milestones_count_the_stories(self):
+        self.assertEqual(self.lines("milestones", "--fields", "owner,stories"), ["M1 owner=- stories=0", "M2 owner=ann stories=2"])
+
+    def test_refuses_a_bad_kind_or_flag_and_a_missing_milestone(self):
+        run = self.run_at(os.path.join(self.tmp, "feature"), LS_DATA)
+        for args in ([], ["tasks"], ["stories", "extra"], ["stories", "--fields"], ["milestones", "--milestone", "M1"]):
+            self.assertIn("ls <stories|milestones>", self.podium("--dir", run, "ls", *args, code=1).stderr)
+        self.assertIn("no milestone 'M9'", self.podium("--dir", run, "ls", "stories", "--milestone", "M9", code=1).stderr)
+
+    def test_asks_for_a_run_outside_one(self):
+        self.assertIn("--dir", self.podium("ls", "stories", code=2).stderr)
+
+
+class HumanSet(Cli):
+    def human_file(self):
+        with open(self.env["PODIUM_HUMAN"]) as f:
+            return json.load(f)
+
+    def test_each_mode_writes_the_toggle_and_prints_the_human_line(self):
+        for mode in ("available", "mobile", "unavailable"):
+            out = self.podium("human", "set", mode).stdout
+            self.assertEqual(self.human_file()["mode"], mode)
+            self.assertEqual(out, self.podium("human").stdout)
+            self.assertRegex(out, rf"^{mode} until .*\(Podium toggle; hours ")
+
+    def test_until_holds_the_mode_to_that_time(self):
+        out = self.podium("human", "set", "mobile", "--until", "23:59").stdout
+        self.assertIn("T23:59", self.human_file()["until"])
+        self.assertRegex(out, r"^mobile until \w{3} 23:59 \(Podium toggle; ")
+
+    def test_auto_clears_the_toggle_and_keeps_the_hours(self):
+        self.podium("hours", "Mon-Fri", "09:00-15:30")
+        self.podium("human", "set", "unavailable")
+        out = self.podium("human", "set", "auto").stdout
+        self.assertEqual(self.human_file(), {"hours": {"days": "Mon-Fri", "from": "09:00", "to": "15:30"}})
+        self.assertNotIn("Podium toggle", out)
+
+    def test_refuses_bad_input_and_writes_nothing(self):
+        for args in (["set"], ["set", "away"], ["set", "mobile", "--until"], ["set", "mobile", "--until", "9:00"],
+                     ["set", "mobile", "--until", "24:00x"], ["set", "auto", "--until", "10:00"], ["mobile"],
+                     ["set", "mobile", "extra"]):
+            self.assertIn("human [set <available|mobile|unavailable|auto>", self.podium("human", *args, code=1).stderr)
+        self.assertFalse(os.path.exists(self.env["PODIUM_HUMAN"]))
+
+    def test_records_no_event_in_a_run(self):
+        run = self.run_at(os.path.join(self.tmp, "feature"))
+        self.podium("--dir", run, "human", "set", "mobile")
+        self.assertFalse(os.path.exists(os.path.join(run, "podium", "events.jsonl")))
+
+
 class SyncDefaults(Cli):
     def defaults_file(self):
         with open(os.path.join(self.tmp, "sync.json")) as f:

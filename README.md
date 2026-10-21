@@ -46,7 +46,8 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 | `claim <milestone>`, `release <milestone>`, `whoami [name]` | ownership in a shared run |
 | `sync on\|off\|save\|pull\|status` | share the run through git |
 | `asana link\|refresh` | link a run to an Asana project or task and read its progress back, see Linking Asana |
-| `hours`, `human` | your working hours and availability, per machine |
+| `ls stories\|milestones [--milestone ID] [--fields a,b]` | one line per story or milestone |
+| `hours`, `human [set <mode> [--until HH:MM]]` | your working hours and availability, per machine; `human set` flips the toggle |
 | `requests` | the button presses nobody has handled yet |
 | `server`, `watch` | the dashboard, and the watcher an orchestrator listens to |
 | `init` | name the run's orchestrator and its extension |

@@ -18,6 +18,21 @@ def option(args, flag):
     return args[args.index(flag) + 1] if flag in args else None
 
 
+def split_flags(args, flags, usage):
+    """({flag: value}, the other args); exits with `usage` when a flag has no value."""
+    values, rest, i = {}, [], 0
+    while i < len(args):
+        if args[i] in flags:
+            if i + 1 >= len(args):
+                sys.exit(usage)
+            values[args[i]] = args[i + 1]
+            i += 2
+        else:
+            rest.append(args[i])
+            i += 1
+    return values, rest
+
+
 def refuse(milestone_id, owner):
     sys.exit(f"podium: milestone {milestone_id} is owned by {owner}")
 
@@ -139,8 +154,51 @@ def cmd_ready(p, args):
     print(" ".join(p.ready(p.milestone(named))))
 
 
-def cmd_human(p, _):
+def cmd_human(p, args):
+    if args:
+        usage = "human [set <available|mobile|unavailable|auto> [--until HH:MM]]"
+        flags, rest = split_flags(args, ("--until",), usage)
+        if (len(rest) != 2 or rest[0] != "set" or rest[1] not in ("available", "mobile", "unavailable", "auto")
+                or (rest[1] == "auto" and flags)):
+            sys.exit(usage)
+        try:
+            human.set_toggle(rest[1], flags.get("--until"))
+        except ValueError:
+            sys.exit(usage)
     print(human_line(availability()))
+
+
+LS_DEFAULTS = {"stories": ("status", "deps", "wave", "repos"), "milestones": ("status", "phase", "owner", "deps")}
+
+
+def ls_value(value):
+    if value is None:
+        return "-"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False) if re.search(r"\s", value) else value or "-"
+    if isinstance(value, list) and all(isinstance(v, (str, int)) and not isinstance(v, bool) for v in value):
+        return ",".join(str(v) for v in value) or "-"
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def ls_line(item, kind, fields):
+    if fields:
+        return " ".join([str(item.get("id", "-"))] + [f"{f}={ls_value(item.get(f))}" for f in fields])
+    return " ".join([str(item.get("id", "-")), ls_value(item.get("status"))] + [
+        f"{f}={ls_value(item[f])}" for f in LS_DEFAULTS[kind][1:] if item.get(f) not in (None, "", [], {})])
+
+
+def cmd_ls(p, args):
+    usage = "ls <stories|milestones> [--milestone ID] [--fields a,b,...]"
+    flags, rest = split_flags(args, ("--milestone", "--fields"), usage)
+    named, fields = flags.get("--milestone"), flags.get("--fields")
+    if len(rest) != 1 or rest[0] not in LS_DEFAULTS or (named and rest[0] != "stories"):
+        sys.exit(usage)
+    items = p.milestone(named).get("stories", []) if rest[0] == "stories" else p.milestones()
+    for item in items:
+        if "stories" in item:
+            item = {**item, "stories": len(item["stories"])}
+        print(ls_line(item, rest[0], fields.split(",") if fields else None))
 
 
 def cmd_hours(p, args):

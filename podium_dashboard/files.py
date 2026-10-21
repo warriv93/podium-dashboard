@@ -2,7 +2,9 @@
 the tool runs git on folders a pull may have written."""
 import glob
 import os
+from datetime import datetime, timezone
 
+NOW = lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
 SHARED_FILES = ["podium.json", "events.jsonl", "handoffs.json", "stories/**"]
 MACHINE_FILES = ["cursor.json", "requests.jsonl", "watcher.json", "server.log", "synced.json"]
 EMPTY_WHEN_MISSING = {"handoffs.json": {}, "events.jsonl": "", "requests.jsonl": ""}

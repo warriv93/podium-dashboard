@@ -59,6 +59,8 @@ from podium_dashboard.state import Podium, rebase, parse_value, assign, pairs, N
 
 Write personal keys with `podium set me ...` or `podium set . ...`, which write to `people.<me>` in a per-person run. Helpers that need git (checkouts, landed commits) belong to the extension.
 
+Read several stories or milestones with one `podium ls stories|milestones [--milestone M] [--fields a,b]` instead of a `get` each: one line per item, `<id> <status> [key=value ...]`, read-only.
+
 ### require_owner
 
 `require_owner(p, milestone_id, force=False, claim=True)` exits 1 with `milestone <id> is owned by <who>` when someone else owns the milestone. In a synced run, a milestone nobody owns is claimed for you (pull, set owner, `owner` event, save and push) and the call goes on; if the push loses a race to another claim, it exits 1. In a run that does not sync it passes when nobody owns the milestone. `force=True` skips the check. `claim=False` lets an unowned milestone pass without claiming it, for bookkeeping that records what already happened.
@@ -88,7 +90,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; it takes any `https://app.asana.com/...` link, 400 for any other and 404 for an unknown epic. `podium asana link` later refuses a link that is not a project or task |
 | `POST /asana-done/<milestone>?choice=<drop\|keep>` | queue the answer, 202 |
 | `POST /handoff/<story>` | record the story in `handoffs.json` and return the `handoff` prompt; `DELETE /handoff/<story>` takes it back |
-| `POST /human/<available\|mobile\|unavailable\|auto>[?until=HH:MM]` | set the availability toggle |
+| `POST /human/<available\|mobile\|unavailable\|auto>[?until=HH:MM]` | set the availability toggle; `podium human set <mode> [--until HH:MM]` does the same from a shell, with no server, and prints the new `podium human` line |
 | `POST /restart` | 202; the server starts a fresh process on the same port |
 
 Status codes: 202 queued; 400 a malformed value; 403 Host or Origin refused; 404 an unknown action, id or file; 409 no watcher is running, for every POST except `confirm`, `reverse`, the Asana ones and `/human/`; 500 a `prompt` hook raised; 501 no extension `prompt` for `assign` or `handoff`.

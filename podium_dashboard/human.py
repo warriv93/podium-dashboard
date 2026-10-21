@@ -1,10 +1,11 @@
 """The user's availability: their hours and the Podium's toggle, one file per machine."""
 import json
 import os
+import re
 import subprocess
 from datetime import datetime, time, timedelta
 
-from podium_dashboard.files import git_argv, write_atomic
+from podium_dashboard.files import NOW, git_argv, write_atomic
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 HOURS = {"days": "Mon-Fri", "from": "07:00", "to": "17:00"}
@@ -72,6 +73,27 @@ def write_human(**changes):
     state = {k: v for k, v in {**human_state(), **changes}.items() if v is not None}
     os.makedirs(os.path.dirname(HUMAN_FILE), exist_ok=True)
     write_atomic(HUMAN_FILE, json.dumps(state))
+
+
+def set_toggle(mode, until=None, now=None):
+    """Override the hours until `until` (HH:MM, the next one) or the next change of hours; `auto` clears it.
+    Raises ValueError when `until` is not HH:MM."""
+    if mode == "auto":
+        write_human(mode=None, until=None, at=None)
+        return
+    now = now or datetime.now()
+    if until:
+        if not re.fullmatch(r"\d\d:\d\d", until):
+            raise ValueError("until is HH:MM")
+        end = datetime.combine(now.date(), datetime.strptime(until, "%H:%M").time())
+        end += timedelta(days=end <= now)
+    else:
+        end = next_change(human_hours(), now) or now + timedelta(days=1)
+    write_toggle(mode, end)
+
+
+def write_toggle(mode, end):
+    write_human(mode=mode, until=end.astimezone().isoformat(timespec="minutes"), at=NOW())
 
 
 def availability(t=None):

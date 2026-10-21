@@ -18,14 +18,12 @@ import re
 import sys
 import time
 import urllib.request
-from datetime import datetime, timezone
 
-from podium_dashboard.files import write_atomic
+from podium_dashboard.files import NOW, write_atomic
 from podium_dashboard.human import (DAYS, HOURS, HUMAN_FILE, availability, day_set, human_hours,  # noqa: F401
                                     human_line, human_state, in_hours, local, me, next_change, write_human)
 from podium_dashboard.merge import rebase
 
-NOW = lambda: datetime.now(timezone.utc).isoformat(timespec="seconds")
 STAGES = ("STARTED", "RED", "GREEN", "REFACTOR", "FIX", "CONTRACT", "COMMITTED", "FAILED")
 ACT_ON = {"confirm", "reverse", "asana", "asana-done"}
 WATCHER_LIVE = 30
