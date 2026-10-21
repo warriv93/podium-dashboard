@@ -27,7 +27,7 @@ DATA = {"project": {"title": "T"}, "active": {"epic": "e", "milestone": "M1"}, "
 
 EXTENSION = """
 ACTIONS = {"ship"}
-SHARE_HINT = "Install the orch skill from its repo"
+SHARE_STEPS = ["Clone {remote}", "Run /orch join {ref}"]
 
 def prompt(p, kind, target_id):
     if kind == "plan":
@@ -123,7 +123,7 @@ class Info(Server):
         self.assertEqual(set(info), {"runDir", "repoDir", "watching", "orchestrator", "me", "people", "paseoServer",
                                      "lastUse", "stale"})
         self.assertEqual((info["runDir"], info["repoDir"]), (self.run_dir, self.repo))
-        self.assertEqual(info["orchestrator"], {"name": "orch", "command": "/orch", "shareHint": None})
+        self.assertEqual(info["orchestrator"], {"name": "orch", "command": "/orch", "shareSteps": None})
         self.assertEqual(info["me"], "ann")
         self.assertEqual(info["people"], {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}})
         self.assertEqual((info["watching"], info["stale"], info["paseoServer"]), (False, False, None))
@@ -131,11 +131,17 @@ class Info(Server):
     def test_a_run_without_an_orchestrator_or_people_says_so(self):
         self.serve({k: v for k, v in DATA.items() if k != "orchestrator"})
         info = self.call("GET", "/info")[1]
-        self.assertEqual((info["orchestrator"], info["people"]), ({"name": None, "command": None, "shareHint": None}, {}))
+        self.assertEqual((info["orchestrator"], info["people"]), ({"name": None, "command": None, "shareSteps": None}, {}))
 
-    def test_passes_on_the_extensions_share_hint(self):
+    def test_passes_on_the_extensions_share_steps_with_their_placeholders(self):
         self.serve(extension=EXTENSION)
-        self.assertEqual(self.call("GET", "/info")[1]["orchestrator"]["shareHint"], "Install the orch skill from its repo")
+        self.assertEqual(self.call("GET", "/info")[1]["orchestrator"]["shareSteps"], ["Clone {remote}", "Run /orch join {ref}"])
+
+    def test_share_steps_that_arent_a_list_of_text_are_left_out(self):
+        for steps in ('"Run /orch join {ref}"', "[]", '["Run /orch join {ref}", " "]', '["Run /orch join {ref}", 3]', "None"):
+            with self.subTest(steps=steps):
+                self.serve(extension=f"SHARE_STEPS = {steps}\n")
+                self.assertIsNone(self.call("GET", "/info")[1]["orchestrator"]["shareSteps"])
 
 
 class Hardening(Server):

@@ -169,7 +169,7 @@ def info(root):
     people = data.get("people") if isinstance(data.get("people"), dict) else {}
     module = extension.load(p)[0] if p else None
     return {"runDir": root, "repoDir": repo_dir(root), "watching": watcher_running(podium_dir(root)),
-            "orchestrator": {**orchestrator_of(data), "shareHint": extension.share_hint(module)},
+            "orchestrator": {**orchestrator_of(data), "shareSteps": extension.share_steps(module)},
             "me": p.me if p else None,
             "people": {name: {"active": who.get("active")} for name, who in people.items() if isinstance(who, dict)},
             "paseoServer": paseo.server_id(),

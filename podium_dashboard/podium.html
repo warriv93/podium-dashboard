@@ -1701,11 +1701,13 @@ function timelineSec(m) {
 
 const SHARE_TIP = "Shares this run so a colleague can plan and build milestones beside you. Your orchestrator session picks it up and prints the steps.";
 function joinSteps(o) {
-  const hint = S.info?.orchestrator?.shareHint;
+  const steps = S.info?.orchestrator?.shareSteps, ref = S.project.sync?.ref || "<ref>", remote = S.project.sync?.remote || "<remote>";
+  if (Array.isArray(steps) && steps.length)
+    return steps.map((step) => String(step).split("{ref}").map((part) => part.split("{remote}").join(remote)).join(ref));
   return [
     "Install the tool: pip install --user git+https://github.com/warriv93/podium-dashboard",
-    typeof hint === "string" && hint ? hint : `Install the ${o.name || "orchestrator's"} skill`,
-    `In a new empty folder, run ${o.command} join ${S.project.sync.ref || "<ref>"}`,
+    `Install the ${o.name || "orchestrator's"} skill`,
+    `In a new empty folder, run ${o.command} join ${ref}`,
     "Claim a milestone with podium claim <id>",
   ];
 }
@@ -1714,7 +1716,7 @@ function renderShare() {
   el.hidden = !o;
   if (!o) return;
   const on = !!S.project.sync?.enabled;
-  const tip = on ? `A colleague joins this run in four steps:\n${joinSteps(o).map((step, i) => `${i + 1}. ${step}`).join("\n")}\nClick to print them in your orchestrator's chat again.` : SHARE_TIP;
+  const tip = on ? `A colleague joins this run:\n${joinSteps(o).map((step, i) => `${i + 1}. ${step}`).join("\n")}\nClick to print them in your orchestrator's chat again.` : SHARE_TIP;
   el.innerHTML = `<button class="share ${on ? "on" : ""}" data-act="share" title="${esc(tip)}"><i></i>${on ? "Shared" : "Share"}</button>`;
 }
 

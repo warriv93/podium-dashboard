@@ -1,8 +1,8 @@
 """The run's orchestrator extension: the .py file podium.json's `orchestrator.extension` names.
 
 It may define COMMANDS ({verb: fn(p, args)}), ACTIONS (extra request actions), prompt(p, kind, target_id),
-on_asana_refresh(p, task_json), SYNC_MAJOR(event) and SHARE_HINT (how a colleague gets the skill, for the Podium's
-Share button). Every helper here takes the module or None. Only a .py file
+on_asana_refresh(p, task_json), SYNC_MAJOR(event) and SHARE_STEPS (the steps a colleague takes to join the run, for
+the Podium's Share button; `{ref}` and `{remote}` stand for the run's sync ref and remote). Every helper here takes the module or None. Only a .py file
 loads: sync never writes one.
 """
 import importlib.util
@@ -81,6 +81,8 @@ def sync_major(module):
     return hook(module, "SYNC_MAJOR")
 
 
-def share_hint(module):
-    found = getattr(module, "SHARE_HINT", None)
-    return found.strip() if isinstance(found, str) and found.strip() else None
+def share_steps(module):
+    found = getattr(module, "SHARE_STEPS", None)
+    if isinstance(found, (list, tuple)) and found and all(isinstance(s, str) and s.strip() for s in found):
+        return list(found)
+    return None

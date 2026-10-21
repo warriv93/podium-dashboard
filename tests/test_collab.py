@@ -427,7 +427,6 @@ class ThreeMachines(Machines):
             self.assertEqual(data["people"], people)
             self.assertEqual(data["epics"], self.remote_state()["epics"])
 
-    @unittest.expectedFailure
     def test_a_second_conflict_on_a_file_whose_first_is_unresolved_keeps_both_remote_versions(self):
         story = os.path.join("podium", "stories", "M1", "S1.md")
         os.makedirs(os.path.dirname(os.path.join(self.a, story)))

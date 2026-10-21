@@ -289,17 +289,36 @@ class HostileRun(unittest.TestCase):
         label, tip = self.share_button({**CYCLIC_RUN, "sync": {"enabled": True, "ref": "refs/heads/podium-run/acme"}})
         self.assertEqual(label, "Shared")
         self.assertEqual(tip.splitlines(), [
-            "A colleague joins this run in four steps:",
+            "A colleague joins this run:",
             "1. Install the tool: pip install --user git+https://github.com/warriv93/podium-dashboard",
             "2. Install the o skill",
             "3. In a new empty folder, run /o join refs/heads/podium-run/acme",
             "4. Claim a milestone with podium claim <id>",
             "Click to print them in your orchestrator's chat again."])
 
-    def test_shared_shows_the_extensions_hint_and_a_hostile_ref_as_text(self):
-        run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareHint": X}, "sync": {"enabled": True, "ref": X}}
-        tip = self.share_button(run)[1].splitlines()
-        self.assertEqual((tip[2], tip[3]), (f"2. {X}", f"3. In a new empty folder, run /o join {X}"))
+    def test_shared_shows_a_hostile_ref_in_the_generic_steps_as_text(self):
+        tip = self.share_button({**CYCLIC_RUN, "sync": {"enabled": True, "ref": X}})[1].splitlines()
+        self.assertEqual(tip[3], f"3. In a new empty folder, run /o join {X}")
+
+    def test_shared_lists_the_extensions_steps_with_the_runs_ref_and_remote(self):
+        steps = ["Clone {remote}", "Run /o join {ref} from {remote}", "Claim a milestone: podium claim <id>"]
+        run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareSteps": steps},
+               "sync": {"enabled": True, "ref": "refs/heads/podium-run/acme", "remote": "git@example.com:acme/app.git"}}
+        self.assertEqual(self.share_button(run)[1].splitlines(), [
+            "A colleague joins this run:",
+            "1. Clone git@example.com:acme/app.git",
+            "2. Run /o join refs/heads/podium-run/acme from git@example.com:acme/app.git",
+            "3. Claim a milestone: podium claim <id>",
+            "Click to print them in your orchestrator's chat again."])
+
+    def test_shared_fills_missing_placeholders_with_their_names_and_no_replacement_patterns(self):
+        run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareSteps": ["{remote} {ref}", "{ref}"]},
+               "sync": {"enabled": True, "ref": "$&{remote}$'"}}
+        self.assertEqual(self.share_button(run)[1].splitlines()[1:3], ["1. <remote> $&{remote}$'", "2. $&{remote}$'"])
+
+    def test_shared_shows_a_hostile_step_as_text(self):
+        run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareSteps": [X, "{ref}"]}, "sync": {"enabled": True, "ref": X}}
+        self.assertEqual(self.share_button(run)[1].splitlines()[1:3], [f"1. {X}", f"2. {X}"])
 
     def test_the_header_shows_everyone_in_people_or_events_with_a_dot_for_recent_activity(self):
         events = [{"type": "note", "text": "t", "by": "bob", "at": ago(hours=3)}, {"type": "note", "text": "t", "by": "bob", "at": "later"},

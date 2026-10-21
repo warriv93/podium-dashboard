@@ -23,7 +23,7 @@ The module may define any of these:
 | `prompt(p, kind, target_id)` | Returns the text for the server's prompt endpoints, or None. |
 | `on_asana_refresh(p, task_json)` | Called for each linked Asana task a refresh re-reads, before it writes the generic fields; never for a project. Runs from `podium asana refresh` and when an extension calls `asana.refresh(p)`, for example in `turn`. `task_json["subtasks"]` holds the subtasks of a task read on its own and is absent for an epic's subtask taken from its parent's list. |
 | `SYNC_MAJOR(event)` | Returns whether an event saves the run when sync is on. Replaces the default rule. |
-| `SHARE_HINT` | A string: how a colleague gets your orchestrator, shown as step 2 of the Share button's join steps. Without it the step reads "Install the `<orchestrator.name>` skill". |
+| `SHARE_STEPS` | A list of non-empty strings: the steps a colleague takes to join the run, listed by the Share button's tooltip, with `{ref}` and `{remote}` replaced by the run's `sync.ref` and `sync.remote` (`<ref>` and `<remote>` while unset). Without it the tooltip lists the generic steps: install this tool, install the `<orchestrator.name>` skill, run `<orchestrator.command> join <ref>` in a new empty folder, claim a milestone. |
 
 ### prompt kinds
 
@@ -76,7 +76,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | Request | Answer |
 |---|---|
 | `GET /` | the page |
-| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command, shareHint}, me, people, paseoServer, lastUse, stale}`; `shareHint` is the extension's `SHARE_HINT`, else null; `people` is `{<name>: {active}}` from podium.json, and the header's avatars add everyone named in an event's `by` from `events.jsonl` |
+| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command, shareSteps}, me, people, paseoServer, lastUse, stale}`; `shareSteps` is the extension's `SHARE_STEPS` with its placeholders, else null; `people` is `{<name>: {active}}` from podium.json, and the header's avatars add everyone named in an event's `by` from `events.jsonl` |
 | `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes; a checkout path inside the run dir but outside `repos/` and `worktrees/` is skipped |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
@@ -155,7 +155,7 @@ When both machines changed the run since their common save (saved or not), files
 
 - `podium.json`: a three-way merge as concurrent commands do. Items with an `id` (epics, milestones, stories) pair up by id; where both sides changed one value, the local one wins. A milestone both sides gave a new owner keeps the remote's: the first claim to reach the remote wins.
 - `events.jsonl` and `*.progress`: the union of their lines, ordered by `at`. A progress file of a milestone you own is yours alone: a merge or pull keeps it exactly as it is here and never takes the other side's lines, nor deletes it.
-- Any other text: `git merge-file`. On a conflict the local file stays, the other side is written beside it as `<file>.remote`, and a line is added to your `needsYou`. A file that exists locally but not at the common save, and arrives with other content, is handled the same way.
+- Any other text: `git merge-file`. On a conflict the local file stays, the other side is written beside it as `<file>.remote`, or the first free `<file>.<n>.remote` (n = 2, 3, ...) when that holds an earlier conflict's other side, and a line naming both files is added to your `needsYou`. When one of those copies already holds the other side, nothing new is written. A file that exists locally but not at the common save, and arrives with other content, is handled the same way.
 
 ### Deletion
 

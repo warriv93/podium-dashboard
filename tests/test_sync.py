@@ -244,7 +244,7 @@ class Pull(SyncCase):
         self.assertRegex(sync.pull(b), r"^PULLED ")
         self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.md")), "plan of b\n")
         self.assertEqual(self.read(os.path.join(b.root, "docs", "plan.md.remote")), "plan of a\n")
-        self.assertEqual(b.needs_you(), {"reason": "sync conflict in docs/plan.md"})
+        self.assertEqual(b.needs_you(), {"reason": "sync conflict in docs/plan.md (theirs in docs/plan.md.remote)"})
 
     def test_a_machine_that_shares_fewer_files_drops_no_one_elses(self):
         a = self.machine("a")
@@ -729,8 +729,39 @@ class Merge(SyncCase):
         self.assertRegex(sync.save(b), r"^SAVED ")
         self.assertEqual(self.read(os.path.join(b.dir, notes)), "plan from b\n")
         self.assertEqual(self.read(os.path.join(b.dir, notes + ".remote")), "plan from a\n")
-        self.assertEqual(b.needs_you(), {"reason": "sync conflict in podium/stories/M1/notes.md"})
+        self.assertEqual(b.needs_you(), {"reason": "sync conflict in podium/stories/M1/notes.md (theirs in podium/stories/M1/notes.md.remote)"})
         self.assertNotIn("podium/stories/M1/notes.md.remote", self.remote_files())
+
+    def test_a_conflict_while_an_earlier_ones_copy_is_unresolved_writes_the_next_free_copy(self):
+        a = self.machine("a")
+        notes = os.path.join("stories", "M1", "notes.md")
+        self.write(os.path.join(a.dir, notes), "plan\n")
+        sync.save(a)
+        b = self.machine("b")
+        self.write(os.path.join(b.dir, notes + ".remote"), "an older plan\n")
+        self.write(os.path.join(a.dir, notes), "plan from a\n")
+        sync.save(a)
+        self.write(os.path.join(b.dir, notes), "plan from b\n")
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertEqual((self.read(os.path.join(b.dir, notes + ".remote")), self.read(os.path.join(b.dir, "stories", "M1", "notes.md.2.remote"))),
+                         ("an older plan\n", "plan from a\n"))
+        self.assertEqual(b.needs_you(), {"reason": "sync conflict in podium/stories/M1/notes.md (theirs in podium/stories/M1/notes.md.2.remote)"})
+
+    def test_a_conflict_whose_other_side_a_copy_already_holds_writes_no_new_copy(self):
+        a = self.machine("a")
+        notes = os.path.join("stories", "M1", "notes.md")
+        self.write(os.path.join(a.dir, notes), "plan\n")
+        sync.save(a)
+        b = self.machine("b")
+        self.write(os.path.join(b.dir, notes + ".remote"), "an older plan\n")
+        self.write(os.path.join(b.dir, "stories", "M1", "notes.md.2.remote"), "plan from a\n")
+        self.write(os.path.join(a.dir, notes), "plan from a\n")
+        sync.save(a)
+        self.write(os.path.join(b.dir, notes), "plan from b\n")
+        self.assertRegex(sync.save(b), r"^SAVED ")
+        self.assertEqual(sorted(os.listdir(os.path.join(b.dir, "stories", "M1"))), ["notes.md", "notes.md.2.remote", "notes.md.remote"])
+        self.assertEqual(self.read(os.path.join(b.dir, notes + ".remote")), "an older plan\n")
+        self.assertEqual(b.needs_you(), {"reason": "sync conflict in podium/stories/M1/notes.md (theirs in podium/stories/M1/notes.md.2.remote)"})
 
     def test_a_merge_never_overwrites_a_local_file_this_machine_never_synced(self):
         a, b = self.machine("a"), self.machine("b")
@@ -760,10 +791,12 @@ class Merge(SyncCase):
         b.save()
         self.write(os.path.join(b.dir, notes), "plan from b\n")
         self.assertRegex(sync.save(b), r"^SAVED ")
-        self.assertEqual(b.needs_you(), {"reason": "pick a db; sync conflict in podium/stories/M1/notes.md", "story": "M2/S1"})
+        self.assertEqual(b.needs_you(), {"reason": "pick a db; sync conflict in podium/stories/M1/notes.md (theirs in podium/stories/M1/notes.md.remote)",
+                                       "story": "M2/S1"})
         people = json.loads(self.remote_file("podium/podium.json"))["people"]
         self.assertEqual(people["ann"]["needsYou"], {"reason": "ann's question"})
-        self.assertEqual(people["bob"]["needsYou"]["reason"], "pick a db; sync conflict in podium/stories/M1/notes.md")
+        self.assertEqual(people["bob"]["needsYou"]["reason"],
+                         "pick a db; sync conflict in podium/stories/M1/notes.md (theirs in podium/stories/M1/notes.md.remote)")
 
     def test_a_text_change_on_each_side_of_one_file_merges_cleanly(self):
         a = self.machine("a")

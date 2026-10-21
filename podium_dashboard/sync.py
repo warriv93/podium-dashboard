@@ -14,7 +14,8 @@ Two machines that both moved merge per file against their common save: podium.js
 (rebase), except that a milestone both gave an owner keeps the remote's, the claim that reached it first;
 events.jsonl and *.progress as the union of their lines in time order (a progress file of a milestone this person
 owns stays as it is here), any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
-it as `<file>.remote`, and adds to this person's needsYou; so does a file the run dir holds that the remote's save
+it as `<file>.remote`, or the first free `<file>.<n>.remote` (n = 2, 3, ...) while an earlier conflict's copy is
+unresolved, and adds to this person's needsYou; so does a file the run dir holds that the remote's save
 brings with other content. A pull or merge writes only files this machine's include and exclude lists carry, and
 deletes only a file that common save had, unchanged here, that those lists still carry; a save carries the files
 those lists leave out as the last save had them, so a machine that shares fewer files never drops another's.
@@ -525,10 +526,11 @@ def merge_file(p, rel, base, mine, theirs):
 
 
 def flag(p, data, conflicts):
-    """Add the conflicts to this person's needsYou in podium.json's `data`, after any reason already pending."""
+    """Add the conflicts ({file: the copy holding the other side}) to this person's needsYou in podium.json's `data`,
+    after any reason already pending."""
     person = person_of(data, p.me)
     pending = person["needsYou"] if "needsYou" in person else data.get("needsYou")
-    reason = f"sync conflict in {', '.join(conflicts)}"
+    reason = f"sync conflict in {', '.join(f'{rel} (theirs in {copy})' for rel, copy in conflicts.items())}"
     if reason in str(pending.get("reason") if isinstance(pending, dict) else pending):
         return
     if isinstance(pending, dict):
@@ -559,13 +561,32 @@ def skeleton(p):
         blank(data.get(k)) for k in ("active", "needsYou", "assumptions", "epics", "people"))
 
 
+def remote_copy(p, rel, content, out):
+    """Put `content`, the other side of a conflict on `rel`, into `out` as the copy beside it, and return that copy:
+    the `<rel>.remote` or `<rel>.<n>.remote` already holding it, else the first of them that is free, so the copy of
+    an earlier conflict not yet resolved is never overwritten."""
+    folder, name = posixpath.split(rel)
+    copy = re.compile(re.escape(name) + r"(\.[0-9]+)?\.remote")
+    try:
+        names = os.listdir(os.path.join(p.root, *folder.split("/")))
+    except OSError:
+        names = []
+    held = {posixpath.join(folder, n): on_disk(p, posixpath.join(folder, n)) for n in names if copy.fullmatch(n)}
+    held.update({r: c for r, c in out.items()
+                 if posixpath.dirname(r) == folder and copy.fullmatch(posixpath.basename(r))})
+    free = [rel + ".remote", *(f"{rel}.{n}.remote" for n in range(2, len(held) + 2))]
+    found = next((r for r, c in held.items() if c == content), None) or next(r for r in free if r not in held)
+    out[found] = content
+    return found
+
+
 def merged(p, g, base, mine, theirs):
     """(the files of commits `mine` and `theirs` merged against `base` (None: no common save), only those this
-    machine's include and exclude lists carry, with a `<file>.remote` beside each conflict; the files to delete). A file the run
+    machine's include and exclude lists carry, with the other side's copy beside each conflict; the files to delete). A file the run
     dir holds with content neither `mine` nor the merge has is a conflict too: it stays as it is. So does a progress
     file of this person's milestones, whatever either side has."""
     b, m, t = (g.files(p, c) if c else {} for c in (base, mine, theirs))
-    pj, out, conflicts, kept = podium_json(p), {}, [], own_progress(p)
+    pj, out, conflicts, kept = podium_json(p), {}, {}, own_progress(p)
     for rel in sorted(set(m) | set(t), key=lambda x: x != pj):
         if rel != pj and not covered(p, rel) or kept(rel):
             continue
@@ -579,16 +600,14 @@ def merged(p, g, base, mine, theirs):
         else:
             out[rel], clean = merge_file(p, rel, *(g.cat(x) if x else None for x in (bs, ms, ts)))
             if not clean:
-                out[rel + ".remote"] = g.cat(ts)
-                conflicts.append(rel)
+                conflicts[rel] = remote_copy(p, rel, g.cat(ts), out)
             continue
         if chosen:
             out[rel] = g.cat(chosen)
     for rel in [r for r in out if r != pj and not r.endswith(".remote")]:
         here = on_disk(p, rel)
         if here is not None and here != out[rel] and (rel not in m or here != g.cat(m[rel])):
-            out[rel + ".remote"] = out.pop(rel)
-            conflicts.append(rel)
+            conflicts[rel] = remote_copy(p, rel, out.pop(rel), out)
     if conflicts:
         data = json.loads(out[pj]) if pj in out else json.loads(on_disk(p, pj) or b"{}")
         flag(p, data, conflicts)
