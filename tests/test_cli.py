@@ -303,5 +303,36 @@ class SyncDefaults(Cli):
         self.assertEqual(out[1], 'include ["podium/**"] (default) exclude ["x"] (run)')
 
 
+class StatusWaiting(Cli):
+    def milestone_lines(self, m10="draft", **fields):
+        m = {"id": "M12", "title": "Upload", "status": "working", "phase": "build", "stories": [], **fields}
+        data = {**DATA, "active": {"epic": "e", "milestone": "M12"},
+                "epics": [{"id": "e", "milestones": [{"id": "M10", "status": m10}, {"id": "M11", "status": "done"}, m]}]}
+        out = self.podium("--dir", self.run_at(os.path.join(self.tmp, "run"), data), "status", "--all").stdout.splitlines()
+        return [line for line in out if "M12" in line and "active" not in line]
+
+    def test_a_waiting_milestone_says_what_it_waits_for(self):
+        lines = self.milestone_lines(waitsFor=[{"milestone": "M10", "reason": "login first"}])
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(all(line.endswith(" · waiting for M10") for line in lines), lines)
+
+    def test_an_acked_milestone_says_it_goes_ahead_without_it(self):
+        lines = self.milestone_lines(waitsFor=[{"milestone": "M10", "reason": "r"}], waitsForAck=True)
+        self.assertTrue(all(line.endswith(" · going ahead without M10") for line in lines), lines)
+
+    def test_a_milestone_waiting_for_nothing_or_already_landed_says_nothing(self):
+        for fields in ({}, {"waitsFor": []}, {"waitsFor": "M10"}, {"waitsFor": [{"milestone": "M10"}], "status": "done"}):
+            self.assertFalse(any("M10" in line for line in self.milestone_lines(**fields)), fields)
+
+    def test_a_landed_or_dropped_awaited_milestone_counts_as_met(self):
+        for m10 in ("done", "dropped"):
+            lines = self.milestone_lines(m10, waitsFor=[{"milestone": "M10", "reason": "r"}])
+            self.assertFalse(any("waiting" in line for line in lines), lines)
+
+    def test_only_the_open_awaited_milestones_are_named(self):
+        lines = self.milestone_lines(waitsFor=[{"milestone": "M11"}, {"milestone": "M10"}, {"milestone": ["x"]}])
+        self.assertTrue(all(line.endswith(" · waiting for M10, ['x']") for line in lines), lines)
+
+
 if __name__ == "__main__":
     unittest.main()

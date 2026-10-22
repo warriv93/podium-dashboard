@@ -52,6 +52,8 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 | `server`, `watch` | the dashboard, and the watcher an orchestrator listens to |
 | `init` | name the run's orchestrator and its extension |
 
+A milestone may wait for another without being held back: its `waitsFor` puts a "Waiting for M10" pill and a banner on the dashboard, whose Go ahead queues a `proceed` request, and `status` appends ` · waiting for M10` (see `docs/SCHEMA.md`).
+
 `podium --help` has the full reference. Targets are `.` (the project), `me`, `epic:<id>`, `milestone:<id>`, `<story>` of the active milestone, or `<milestone>/<story>`.
 
 ## Linking Asana

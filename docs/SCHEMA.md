@@ -67,6 +67,8 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | `status` | `draft`, `later`, `parked`, `todo`, `working`, `done`, `dropped` |
 | `phase` | the stepper position, one of `orchestrator.phases` (default `recon spec mock architecture stories build gate verify land`) |
 | `deps` | milestone ids that must be done first |
+| `waitsFor` | `[{milestone, reason}]`: milestones this one is better done after, a soft relation unlike `deps`: building on (with mocks) is always allowed. An awaited milestone that is done or dropped counts as met and is left out everywhere. The Podium marks the card "Waiting for <id>" in amber, gives the awaited milestone an "<id> is waiting" chip and prefers it as up next, and shows a banner with Plan and Go ahead until `waitsForAck` |
+| `waitsForAck` | true once the user chose to go ahead without the `waitsFor` milestones (a `proceed` request); cleared when `waitsFor` changes. The card then shows a muted "Going ahead without <id>" |
 | `owner` | the `me` of the person who may change it, see Collaboration |
 | `buildAll` | true while the orchestrator should keep launching ready stories |
 | `grilled` | the spec was settled with the user |

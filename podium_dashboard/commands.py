@@ -37,6 +37,15 @@ def refuse(milestone_id, owner):
     sys.exit(f"podium: milestone {milestone_id} is owned by {owner}")
 
 
+def waiting(p, m):
+    met = {str(x.get("id")) for x in p.milestones() if x.get("status") in ("done", "dropped")}
+    ids = ", ".join(str(w["milestone"]) for w in (m["waitsFor"] if isinstance(m.get("waitsFor"), list) else [])
+                    if isinstance(w, dict) and w.get("milestone") is not None and str(w["milestone"]) not in met)
+    if not ids or m.get("status") in ("done", "dropped"):
+        return ""
+    return f" · going ahead without {ids}" if m.get("waitsForAck") is True else f" · waiting for {ids}"
+
+
 def cmd_status(p, args):
     all_ = "--all" in args
     named = option(args, "--milestone")
@@ -63,12 +72,12 @@ def cmd_status(p, args):
         if all_:
             for m in ms:
                 print(f"  {m['id']} {m.get('status')} {m.get('phase', '')} {m.get('title', '')}"
-                      f" ({len(m.get('stories', []))} stories){owned(m)}")
+                      f" ({len(m.get('stories', []))} stories){owned(m)}{waiting(p, m)}")
     shown = [named] if named else [act.get("milestone")] + [m["id"] for m in p.milestones() if building(m)]
     for mid in dict.fromkeys(x for x in shown if x):
         m = p.milestone(mid)
         print(f"\n{m['id']} {m.get('title', '')} · {m.get('status')} · phase {m.get('phase')} · branch {m.get('branch', '-')}"
-              f" · buildAll {'on' if m.get('buildAll') else 'off'}{owned(m)}")
+              f" · buildAll {'on' if m.get('buildAll') else 'off'}{owned(m)}{waiting(p, m)}")
         for name, r in (m.get("repos") or {}).items():
             pr = r.get("pr")
             print(f"  repo {name} {r.get('branch', '-')} → {r.get('base', '-')} · " + (f"PR #{pr.get('number')} {pr.get('state')}" if pr else "no PR"))

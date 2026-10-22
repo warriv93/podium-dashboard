@@ -86,7 +86,7 @@ from podium_dashboard.state import ACT_ON, ID, NOW, Podium, checkout_path, find_
 
 STORY_ID = ID
 SETTLE = {"confirm", "reverse"}
-MILESTONE_ACTIONS = {"plan", "build-all", "stop", "claim"}
+MILESTONE_ACTIONS = {"plan", "build-all", "stop", "claim", "proceed"}
 RUN_ACTIONS = {"share"}
 NO_PROMPT = "no orchestrator extension prompt"
 PORTS = 20
@@ -527,7 +527,7 @@ def make_handler(root):
             return {e.get("id") for e in p.epics()} if p else set()
 
         def known_ids(self, p, action):
-            """plan, build-all, stop and claim → milestone ids; assign → story ids of the active milestone, and
+            """plan, build-all, stop, claim and proceed → milestone ids; assign → story ids of the active milestone, and
             <milestone>/<story> of every milestone; confirm and reverse → the numbers of the open assumptions, in
             order; domain-story → epic and milestone ids; an extension's action → any of these but the numbers."""
             if action in SETTLE:

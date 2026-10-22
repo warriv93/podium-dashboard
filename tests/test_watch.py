@@ -102,6 +102,16 @@ class Lines(Watcher):
         self.assertEqual((got["since"][path], got["offsets"][path]), (start, os.path.getsize(path)))
         self.assertEqual(self.requests(), ["LIST plan M1"])
 
+    def test_prints_a_proceed_request_with_its_milestone_and_requests_lists_one_it_missed(self):
+        self.assertEqual(self.requests(), [])
+        path = self.pod("requests.jsonl")
+        self.append(path, json.dumps({"action": "proceed", "story": "M1"}))
+        w = self.start()
+        self.started()
+        self.append(path, json.dumps({"action": "proceed", "story": "M2"}))
+        self.assertEqual(self.lines(w), ["REQUEST proceed M2"])
+        self.assertEqual(self.requests(), ["LIST proceed M1"])
+
     def test_prints_a_share_request_with_no_id(self):
         w = self.start()
         self.started()

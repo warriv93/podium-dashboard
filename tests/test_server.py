@@ -344,6 +344,14 @@ class Requests(Server):
         self.assertEqual(self.call("POST", "/confirm/1")[0], 404)
         self.assertEqual(self.requests(), [("claim", "M2"), ("assign", "M1/S1"), ("stop", "M1")])
 
+    def test_queues_proceed_for_a_known_milestone_and_refuses_an_unknown_one(self):
+        self.serve()
+        self.watched()
+        self.assertEqual(self.call("POST", "/proceed/M2")[0], 202)
+        self.assertEqual(self.call("POST", "/proceed/M9")[0], 404)
+        self.assertEqual(self.call("POST", "/proceed/M1/S1")[0], 404)
+        self.assertEqual(self.requests(), [("proceed", "M2")])
+
     def test_queues_share_with_no_id_for_the_watcher_and_the_next_turn(self):
         self.serve()
         self.assertEqual(self.call("POST", "/share")[0], 409)

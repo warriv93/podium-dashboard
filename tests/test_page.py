@@ -152,6 +152,7 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
   }
   const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
   if (gained.length) throw new Error(`Object.prototype gained ${gained}`);
+  OUT.push(`TITLE ${esc(document.title)}`);
   process.stdout.write(JSON.stringify(OUT));
 })().catch((e) => { console.error(e.stack); process.exit(1); });
 """
@@ -395,6 +396,84 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(hrefs, [])
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+
+    def waiting(self, m10="draft", **m12):
+        """The full map's cards by id, as (class, foot html), and the last render's waiting banners, for a run where M12
+        waits for M10 (status `m10`) with `m12`'s fields, M11 lands, and M14 went ahead without a milestone the run lacks."""
+        milestones = [{"id": "M14", "title": "Other", "status": "todo", "waitsFor": [{"milestone": "M99", "reason": "r"}], "waitsForAck": True},
+                      {"id": "M11", "title": "Auth", "status": "done"},
+                      {"id": "M10", "title": "Login", "status": m10},
+                      {"id": "M12", "title": "Upload", "status": "working", "phase": "build",
+                       "waitsFor": [{"milestone": "M10", "reason": "login is needed"}], **m12}]
+        self.rendered({**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": milestones}]}, [], PROGRESS, ())
+        cards = {}
+        for card in re.split(r'(?=<div class="fms )', [h for h in self.html if 'class="fms ' in h][-1])[1:]:
+            cards[re.search(r'data-id="([^"]*)"', card).group(1)] = (re.match(r'<div class="fms ([^"]*)"', card).group(1),
+                                                                     re.search(r'<div class="foot">(.*?)</div>', card, re.S).group(1))
+        shown = [h for h in self.html if 'class="banner needs waitfor"' in h]
+        banners = re.split(r'(?=<div class="banner )', shown[-1]) if shown else []
+        return cards, [b for b in banners if b.startswith('<div class="banner needs waitfor"')]
+
+    def test_a_waiting_milestone_card_is_amber_with_a_waiting_for_pill(self):
+        cards, _ = self.waiting()
+        self.assertIn("waitfor", cards["M12"][0].split())
+        self.assertIn('<span class="badge waitfor" title="login is needed">Waiting for M10</span>', cards["M12"][1])
+        self.assertNotIn("goahead", cards["M12"][1])
+
+    def test_an_acked_milestone_card_shows_a_muted_going_ahead_pill_and_no_amber(self):
+        cards, _ = self.waiting(waitsForAck=True)
+        self.assertNotIn("waitfor", cards["M12"][0].split())
+        self.assertIn('<span class="badge goahead">Going ahead without M10</span>', cards["M12"][1])
+        self.assertNotIn("badge waitfor", cards["M12"][1])
+        self.assertNotIn("is waiting", cards["M10"][1])
+
+    def test_the_awaited_milestone_card_says_who_is_waiting_and_is_up_next(self):
+        cards, _ = self.waiting()
+        self.assertIn('<span class="badge awaited">M12 is waiting</span>', cards["M10"][1])
+        full = [h for h in self.html if 'class="fms ' in h][-1]
+        self.assertLess(full.index('data-id="M14"'), full.index('<div class="fnext">'))
+        self.assertLess(full.index('<div class="fnext">'), full.index('data-id="M10"'))
+
+    def test_an_unknown_awaited_milestone_is_plain_text(self):
+        cards, _ = self.waiting()
+        self.assertIn('<span class="badge goahead">Going ahead without M99</span>', cards["M14"][1])
+
+    def test_the_banner_recommends_the_awaited_milestone_only_while_not_acked(self):
+        _, banners = self.waiting()
+        self.assertEqual(len(banners), 1)
+        scan = Scan()
+        scan.feed(banners[0])
+        self.assertEqual("".join(scan.text), "M12's planning recommends doing M10 first:login is neededPlan M10Go ahead")
+        self.assertIn(("button", "data-act", "proceed"), scan.attrs)
+        self.assertIn(("button", "data-id", "M10"), scan.attrs)
+        self.assertEqual(self.waiting(waitsForAck=True)[1], [])
+
+    def test_a_landed_or_dropped_awaited_milestone_counts_as_met_everywhere(self):
+        for m10 in ("done", "dropped"):
+            cards, banners = self.waiting(m10)
+            self.assertNotIn("waitfor", cards["M12"][0].split())
+            self.assertNotIn("badge waitfor", cards["M12"][1])
+            self.assertNotIn("badge goahead", cards["M12"][1])
+            self.assertNotIn("is waiting", cards.get("M10", ("", ""))[1])
+            self.assertEqual(banners, [])
+            self.assertIn("TITLE Podium · T", self.html)
+
+    def test_only_the_open_awaited_milestones_are_named(self):
+        cards, banners = self.waiting(waitsFor=[{"milestone": "M11", "reason": "auth"}, {"milestone": "M10", "reason": "login"}])
+        self.assertIn('<span class="badge waitfor" title="login">Waiting for M10</span>', cards["M12"][1])
+        self.assertNotIn("is waiting", cards["M11"][1])
+        self.assertIn("M12's planning recommends doing M10 first:", banners[0])
+        self.assertNotIn("auth", banners[0])
+        self.assertIn("TITLE (1) Podium · T", self.html)
+
+    def test_a_hostile_waiting_reason_is_text(self):
+        cards, banners = self.waiting(waitsFor=[{"milestone": X, "reason": X}])
+        for html in (cards["M12"][1], banners[0]):
+            scan = Scan()
+            scan.feed(html)
+            self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+            self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+            self.assertIn(X, "".join(scan.text) + "".join(v for _, _, v in scan.attrs))
 
 
 STICKY_HARNESS = r"""

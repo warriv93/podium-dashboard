@@ -19,7 +19,7 @@ The module may define any of these:
 | Name | Meaning |
 |---|---|
 | `COMMANDS` | `{verb: fn(p, args)}`: `podium <verb> ...` calls `fn` with a `Podium` and the remaining arguments. The first line of the docstring appears in `podium --help`. |
-| `ACTIONS` | A set of extra request actions the server accepts. The core's are `assign plan build-all stop confirm reverse domain-story claim share`. |
+| `ACTIONS` | A set of extra request actions the server accepts. The core's are `assign plan build-all stop confirm reverse domain-story claim proceed share`. |
 | `prompt(p, kind, target_id)` | Returns the text for the server's prompt endpoints, or None. |
 | `on_asana_refresh(p, task_json)` | Called for each linked Asana task a refresh re-reads, before it writes the generic fields; never for a project. Runs from `podium asana refresh` and when an extension calls `asana.refresh(p)`, for example in `turn`. `task_json["subtasks"]` holds the subtasks of a task read on its own and is absent for an epic's subtask taken from its parent's list. |
 | `SYNC_MAJOR(event)` | Returns whether an event saves the run when sync is on. Replaces the default rule. |
@@ -86,6 +86,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `GET /podium/...`, any other path | a file of the run dir, by its real path: a folder, or a file a symlink leads outside the run dir, answers 404 |
 | `POST /<action>/<id>` | queue a request line, 202 `{"queued": {...}}`; `<action>` is a core action or one of `ACTIONS`; `confirm` and `reverse` take an assumption number or `all`, and `?note=` |
 | `POST /build-all/<milestone>`, `POST /stop/<milestone>` | the same, per milestone |
+| `POST /proceed/<milestone>` | the same: the banner's Go ahead asks to go ahead without the milestones `waitsFor` names; the watcher prints `REQUEST proceed <milestone>`, `podium requests` `LIST proceed <milestone>`, and the orchestrator sets `waitsForAck=true` and carries on, mocking what is missing; an unknown milestone answers 404 |
 | `POST /share` | queue `share`, which takes no id: the page's Share button asks the orchestrator to share the run, or to print the colleague's steps again once it syncs; any id answers 404 |
 | `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; it takes any `https://app.asana.com/...` link, 400 for any other and 404 for an unknown epic. `podium asana link` later refuses a link that is not a project or task |
 | `POST /asana-done/<milestone>?choice=<drop\|keep>` | queue the answer, 202 |

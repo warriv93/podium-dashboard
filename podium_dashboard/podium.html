@@ -287,6 +287,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms.done .title { color: var(--text-2); }
 .fms.working { background: linear-gradient(var(--green-soft), var(--green-soft)), var(--card); border: 1.5px solid var(--green-dot); box-shadow: 0 0 0 4px var(--green-soft), var(--shadow-hi); }
 .fms.waits { background: linear-gradient(var(--amber-soft), var(--amber-soft)), var(--card); border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
+.fms.waitfor { border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
 .fms.failed { border: 1.5px solid var(--red); }
 .fnext { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 2px; position: relative; z-index: 1; }
 .fnext::after { content: ""; flex: 1; border-top: 1.5px dashed var(--accent); opacity: .5; }
@@ -355,6 +356,9 @@ a.wchip { color: inherit; text-decoration: none; }
 .badge.working { color: var(--green); padding-left: 2px; }
 .badge.needs { color: var(--amber); padding-left: 2px; }
 .badge.approval { background: var(--amber-soft); color: var(--amber); }
+.badge.waitfor { background: var(--amber-soft); color: var(--amber); cursor: help; }
+.badge.goahead { background: var(--gray-soft); color: var(--text-2); }
+.badge.awaited { color: var(--amber); border: 1px dashed var(--amber-dot); }
 .badge.failed { background: var(--red-soft); color: var(--red); }
 .badge.blocked, .badge.waiting { color: var(--text-3); padding-left: 0; font-weight: 500; }
 .badge.ready { color: var(--accent); padding-left: 0; }
@@ -1083,7 +1087,7 @@ function projectChrome() {
   if (!actx) {
     $("stepper").hidden = true;
     const landed = P.epics.reduce((n, E) => n + (E.milestones || []).filter((m) => m.status === "done").length, 0);
-    $("banner").innerHTML = needsBanner() + digestBanner() + assumedBanner() + `<div class="banner idle"><span class="label">Idle</span><span class="sub">${P.epics.length} epics · ${landed} milestones landed · open an epic to plan its next milestone</span></div>`;
+    $("banner").innerHTML = needsBanner() + waitBanner() + digestBanner() + assumedBanner() + `<div class="banner idle"><span class="label">Idle</span><span class="sub">${P.epics.length} epics · ${landed} milestones landed · open an epic to plan its next milestone</span></div>`;
   }
   $("q").placeholder = "Search epics and milestones";
 }
@@ -1118,7 +1122,7 @@ function fullMs(m, all) {
   const map = dict(stories.map((s) => [s.id, s]));
   const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
-  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}</div>${waves}</div>`;
+  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${waves}</div>`;
 }
 function miniMap(vm) {
   const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
@@ -1148,7 +1152,9 @@ function renderFull() {
     const now = ms.find((x) => x.status === "working");
     return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
-  const next = order.findIndex((x) => !["done", "working"].includes(x.status));
+  const unstarted = (x) => !["done", "working"].includes(x.status);
+  const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
+  const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
   const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
   const rows = order.map((x, i) => `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
   const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
@@ -1200,6 +1206,29 @@ function msWaits(m) {
   const pr = msPrs(m).some((p) => ["draft", "open"].includes(p.state));
   return pr || (!!S.project.needsYou && needsMs() === m.id);
 }
+const msList = () => S.project.epics.flatMap((E) => E.milestones || []);
+const closedMs = (m) => ["done", "dropped"].includes(m.status);
+const waitsOn = (m) => ((all) => (Array.isArray(m.waitsFor) ? m.waitsFor : []).filter((w) => w?.milestone != null)
+  .map((w) => ({ id: String(w.milestone), reason: w.reason == null ? "" : String(w.reason) })).filter((w) => !(all[w.id] && closedMs(all[w.id]))))(dict(msList().map((x) => [x.id, x])));
+const waitingOn = (m) => (m.waitsForAck === true || closedMs(m) ? [] : waitsOn(m));
+const waitersOf = (id) => msList().filter((m) => waitingOn(m).some((w) => w.id === id)).map((m) => m.id);
+const proceedAsked = (m) => Date.now() - (S.proceedAsked?.[m.id] || 0) < 120000;
+function waitPills(m) {
+  const on = closedMs(m) ? [] : waitsOn(m), ids = esc(on.map((w) => w.id).join(", ")), by = waitersOf(m.id);
+  const pill = !on.length ? "" : m.waitsForAck === true ? `<span class="badge goahead">Going ahead without ${ids}</span>`
+    : `<span class="badge waitfor" title="${esc(on.map((w) => w.reason).filter(Boolean).join("\n"))}">Waiting for ${ids}</span>`;
+  return pill + (by.length ? `<span class="badge awaited">${esc(by.join(", "))} ${by.length > 1 ? "are" : "is"} waiting</span>` : "");
+}
+function waitBanner() {
+  const all = dict(msList().map((x) => [x.id, x]));
+  return msList().filter((m) => waitingOn(m).length).map((m) => {
+    const on = waitingOn(m), reason = on.map((w) => w.reason).filter(Boolean).join("; ");
+    const plan = orch() ? on.filter((w) => all[w.id] && [...UNSTARTED, "todo", "ready"].includes(all[w.id].status))
+      .map((w) => `<button class="btn" data-act="plan" data-id="${esc(w.id)}">Plan ${esc(w.id)}</button>`).join("") : "";
+    const go = !orch() ? "" : proceedAsked(m) ? `<span class="sub">Going ahead requested</span>` : `<button class="btn ghost" data-act="proceed" data-id="${esc(m.id)}">Go ahead</button>`;
+    return `<div class="banner needs waitfor"><span class="label"><span class="pulse amber"></span>${esc(m.id)}'s planning recommends doing ${esc(on.map((w) => w.id).join(", "))} first${reason ? ":" : ""}</span>${reason ? `<span class="sub">${esc(reason)}</span>` : ""}${plan || go ? `<div class="chips">${plan}${go}</div>` : ""}</div>`;
+  }).join("");
+}
 const storyDone = (m) => (m.status === "done" ? "Completed" : "Merged to branch");
 const doneCls = (m) => (m.status === "done" ? "done" : "done merged");
 
@@ -1239,10 +1268,10 @@ function renderBanner() {
     const sub = stories.length ? `${am.id}: ${ready} ${ready === 1 ? "story is" : "stories are"} ready to assign` : `${am.id}: ${phaseLabel(am.phase)} in progress — stories appear after breakdown`;
     html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${esc(sub)}</span></div>`;
   } else {
-    const next = ms.filter((m) => [...UNSTARTED, "todo"].includes(m.status));
+    const next = ms.filter((m) => [...UNSTARTED, "todo"].includes(m.status)).sort((a, b) => Number(waitersOf(b.id).length > 0) - Number(waitersOf(a.id).length > 0));
     html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${ms.filter((m) => m.status === "done").length} milestones landed · next: pick one to plan</span><div class="chips">${next.map((m) => `<span class="wchip" data-open="${esc(m.id)}" data-ms=""><b>${esc(m.id)}</b> ${esc(m.title)} <span class="cycle">· ${esc(m.status)}</span></span>`).join("")}</div></div>`;
   }
-  $("banner").innerHTML = needsBanner() + digestBanner() + assumedBanner() + html;
+  $("banner").innerHTML = needsBanner() + waitBanner() + digestBanner() + assumedBanner() + html;
 }
 function draftPrs() {
   return S.project.epics.flatMap((E) => (E.milestones || []).flatMap((m) =>
@@ -1634,6 +1663,7 @@ function attention() {
   const P = S.project, out = [];
   if (!P) return out;
   if (P.needsYou) out.push([`needs:${P.needsYou.reason}`, `Needs you: ${P.needsYou.reason}`, "amber"]);
+  msList().forEach((m) => { if (waitingOn(m).length) out.push([`wait:${m.id}`, `${m.id}'s planning recommends doing ${waitingOn(m).map((w) => w.id).join(", ")} first`, "amber"]); });
   draftPrs().forEach((pr) => out.push([`pr:${pr.ms}:${pr.repo || ""}:${pr.number}`, `${pr.ms} draft PR #${pr.number} to review`, "amber"]));
   (P.assumptions || []).forEach((a) => { if (a.status === "open" && !S.settling?.[a.n]) out.push([`a:${a.n}`, `${assumptionName(a.n)} to settle: ${a.short || a.question}`, "amber"]); });
   P.epics.forEach((E) => (E.milestones || []).forEach((m) => (m.stories || []).forEach((s) => {
@@ -1992,7 +2022,7 @@ function milestoneSheet(m) {
     claimBtn(m),
   ].join(" ");
   const q = m.quality?.gate;
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
   $("sheet-body").innerHTML = `
     ${asanaAsk(m)}
     ${m.note ? `<div class="sec"><div class="muted">${esc(m.note)}</div></div>` : ""}
@@ -2174,16 +2204,17 @@ async function restartServer() {
   toast("The Podium server didn't come back — start it again with podium server --detach");
 }
 async function act(action, id) {
-  const path = ["assign", "plan", "human", "domain-story", "build-all", "stop", "claim"].includes(action) ? `/${action}/${idPath(id)}` : `/${action}`;
+  const path = ["assign", "plan", "human", "domain-story", "build-all", "stop", "claim", "proceed"].includes(action) ? `/${action}/${idPath(id)}` : `/${action}`;
   try {
     const r = await fetch(path, { method: "POST" });
     if (action === "claim" && !r.ok) return toast(`Couldn't claim ${id}: ${(await r.text()).trim() || r.status}`);
     if (r.status === 409) return toast(NO_ORCHESTRATOR());
     if (!r.ok) throw new Error(r.status);
     if (action === "domain-story") { S.dsAsked = { __proto__: null, ...S.dsAsked, [id]: Date.now() }; render(); setTimeout(render, 121000); }
+    if (action === "proceed") { S.proceedAsked = { __proto__: null, ...S.proceedAsked, [id]: Date.now() }; render(); setTimeout(render, 121000); }
     if (action === "plan") { S.planAsked = { __proto__: null, ...S.planAsked, [id]: Date.now() }; render(); setTimeout(render, 121000); }
     if (action === "human") { S.human = await r.json(); renderHuman(); return toast({ available: "You're available — the orchestrator brings its questions to you", mobile: "On mobile — questions only when they block, pictures instead of Podium links", unavailable: "You're away — the orchestrator keeps going and records its decisions", auto: "Back on your hours" }[id]); }
-    toast({ assign: `Queued ${id} — the orchestrator picks it up next`, plan: `Planning ${id} — answer its questions in the orchestrator's chat`, "build-all": `Build all queued for ${id} — wave by wave`, "domain-story": `Drawing ${id} as domain stories — it opens from the Story button when ready`, stop: `${id} stops after this wave`, claim: `Claiming ${id} — it shows as yours once the claim is saved`, share: S.project?.sync?.enabled ? "Queued: the orchestrator prints the colleague's steps in its chat" : "Sharing queued: the orchestrator turns sync on and prints the colleague's steps in its chat" }[action]);
+    toast({ assign: `Queued ${id} — the orchestrator picks it up next`, plan: `Planning ${id} — answer its questions in the orchestrator's chat`, "build-all": `Build all queued for ${id} — wave by wave`, "domain-story": `Drawing ${id} as domain stories — it opens from the Story button when ready`, stop: `${id} stops after this wave`, claim: `Claiming ${id} — it shows as yours once the claim is saved`, proceed: `Going ahead with ${id} — the orchestrator carries on and mocks what's missing`, share: S.project?.sync?.enabled ? "Queued: the orchestrator prints the colleague's steps in its chat" : "Sharing queued: the orchestrator turns sync on and prints the colleague's steps in its chat" }[action]);
   } catch {
     toast(S.stale ? "The Podium server runs older code than this page — press Restart at the top, then click again" : SERVER_DOWN);
   }
