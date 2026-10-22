@@ -3,6 +3,7 @@ with a stand-in DOM, renders every view and sheet, and what it would put into th
 links the run's strings smuggled in. Skipped where Node isn't installed."""
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -220,6 +221,20 @@ class HostileRun(unittest.TestCase):
             scan.reset()
         return scan
 
+    def card_repos(self, milestones):
+        """Each milestone card's repo chips in the full map, by id: the chip row's text and PR links, or None for no row."""
+        run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": milestones}]}
+        self.rendered(run, [], PROGRESS, ())
+        cards = {}
+        for card in re.split(r'(?=<div class="fms )', [h for h in self.html if 'class="fms ' in h][-1])[1:]:
+            row = re.search(r'<div class="ms-repos">(.*?)</div>', card, re.S)
+            scan = Scan()
+            if row:
+                scan.feed(row.group(1))
+            cards[re.search(r'data-id="([^"]*)"', card).group(1)] = (
+                ("".join(scan.text), [v for tag, k, v in scan.attrs if tag == "a" and k == "href"], scan) if row else None)
+        return cards
+
     def share_button(self, run):
         """The Share button's label and tooltip, as the last render of the header put them."""
         self.rendered(run, [], PROGRESS, ())
@@ -348,6 +363,38 @@ class HostileRun(unittest.TestCase):
         self.assertEqual([a["text"] for a in found], ["AN", "P1", "P2", "P3", "+3"])
         self.assertEqual((found[-1]["cls"], found[-1]["title"]), (["av", "more"], "p4\np5\np6"))
         self.assertEqual([a["text"] for a in self.crew({name: {} for name in list(people)[:5]}, [])], ["AN", "P1", "P2", "P3", "P4"])
+
+    def test_milestone_cards_show_their_repos_with_the_pr_whatever_the_status(self):
+        pr = {"number": 7, "url": "https://github.com/o/core/pull/7", "state": "draft"}
+        cards = self.card_repos([
+            {"id": "M1", "title": "a", "status": "parked", "repos": {"core": {"pr": pr}, "api": {}}},
+            {"id": "M2", "title": "b", "status": "draft", "repos": {"web": {}}}])
+        self.assertEqual(cards["M1"][:2], ("core#7 Draftapi" + "no PR yet", ["https://github.com/o/core/pull/7"]))
+        self.assertEqual(cards["M2"][0], "webno PR yet")
+
+    def test_milestone_cards_add_the_repos_only_their_stories_name_after_their_own(self):
+        cards = self.card_repos([{"id": "M1", "title": "a", "status": "todo", "repos": {"core": {}},
+                                  "stories": [{"id": "S1", "title": "s", "status": "todo", "repos": ["web", "core"]},
+                                              {"id": "S2", "title": "t", "status": "todo", "repos": ["api"]}]},
+                                 {"id": "M2", "title": "b", "status": "todo",
+                                  "stories": [{"id": "S3", "title": "s", "status": "todo", "repos": ["web"]}]}])
+        self.assertEqual(cards["M1"][0], "coreno PR yetwebno PR yetapino PR yet")
+        self.assertEqual(cards["M2"][0], "webno PR yet")
+
+    def test_a_milestone_card_without_known_repos_has_no_chip_row(self):
+        cards = self.card_repos([{"id": "M1", "title": "a", "status": "parked"},
+                                 {"id": "M2", "title": "b", "status": "todo", "repos": {}, "stories": [{"id": "S1", "title": "s", "status": "todo"}]}])
+        self.assertEqual(cards, {"M1": None, "M2": None})
+
+    def test_a_hostile_repo_name_on_a_milestone_card_is_text(self):
+        cards = self.card_repos([{"id": "M1", "title": "a", "status": "parked", "repos": {X: {"pr": {"number": X, "url": JS, "state": X}}},
+                                  "stories": [{"id": "S1", "title": "s", "status": "todo", "repos": [X + "2"]}]},
+                                 {"id": "M2", "title": "b", "status": "todo"}])
+        text, hrefs, scan = cards["M1"]
+        self.assertIn(X, text)
+        self.assertEqual(hrefs, [])
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
 
 
 if __name__ == "__main__":

@@ -578,6 +578,8 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 
 .repos { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .repo-line { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; min-width: 0; }
+.ms-repos { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; min-width: 0; }
+.ms-repos .repo-line { overflow: visible; }
 .repo-chips { display: flex; gap: 4px; overflow: hidden; }
 .repo { font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--gray-soft); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
 .pr { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 7px; white-space: nowrap; text-decoration: none; border: 1px solid transparent; }
@@ -948,7 +950,13 @@ function epicRepoRows(milestones) {
 }
 function repoLines(rows) {
   if (!rows.length) return "";
-  return `<div class="repos">${rows.map((r) => `<div class="repo-line"><span class="repo">${esc(r.repo)}</span>${r.prs.length ? r.prs.map((x) => prPill(x.pr, x.ms)).join("") : prPill(null)}</div>`).join("")}</div>`;
+  return `<div class="repos">${rows.map((r) => `<div class="repo-line">${repoChip(r)}</div>`).join("")}</div>`;
+}
+const repoChip = (r) => `<span class="repo">${esc(r.repo)}</span>${r.prs.length ? r.prs.map((x) => prPill(x.pr, x.ms)).join("") : prPill(null)}`;
+function msCardRepos(m) {
+  const rows = msRepoRows(m), seen = new Set(rows.map((r) => r.repo));
+  for (const s of m.stories || []) for (const repo of repoNames(s)) if (!seen.has(repo)) { seen.add(repo); rows.push({ repo, prs: [] }); }
+  return rows.length ? `<div class="ms-repos">${rows.map((r) => `<span class="repo-line">${repoChip(r)}</span>`).join("")}</div>` : "";
 }
 const repoLinesHeight = (rows, perLine) => (rows.length ? 6 + rows.reduce((n, r) => n + Math.ceil(Math.max(1, r.prs.length) / perLine), 0) * 22 : 0);
 const repoChips = (names) => (names.length ? `<div class="repo-chips">${names.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div>` : "");
@@ -1107,7 +1115,7 @@ function fullMs(m, all) {
   const map = dict(stories.map((s) => [s.id, s]));
   const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
-  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span><div class="foot">${foot}</div>${waves}</div>`;
+  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}</div>${waves}</div>`;
 }
 function miniMap(vm) {
   const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
