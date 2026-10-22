@@ -228,8 +228,10 @@ a.wchip { color: inherit; text-decoration: none; }
 .ds-paper.zoom { cursor: zoom-out; }
 .ds-paper.zoom img { max-width: none; }
 
-.map-card { padding: 0; overflow: hidden; }
-.map-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 18px 0; }
+.map-card { padding: 0; overflow: clip; }
+.map-head { position: sticky; top: 56px; z-index: 5; background: var(--card); display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 18px 8px; transition: box-shadow .15s; }
+.map-head.stuck { box-shadow: 0 6px 10px -8px rgba(0,0,0,.35); }
+.map-sentinel { height: 1px; margin-bottom: -1px; pointer-events: none; }
 .map-head h2 { flex: 1; min-width: 0; }
 .map-head .legend { flex: none; white-space: nowrap; }
 .mini { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); cursor: pointer; font-size: 12.5px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
@@ -660,6 +662,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <div class="seg" id="filters" role="tablist"></div>
     </div>
     <section class="card map-card">
+      <div class="map-sentinel" id="map-sentinel"></div>
       <div class="map-head">
         <h2 id="map-title">Topology</h2>
         <div class="map-tools">
@@ -2285,6 +2288,15 @@ $("feed-filter").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-feed]");
   if (b) { S.feedFilter = b.dataset.feed; renderEvents(); $("events").scrollTop = 0; }
 });
+function trackStickyBar() {
+  const bar = document.querySelector(".topbar"), head = document.querySelector(".map-head");
+  const sync = () => { head.style.top = `${bar.offsetHeight}px`; };
+  sync();
+  window.addEventListener("resize", sync);
+  if (typeof IntersectionObserver === "undefined") return;
+  new IntersectionObserver(([e]) => head.classList.toggle("stuck", !e.isIntersecting), { rootMargin: `-${bar.offsetHeight}px 0px 0px 0px` }).observe($("map-sentinel"));
+}
+trackStickyBar();
 window.addEventListener("resize", () => { if (!S.project) return; if (!S.epic || !S.view) drawQueue(); else renderMap(); });
 $("quality").addEventListener("toggle", () => (S.qualityTouched = true), { once: true });
 
