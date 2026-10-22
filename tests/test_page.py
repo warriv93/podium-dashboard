@@ -119,7 +119,7 @@ Object.assign(globalThis, {
   document: { getElementById: node, querySelector: (s) => node("query " + s), querySelectorAll: () => [], documentElement: element(),
               addEventListener() {}, visibilityState: "visible", hidden: false, title: "", createElement: element },
   localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-  addEventListener() {}, matchMedia: () => ({ matches: false }), scrollTo() {}, requestAnimationFrame: () => 0,
+  addEventListener() {}, getComputedStyle: () => ({ position: "sticky" }), matchMedia: () => ({ matches: false }), scrollTo() {}, requestAnimationFrame: () => 0,
   setInterval: () => 0, setTimeout: () => 0, MutationObserver: class { observe() {} }, CSS: { escape: String }, Node: { TEXT_NODE: 3 },
   fetch: async (path) => {
     const at = String(path).split("?")[0], body = Object.hasOwn(FILES, at) ? FILES[at] : undefined;
@@ -395,6 +395,44 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(hrefs, [])
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+
+
+STICKY_HARNESS = r"""
+const src = require("fs").readFileSync(process.argv[2], "utf8");
+const fn = src.slice(src.indexOf("function trackStickyBar()"), src.indexOf("trackStickyBar();\n"));
+const bar = { offsetHeight: 50, position: "sticky" }, head = { style: {}, classList: { toggle() {} } };
+const watchers = [], resizers = [];
+globalThis.window = { addEventListener: (_, f) => resizers.push(f) };
+globalThis.document = { querySelector: (s) => (s === ".topbar" ? bar : head) };
+globalThis.$ = () => ({});
+globalThis.getComputedStyle = (el) => ({ position: el.position });
+globalThis.IntersectionObserver = class { constructor(_, o) { this.margin = o.rootMargin; this.live = true; watchers.push(this); } observe() {} disconnect() { this.live = false; } };
+let resized;
+globalThis.ResizeObserver = class { constructor(f) { resized = f; } observe() {} };
+eval(fn + "; trackStickyBar();");
+const out = [[head.style.top, watchers.at(-1).margin]];
+bar.offsetHeight = 90; resized();
+out.push([head.style.top, watchers.at(-1).margin, watchers[0].live, watchers.filter((w) => w.live).length]);
+bar.position = "static"; resizers[0]();
+out.push([head.style.top, watchers.at(-1).margin]);
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "needs Node to run the page's script")
+class StickyBar(unittest.TestCase):
+    def test_the_map_head_top_follows_the_header_height(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        with open(os.path.join(tmp, "harness.js"), "w") as f:
+            f.write(STICKY_HARNESS)
+        r = subprocess.run(["node", os.path.join(tmp, "harness.js"), PAGE], capture_output=True, text=True, cwd=tmp, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), [
+            ["50px", "-50px 0px 0px 0px"],
+            ["90px", "-90px 0px 0px 0px", False, 1],
+            ["0px", "-0px 0px 0px 0px"],
+        ])
 
 
 if __name__ == "__main__":

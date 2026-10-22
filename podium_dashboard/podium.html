@@ -2290,11 +2290,20 @@ $("feed-filter").addEventListener("click", (ev) => {
 });
 function trackStickyBar() {
   const bar = document.querySelector(".topbar"), head = document.querySelector(".map-head");
-  const sync = () => { head.style.top = `${bar.offsetHeight}px`; };
+  let observer = null, offset = -1;
+  const sync = () => {
+    const next = getComputedStyle(bar).position === "sticky" ? bar.offsetHeight : 0;
+    if (next === offset) return;
+    offset = next;
+    head.style.top = `${next}px`;
+    if (typeof IntersectionObserver === "undefined") return;
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver(([e]) => head.classList.toggle("stuck", !e.isIntersecting), { rootMargin: `-${next}px 0px 0px 0px` });
+    observer.observe($("map-sentinel"));
+  };
   sync();
   window.addEventListener("resize", sync);
-  if (typeof IntersectionObserver === "undefined") return;
-  new IntersectionObserver(([e]) => head.classList.toggle("stuck", !e.isIntersecting), { rootMargin: `-${bar.offsetHeight}px 0px 0px 0px` }).observe($("map-sentinel"));
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(sync).observe(bar);
 }
 trackStickyBar();
 window.addEventListener("resize", () => { if (!S.project) return; if (!S.epic || !S.view) drawQueue(); else renderMap(); });
