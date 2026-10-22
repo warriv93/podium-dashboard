@@ -12,6 +12,8 @@ podium init --name my-skill --command /my-skill --extension ~/skills/my-skill/ex
 
 `init` creates `podium/podium.json` when the run has none, and otherwise updates only the `orchestrator` block. `examples/minimal_extension.py` is a complete small one.
 
+An orchestrator may run `podium self-update` at the start of each turn and pass its lines through: it prints `UPDATED podium <old7>→<new7>` and `RESTART server` (tell the user to press Restart), `BEHIND` (with `--check`), `OK`, `SKIP` (editable, not from git, or checked within the last 6 hours unless `--force`) or `WARN podium <why>`, and always exits 0.
+
 The tool loads the file with `importlib.util.spec_from_file_location`, registered as `sys.modules["podium_extension"]`. Only a `.py` file loads; it may live anywhere, the run dir included, since sync never writes one. When the file is missing, is not a `.py` file, or raises on import, core commands keep working and an extension verb prints `podium: extension <path> not loadable: <why>` and exits 2. A core verb always wins over an extension verb of the same name.
 
 The module may define any of these:

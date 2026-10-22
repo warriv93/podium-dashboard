@@ -18,6 +18,8 @@ pip3 install --user -e .
 
 This puts `podium` on your path. Check with `podium --version`.
 
+`podium self-update` brings the first kind of install up to the repo's HEAD, at most once per 6 hours (`--force` now, `--check` to only report).
+
 ## Quick start
 
 `sample/` is a run in progress for a made-up product, Acme.

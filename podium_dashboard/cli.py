@@ -1,8 +1,8 @@
 """podium [--dir <run dir>] <command> ...
 
 The run dir is --dir, else $PODIUM_DIR, else the nearest directory at or above the cwd holding
-podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, init, sync defaults and --version
-need no run.
+podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, self-update, init, sync defaults and
+--version need no run.
 
 TARGETS
     .                  the project (top level); in a run with one state per person, its
@@ -134,6 +134,14 @@ COMMANDS
         but not landed. The orchestrator extension's on_asana_refresh sees each
         task first. Without a token it prints NO_TOKEN and exits 3; an
         ASANA-ERROR line exits 1.
+    self-update [--check] [--force]
+        Update a pip install from git (direct_url.json) to its remote's HEAD:
+        `UPDATED podium <old>→<new>` then `RESTART server` (a running server
+        is older than the page), `OK podium <sha>` when up to date, `SKIP
+        podium editable|not from git`. At most once per 6 hours per machine
+        (~/.podium/update.json beside human.json); --force ignores that,
+        --check prints `BEHIND podium <old>→<new>` and installs nothing. A
+        network or pip failure prints `WARN podium <why>`; it always exits 0.
     init --name <name> --command </command> --extension <path to .py> [--phases a,b,c]
         Name the run's orchestrator and its extension module in podium.json's
         `orchestrator` block, creating podium/podium.json when absent.
@@ -144,7 +152,7 @@ import importlib
 import os
 import sys
 
-from podium_dashboard import __version__, extension, sync
+from podium_dashboard import __version__, extension, sync, update
 from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
                                        cmd_init, cmd_log, cmd_ls, cmd_ready, cmd_release, cmd_requests, cmd_set, cmd_settle,
                                        cmd_status, cmd_whoami)
@@ -155,9 +163,9 @@ COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_b
             "ls": cmd_ls, "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
             "settle": cmd_settle, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
-            "asana": asana.cmd_asana}
+            "asana": asana.cmd_asana, "self-update": update.cmd_self_update}
 SUBCOMMANDS = ("server", "watch")
-NO_PODIUM = {"hours", "human", "whoami"}
+NO_PODIUM = {"hours", "human", "whoami", "self-update"}
 
 
 def usage(root):
