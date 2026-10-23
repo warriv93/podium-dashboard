@@ -194,7 +194,7 @@ def ago(**delta):
 
 @unittest.skipUnless(shutil.which("node"), "needs Node to run the page's script")
 class HostileRun(unittest.TestCase):
-    def rendered(self, run=RUN, events=EVENTS, progress=PROGRESS, stories=("S1", "S2", "S4"), **files):
+    def rendered(self, run=RUN, events=EVENTS, progress=PROGRESS, stories=("S1", "S2", "S4"), info=None, **files):
         with open(PAGE) as f:
             page = f.read()
         script = page[page.index("<script>") + len("<script>"):page.rindex("</script>")]
@@ -202,7 +202,7 @@ class HostileRun(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp)
         files = {**files, "podium/podium.json": json.dumps(run), "podium/events.jsonl": "".join(json.dumps(e) + "\n" for e in events),
                  "/info": json.dumps({"runDir": "/run", "repoDir": "/repo", "watching": True, "me": "ann", "people": {},
-                                      "orchestrator": run["orchestrator"], "paseoServer": X, "stale": False}),
+                                      "orchestrator": run["orchestrator"], "paseoServer": X, "stale": False, **(info or {})}),
                  "/human": json.dumps({"mode": "available", "until": None, "source": "hours",
                                        "hours": {"days": "Mon-Fri", "from": "07:00", "to": "17:00"}}),
                  "/git": json.dumps({"repos": [], "at": None}),
@@ -241,6 +241,17 @@ class HostileRun(unittest.TestCase):
         self.rendered(run, [], PROGRESS, ())
         scan = Scan()
         scan.feed([html for html in self.html if 'data-act="share"' in html][-1])
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
+
+    def fetch_button(self, run, pull=None):
+        """The Fetch button's label and tooltip, as the last render of the header put them, or None when it showed none."""
+        self.rendered(run, [], PROGRESS, (), info={"pull": pull})
+        shown = [html for html in self.html if "data-fetch" in html]
+        if not shown:
+            return None
+        scan = Scan()
+        scan.feed(shown[-1])
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
 
@@ -335,6 +346,16 @@ class HostileRun(unittest.TestCase):
     def test_shared_shows_a_hostile_step_as_text(self):
         run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareSteps": [X, "{ref}"]}, "sync": {"enabled": True, "ref": X}}
         self.assertEqual(self.share_button(run)[1].splitlines()[1:3], [f"1. {X}", f"2. {X}"])
+
+    def test_fetch_shows_only_while_the_run_syncs(self):
+        self.assertIsNone(self.fetch_button({**CYCLIC_RUN, "sync": {"enabled": False}}))
+        self.assertIsNone(self.fetch_button(CYCLIC_RUN))
+        self.assertEqual(self.fetch_button({**CYCLIC_RUN, "sync": {"enabled": True}}), (
+            "Fetch", "Pull your colleagues' latest changes to this run. The Podium also pulls every minute on its own"))
+
+    def test_fetch_names_the_last_auto_pull_and_shows_a_hostile_result_as_text(self):
+        tip = self.fetch_button({**CYCLIC_RUN, "sync": {"enabled": True}}, {"at": X, "result": f"FAILED {X}"})[1]
+        self.assertEqual(tip.splitlines()[1], f"Last pull {X}: FAILED {X}")
 
     def test_the_header_shows_everyone_in_people_or_events_with_a_dot_for_recent_activity(self):
         events = [{"type": "note", "text": "t", "by": "bob", "at": ago(hours=3)}, {"type": "note", "text": "t", "by": "bob", "at": "later"},

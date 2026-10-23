@@ -80,7 +80,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | Request | Answer |
 |---|---|
 | `GET /` | the page |
-| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command, shareSteps}, me, people, paseoServer, lastUse, stale}`; `shareSteps` is the extension's `SHARE_STEPS` with its placeholders, else null; `people` is `{<name>: {active}}` from podium.json, and the header's avatars add everyone named in an event's `by` from `events.jsonl` |
+| `GET /info` | `{runDir, repoDir, watching, orchestrator: {name, command, shareSteps}, me, people, paseoServer, lastUse, stale, pull}`; `pull` is the last pull's `{at, result}` (null before the first), the server pulling a synced run every minute; `shareSteps` is the extension's `SHARE_STEPS` with its placeholders, else null; `people` is `{<name>: {active}}` from podium.json, and the header's avatars add everyone named in an event's `by` from `events.jsonl` |
 | `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes; a checkout path inside the run dir but outside `repos/` and `worktrees/` is skipped |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
@@ -90,13 +90,14 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `POST /build-all/<milestone>`, `POST /stop/<milestone>` | the same, per milestone |
 | `POST /proceed/<milestone>` | the same: the banner's Go ahead asks to go ahead without the milestones `waitsFor` names; the watcher prints `REQUEST proceed <milestone>`, `podium requests` `LIST proceed <milestone>`, and the orchestrator sets `waitsForAck=true` and carries on, mocking what is missing; an unknown milestone answers 404 |
 | `POST /share` | queue `share`, which takes no id: the page's Share button asks the orchestrator to share the run, or to print the colleague's steps again once it syncs; any id answers 404 |
+| `POST /pull` | pull the run's shared state now, with no watcher needed and never a save or push: 200 `{result, at}` with `sync pull`'s line, or `{"result": "OFF"}` when the run doesn't sync; the page's Fetch button |
 | `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; it takes any `https://app.asana.com/...` link, 400 for any other and 404 for an unknown epic. `podium asana link` later refuses a link that is not a project or task |
 | `POST /asana-done/<milestone>?choice=<drop\|keep>` | queue the answer, 202 |
 | `POST /handoff/<story>` | record the story in `handoffs.json` and return the `handoff` prompt; `DELETE /handoff/<story>` takes it back |
 | `POST /human/<available\|mobile\|unavailable\|auto>[?until=HH:MM]` | set the availability toggle; `podium human set <mode> [--until HH:MM]` does the same from a shell, with no server, and prints the new `podium human` line |
 | `POST /restart` | 202; the server starts a fresh process on the same port |
 
-Status codes: 202 queued; 400 a malformed value; 403 Host or Origin refused; 404 an unknown action, id or file; 409 no watcher is running, for every POST except `confirm`, `reverse`, the Asana ones and `/human/`; 500 a `prompt` hook raised; 501 no extension `prompt` for `assign` or `handoff`.
+Status codes: 202 queued; 400 a malformed value; 403 Host or Origin refused; 404 an unknown action, id or file; 409 no watcher is running, for every POST except `confirm`, `reverse`, the Asana ones, `/pull` and `/human/`; 500 a `prompt` hook raised; 501 no extension `prompt` for `assign` or `handoff`.
 
 A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 

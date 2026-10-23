@@ -1,6 +1,6 @@
 """Tests for the Podium server, run as `podium server` against a temp run: what /info says, the Host and Origin checks,
 /repo/ confined to the run's repo, the sandbox on every file it serves, checkouts read relative to the run dir and
-never one a pull could have written, request queuing, and prompts from the run's extension."""
+never one a pull could have written, request queuing, prompts from the run's extension, and pulls of a synced run."""
 import http.client
 import json
 import os
@@ -12,9 +12,14 @@ import tempfile
 import textwrap
 import time
 import unittest
+import unittest.mock
 from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from podium_dashboard import human, server  # noqa: E402
+
+REF = "refs/heads/podium-run/api"
 
 DATA = {"project": {"title": "T"}, "active": {"epic": "e", "milestone": "M1"}, "needsYou": None,
         "assumptions": [{"question": "q0", "choice": "c", "why": "w", "status": "open"},
@@ -121,12 +126,12 @@ class Info(Server):
         code, info = self.call("GET", "/info")
         self.assertEqual(code, 200)
         self.assertEqual(set(info), {"runDir", "repoDir", "watching", "orchestrator", "me", "people", "paseoServer",
-                                     "lastUse", "stale"})
+                                     "lastUse", "stale", "pull"})
         self.assertEqual((info["runDir"], info["repoDir"]), (self.run_dir, self.repo))
         self.assertEqual(info["orchestrator"], {"name": "orch", "command": "/orch", "shareSteps": None})
         self.assertEqual(info["me"], "ann")
         self.assertEqual(info["people"], {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}})
-        self.assertEqual((info["watching"], info["stale"], info["paseoServer"]), (False, False, None))
+        self.assertEqual((info["watching"], info["stale"], info["paseoServer"], info["pull"]), (False, False, None, None))
 
     def test_a_run_without_an_orchestrator_or_people_says_so(self):
         self.serve({k: v for k, v in DATA.items() if k != "orchestrator"})
@@ -394,6 +399,71 @@ class Prompts(Server):
         self.assertFalse(os.path.exists(os.path.join(self.pod, "handoffs.json")))
         self.assertEqual(self.call("GET", "/prompt/plan/M1"), (200, "/orch M1\n"))
         self.assertEqual(self.call("GET", "/prompt/plan/M9")[0], 404)
+
+
+class Pulls(Server):
+    def setUp(self):
+        super().setUp()
+        self.env.update({"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+        self.bare = os.path.join(self.tmp, "remote.git")
+        self.git("init", "-q", "--bare", self.bare)
+        self.sync = {"enabled": True, "remote": self.bare, "ref": REF}
+        self.skeleton = {"project": {"title": "T"}, "orchestrator": DATA["orchestrator"], "sync": self.sync}
+
+    def colleague_saves(self, data):
+        """A colleague's machine saves `data` as the run's shared state."""
+        run = os.path.join(self.tmp, "colleague")
+        self.write("colleague/podium/podium.json", json.dumps({**data, "sync": self.sync}))
+        r = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", run, "sync", "save"],
+                           capture_output=True, text=True, env={**self.env, "PODIUM_ME": "bob"}, cwd=self.tmp)
+        self.assertRegex(r.stdout, r"^SAVED ", r.stderr)
+
+    def local(self):
+        with open(os.path.join(self.pod, "podium.json")) as f:
+            return json.load(f)
+
+    def test_a_run_that_doesnt_sync_pulls_nothing(self):
+        self.serve()
+        self.assertEqual(self.call("POST", "/pull"), (200, {"result": "OFF"}))
+        self.assertIsNone(self.call("GET", "/info")[1]["pull"])
+
+    def test_pulls_a_colleagues_changes_with_no_watcher_and_says_when_it_is_up_to_date(self):
+        self.colleague_saves(DATA)
+        self.serve(self.skeleton)
+        code, body = self.call("POST", "/pull")
+        self.assertEqual(code, 200)
+        self.assertRegex(body["result"], r"^PULLED [0-9a-f]{7}$")
+        self.assertEqual(self.local()["epics"], DATA["epics"])
+        self.assertEqual(self.local()["sync"], self.sync)
+        self.assertEqual(self.call("GET", "/info")[1]["pull"], body)
+        self.assertEqual(self.call("POST", "/pull")[1]["result"], "UP-TO-DATE")
+
+    def test_leaves_a_pull_to_a_running_watcher(self):
+        self.colleague_saves(DATA)
+        self.serve(self.skeleton)
+        self.watched()
+        self.assertEqual(self.call("POST", "/pull")[1]["result"], "KEPT the watcher is running")
+        self.assertNotIn("epics", self.local())
+
+    def test_refuses_a_pull_from_another_origin(self):
+        self.serve(self.skeleton)
+        self.assertEqual(self.call("POST", "/pull", {"Origin": "http://evil.example"})[0], 403)
+
+    def test_the_auto_pull_records_each_pull_of_a_synced_run_and_skips_one_that_doesnt_sync(self):
+        self.colleague_saves(DATA)
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump({k: v for k, v in DATA.items() if k != "epics"}, f)
+        with unittest.mock.patch.dict(os.environ, self.env, clear=True), \
+                unittest.mock.patch.object(human, "HUMAN_FILE", self.env["PODIUM_HUMAN"]), \
+                unittest.mock.patch.dict(server.PULL, {"at": None, "result": None}):
+            self.assertIsNone(server.pull_run(self.run_dir))
+            self.assertEqual(server.PULL, {"at": None, "result": None})
+            with open(os.path.join(self.pod, "podium.json"), "w") as f:
+                json.dump(self.skeleton, f)
+            self.assertEqual(server.pull_run(self.run_dir), server.PULL)
+            self.assertRegex(server.PULL["result"], r"^PULLED ")
+            self.assertTrue(server.PULL["at"])
+        self.assertEqual(self.local()["epics"], DATA["epics"])
 
 
 if __name__ == "__main__":

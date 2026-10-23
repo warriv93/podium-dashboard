@@ -648,6 +648,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <span class="gitwarn" id="gitwarn" hidden></span>
       <span class="crew" id="crew" hidden></span>
       <span id="share" hidden></span>
+      <span id="fetch" hidden></span>
       <button class="icon-btn" id="feed-toggle">Activity</button>
     </div>
   </div>
@@ -753,6 +754,7 @@ function setInfo(i) {
   S.info = i; S.watching = i.watching; S.stale = !!i.stale;
   if ((first || meChanged) && S.raw) loadProject();
   if (peopleChanged || meChanged) renderPeople();
+  if (S.project) renderFetch();
   if ((first || meChanged || orchChanged) && S.project) { render(); if (S.selected) renderSheet(); }
 }
 /* a poll keeps the server alive only while someone is at the tab: in view and touched in the last
@@ -1059,6 +1061,7 @@ function render() {
   renderAttention();
   renderPeople();
   renderShare();
+  renderFetch();
   renderCrew();
   const full = !S.epic || !S.view;
   if (S.ds && !full && S.ds.id !== S.view) S.ds = null;
@@ -1760,6 +1763,39 @@ function renderShare() {
   const tip = on ? `A colleague joins this run:\n${joinSteps(o).map((step, i) => `${i + 1}. ${step}`).join("\n")}\nClick to print them in your orchestrator's chat again.` : SHARE_TIP;
   el.innerHTML = `<button class="share ${on ? "on" : ""}" data-act="share" title="${esc(tip)}"><i></i>${on ? "Shared" : "Share"}</button>`;
 }
+const FETCH_TIP = "Pull your colleagues' latest changes to this run. The Podium also pulls every minute on its own";
+function renderFetch() {
+  const el = $("fetch"), on = !!S.project.sync?.enabled, last = S.info?.pull;
+  el.hidden = !on;
+  if (!on) return;
+  const tip = last?.at ? `${FETCH_TIP}\nLast pull ${clock(last.at)}: ${last.result}` : FETCH_TIP;
+  el.innerHTML = `<button class="share" data-fetch title="${esc(tip)}"${S.fetching ? " disabled" : ""}>${S.fetching ? "Fetching…" : "Fetch"}</button>`;
+}
+function pulled(result) {
+  const why = String(result).replace(/^\S+\s*/, "");
+  if (/^PULLED\b/.test(result)) return "Pulled the latest changes";
+  if (result === "UP-TO-DATE") return "Already up to date";
+  if (result === "KEPT the watcher is running") return "The orchestrator pulls every minute on its own";
+  if (/^KEPT\b/.test(result)) return `Couldn't reach the shared repo: ${why}`;
+  if (/^FAILED\b/.test(result)) return `Pull failed: ${why}`;
+  if (/^OFF\b/.test(result)) return "This run doesn't sync";
+  return String(result);
+}
+async function fetchShared() {
+  if (S.fetching) return;
+  S.fetching = true; renderFetch();
+  try {
+    const r = await fetch("/pull", { method: "POST" });
+    if (!r.ok) throw new Error(r.status);
+    const { result } = await r.json();
+    await poll();
+    toast(pulled(result));
+  } catch {
+    toast(S.stale ? "The Podium server runs older code than this page — press Restart at the top, then click again" : SERVER_DOWN);
+  } finally {
+    S.fetching = false; renderFetch();
+  }
+}
 
 const CREW_MAX = 5, RECENT_MS = 15 * 60000;
 function crew() {
@@ -2230,6 +2266,7 @@ document.addEventListener("click", (ev) => {
   const rl = ev.target.closest("[data-release]");
   if (rl) { ev.stopPropagation(); release(rl.dataset.release); return; }
   if (ev.target.closest("[data-restart]")) { restartServer(); return; }
+  if (ev.target.closest("[data-fetch]")) { fetchShared(); return; }
   if (ev.target.closest("[data-ds-back]")) { closeDs(); return; }
   const dt = ev.target.closest("[data-ds-tab]");
   if (dt) { S.ds.tab = +dt.dataset.dsTab; renderDs(); return; }

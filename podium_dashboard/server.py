@@ -61,6 +61,10 @@ of git: machine-local state that would otherwise swap with every branch switch.
 GET /git says, per repo the run works in (its own, plus the active milestone's `repos`), how far the checkout's branch
 and the default branch are behind origin, refreshed by a `git fetch` every --git-every minutes (default 5, 0 =
 never): a run that moved on another machine shows in the Podium.
+
+In a run that syncs, it pulls the shared state every minute (never saves or pushes), so others' changes show with no
+orchestrator running; GET /info says the last pull's `pull` {at, result}. POST /pull, the header's Fetch button,
+pulls now, watcher or not: 200 {result, at}, or {"result": "OFF"} when the run doesn't sync.
 """
 import argparse
 import glob
@@ -78,7 +82,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from podium_dashboard import extension
+from podium_dashboard import extension, sync
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
 from podium_dashboard.plugins import paseo
@@ -173,7 +177,8 @@ def info(root):
             "me": p.me if p else None,
             "people": {name: {"active": who.get("active")} for name, who in people.items() if isinstance(who, dict)},
             "paseoServer": paseo.server_id(),
-            "lastUse": {"ago": round(time.time() - SEEN["at"]), "by": SEEN["by"]}, "stale": stale()}
+            "lastUse": {"ago": round(time.time() - SEEN["at"]), "by": SEEN["by"]}, "stale": stale(),
+            "pull": dict(PULL) if PULL["at"] else None}
 
 
 def handoffs(root):
@@ -255,6 +260,27 @@ def watch_git(root, minutes):
         GIT["repos"] = [repo_state(n, p) for n, p in repos_of(root).items()]
         GIT["at"] = NOW()
         time.sleep(minutes * 60)
+
+
+PULL = {"at": None, "result": None}
+PULLING = threading.Lock()
+PULL_EVERY = 60
+
+
+def pull_run(root):
+    """Pull the run's shared changes now, when it loads and syncs: PULL, updated, else None. Never saves or pushes."""
+    with PULLING:
+        p = load_podium(root)
+        if not p or not sync.enabled(p):
+            return None
+        PULL.update(at=NOW(), result=sync.pull(p))
+        return dict(PULL)
+
+
+def auto_pull(root):
+    while True:
+        time.sleep(PULL_EVERY)
+        pull_run(root)
 
 
 SEEN = {"at": time.time(), "by": "start"}
@@ -378,6 +404,8 @@ def make_handler(root):
             if url.path == "/restart":
                 threading.Thread(target=restart, daemon=True).start()
                 return self.reply(202, {"restarting": True})
+            if url.path == "/pull":
+                return self.reply(200, pull_run(root) or {"result": "OFF"})
             if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
                 return self.reply(409, {"error": "no orchestrator is watching"})
             if url.path.startswith("/handoff/"):
@@ -596,6 +624,7 @@ def main(argv=None):
         print(f"{datetime.now():%H:%M} serving http://127.0.0.1:{port}/", flush=True)
     if args.git_every > 0:
         threading.Thread(target=watch_git, args=(root, args.git_every), daemon=True).start()
+    threading.Thread(target=auto_pull, args=(root,), daemon=True).start()
     if args.idle > 0:
         threading.Thread(target=stop_when_idle, args=(server, root, args.idle), daemon=True).start()
     server.serve_forever()
