@@ -671,6 +671,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <div class="map-head">
         <h2 id="map-title">Topology</h2>
         <div class="map-tools">
+          <span id="hide-finished"></span>
           <div class="legend">
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
@@ -735,6 +736,13 @@ function setTheme(t) {
   document.querySelectorAll("[data-theme-set]").forEach((b) => { b.classList.toggle("on", b.dataset.themeSet === t); b.setAttribute("aria-checked", b.dataset.themeSet === t); });
   try { localStorage.setItem("podium-theme", t); } catch { /* private mode */ }
 }
+const HIDE_FINISHED_KEY = "podium-hide-finished";
+const readHideFinished = () => { try { return localStorage.getItem(HIDE_FINISHED_KEY) === "1"; } catch { return false; } };
+function setHideFinished(on) {
+  S.hideFinished = on;
+  try { localStorage.setItem(HIDE_FINISHED_KEY, on ? "1" : "0"); } catch { /* private mode */ }
+}
+S.hideFinished = readHideFinished();
 setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (n) => Number(n) || 0;
@@ -1155,11 +1163,14 @@ function renderFull() {
     const now = ms.find((x) => x.status === "working");
     return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
+  const needsId = P.needsYou ? needsMs() : null;
+  const hides = (x) => S.hideFinished && x.status === "done" && x.id !== S.selected && x.id !== needsId && !waitersOf(x.id).length;
+  renderHideFinished(listed.filter(hides).length);
   const unstarted = (x) => !["done", "working"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
-  const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
-  const rows = order.map((x, i) => `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
+  const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hides(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
+  const rows = order.map((x, i) => hides(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
   const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
   m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${rrow}${rows}</div>`;
   requestAnimationFrame(drawQueue);
@@ -1429,16 +1440,20 @@ function renderMap() {
   const cols = innerWidth <= 1100 ? Math.max(1, Math.floor((avail / 0.6 - 2 * PAD + GX) / (W + GX))) : Infinity;
   const L = layout(list, sz, cols);
   const map = dict(list.map((s) => [s.id, s]));
+  const needsStory = String(S.project.needsYou?.story || "").split("/").pop();
+  const hides = (s) => S.hideFinished && kind === "story" && ["done", "dropped"].includes(s.status) && s.id !== S.selected && s.id !== needsStory;
+  const shown = list.filter((s) => !hides(s));
+  renderHideFinished(list.length - shown.length);
   const edges = [];
-  list.forEach((s) => {
-    const deps = (s.deps || []).filter((d) => L.pos[d]);
-    const from = deps.length ? deps : (s.overlapAfter || []).filter((d) => L.pos[d]).length ? [] : ["__root"];
+  shown.forEach((s) => {
+    const deps = (s.deps || []).filter((d) => L.pos[d] && !hides(map[d]));
+    const from = deps.length ? deps : (s.overlapAfter || []).filter((d) => L.pos[d] && !hides(map[d])).length ? [] : ["__root"];
     from.forEach((d) => {
       const hi = S.selected && (d === S.selected || s.id === S.selected);
       const done = d !== "__root" && map[d]?.status === "done";
       edges.push(`<path class="edge ${done ? "done" : ""} ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
     });
-    (s.overlapAfter || []).filter((d) => L.pos[d]).forEach((d) => {
+    (s.overlapAfter || []).filter((d) => L.pos[d] && !hides(map[d])).forEach((d) => {
       const hi = S.selected && (d === S.selected || s.id === S.selected);
       edges.push(`<path class="edge overlap ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
     });
@@ -1451,10 +1466,11 @@ function renderMap() {
   const fit = Math.min(1, Math.max(innerWidth <= 1100 ? 0.6 : 0.75, (box.clientWidth - 8) / L.width));
   m.style.zoom = fit;
   // map y scaled by the zoom, below the scroller's 8px top padding
-  $("waves").innerHTML = kind === "story" ? Array.from({ length: L.rows }, (_, i) => `<span class="rowlabel" style="top:${8 + (L.rowY[i] - 22) * fit}px">Wave ${i + 1}${L.rowN[i] > 1 ? ` · ${L.rowN[i]} in parallel` : ""}</span>`).join("") : "";
+  const rowShown = (i) => shown.filter((s) => L.pos[s.id].y >= L.rowY[i] && L.pos[s.id].y <= L.rowY[i] + L.rowH[i]).length;
+  $("waves").innerHTML = kind === "story" ? Array.from({ length: L.rows }, (_, i) => `<span class="rowlabel" style="top:${8 + (L.rowY[i] - 22) * fit}px">Wave ${i + 1}${!rowShown(i) ? " · all finished" : L.rowN[i] > 1 ? ` · ${L.rowN[i]} in parallel` : ""}</span>`).join("") : "";
   const node = kind === "story" ? storyNode : artifactNode;
   const bands = kind === "story" ? L.rowH.map((h, i) => (L.rowL[i] > 1 ? `<rect class="waveband" x="${PAD / 4}" y="${L.rowY[i] - 14}" width="${L.width - PAD / 2}" height="${h + 28}" rx="18"/>` : "")).join("") : "";
-  m.innerHTML = `<svg class="edges" width="${L.width}" height="${L.height}">${bands}${edges.join("")}</svg>${milestoneRoot(L.pos.__root, vm)}${list.map((s) => node(s, L.pos[s.id], map)).join("")}`;
+  m.innerHTML = `<svg class="edges" width="${L.width}" height="${L.height}">${bands}${edges.join("")}</svg>${milestoneRoot(L.pos.__root, vm)}${shown.map((s) => node(s, L.pos[s.id], map)).join("")}`;
   if (S.centeredFor !== S.view && box.scrollWidth > box.clientWidth) { box.scrollLeft = (box.scrollWidth - box.clientWidth) / 2; }
   S.centeredFor = S.view;
   applyFilter();
@@ -1764,6 +1780,10 @@ function renderShare() {
   el.innerHTML = `<button class="share ${on ? "on" : ""}" data-act="share" title="${esc(tip)}"><i></i>${on ? "Shared" : "Share"}</button>`;
 }
 const FETCH_TIP = "Pull your colleagues' latest changes to this run. The Podium also pulls every minute on its own";
+function renderHideFinished(hidden) {
+  const on = S.hideFinished;
+  $("hide-finished").innerHTML = `<button class="share ${on ? "on" : ""}" data-hide-finished aria-pressed="${on}" title="${on ? "Show finished work again" : "Hide finished work from the map. Whatever is open or needs you stays"}">${on ? `Show all${hidden ? ` · ${hidden} hidden` : ""}` : "Hide finished"}</button>`;
+}
 function renderFetch() {
   const el = $("fetch"), on = !!S.project.sync?.enabled, last = S.info?.pull;
   el.hidden = !on;
@@ -2266,6 +2286,7 @@ document.addEventListener("click", (ev) => {
   const rl = ev.target.closest("[data-release]");
   if (rl) { ev.stopPropagation(); release(rl.dataset.release); return; }
   if (ev.target.closest("[data-restart]")) { restartServer(); return; }
+  if (ev.target.closest("[data-hide-finished]")) { setHideFinished(!S.hideFinished); render(); return; }
   if (ev.target.closest("[data-fetch]")) { fetchShared(); return; }
   if (ev.target.closest("[data-ds-back]")) { closeDs(); return; }
   const dt = ev.target.closest("[data-ds-tab]");

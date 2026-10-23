@@ -98,6 +98,8 @@ Sync carries the run's state files and its planning docs: Markdown files anywher
 
 The dashboard's **Share** button queues a `share` request for your orchestrator, which switches sync on and prints the colleague's steps in its chat. Once the run syncs, the button reads **Shared** and its tooltip lists those steps with the run's ref and remote filled in: the extension's `SHARE_STEPS` when it has them, else install this tool, install the orchestrator's skill, run `<orchestrator command> join <ref>` in a new empty folder, and `podium claim <milestone>`. In a run that syncs, the Podium server also pulls your colleagues' changes every minute on its own, orchestrator or not, and the **Fetch** button beside **Share** pulls them at once.
 
+The **Hide finished** button in the map header drops finished milestones from the milestone map and merged or dropped stories from a milestone's story map (a finished item that is open or needs you stays); the choice is kept in the browser under `podium-hide-finished`.
+
 Beside it, a run with two or more people shows one avatar each (everyone in `podium.json`'s `people` or the `by` of an event; yours has a ring; past five people it shows four and a `+N` chip). A green dot means an event of theirs is under 15 minutes old: recent activity, not live presence. The tooltip names the milestones they own, the one they're on with its phase, and when they were last active.
 
 ## Security

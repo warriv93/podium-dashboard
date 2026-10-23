@@ -93,6 +93,13 @@ CYCLIC_RUN = {
                      {"id": "S3", "title": "c", "status": "todo", "deps": ["S2"], "startedAt": "2026-10-20T07:30:00+00:00"},
                      {"id": "S4", "title": "d", "status": "todo", "deps": ["S1"]}]},
         {"id": "M2", "title": "N", "status": "todo", "deps": ["M1"]}]}]}
+FINISHED_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M2"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "first", "status": "done"},
+        {"id": "M2", "title": "second", "status": "working", "phase": "build", "deps": ["M1"],
+         "stories": [{"id": "S1", "title": "a", "status": "done"}, {"id": "S2", "title": "b", "status": "done", "deps": ["S1"]},
+                     {"id": "S3", "title": "c", "status": "todo", "deps": ["S2"]}]}]}]}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
 
 HARNESS = r"""
@@ -118,7 +125,7 @@ Object.assign(globalThis, {
   window: globalThis, location: { href: "http://127.0.0.1:8765/", port: "8765" }, innerWidth: 1400, scrollY: 0,
   document: { getElementById: node, querySelector: (s) => node("query " + s), querySelectorAll: () => [], documentElement: element(),
               addEventListener() {}, visibilityState: "visible", hidden: false, title: "", createElement: element },
-  localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+  localStorage: { getItem: (k) => (FILES.localStorage || {})[k] ?? null, setItem() {}, removeItem() {} },
   addEventListener() {}, getComputedStyle: () => ({ position: "sticky" }), matchMedia: () => ({ matches: false }), scrollTo() {}, requestAnimationFrame: () => 0,
   setInterval: () => 0, setTimeout: () => 0, MutationObserver: class { observe() {} }, CSS: { escape: String }, Node: { TEXT_NODE: 3 },
   fetch: async (path) => {
@@ -255,6 +262,17 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
 
+    def hide_finished_buttons(self, run, stored=None):
+        """The label of every Hide finished button the page rendered, in render order."""
+        self.rendered(run, [], PROGRESS, (), localStorage=stored or {})
+        labels = []
+        for html in self.html:
+            if "data-hide-finished" in html:
+                scan = Scan()
+                scan.feed(html)
+                labels.append("".join(scan.text))
+        return labels
+
     def crew(self, people, events, owners=()):
         """The header's avatars, as the last render put them: [] when it showed none."""
         run = json.loads(json.dumps({**CYCLIC_RUN, "people": people}))
@@ -346,6 +364,21 @@ class HostileRun(unittest.TestCase):
     def test_shared_shows_a_hostile_step_as_text(self):
         run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareSteps": [X, "{ref}"]}, "sync": {"enabled": True, "ref": X}}
         self.assertEqual(self.share_button(run)[1].splitlines()[1:3], [f"1. {X}", f"2. {X}"])
+
+    def test_the_map_header_offers_hide_finished_and_shows_everything_by_default(self):
+        labels = self.hide_finished_buttons(FINISHED_RUN)
+        self.assertTrue(labels)
+        self.assertEqual(set(labels), {"Hide finished"})
+        self.assertIn('id="hide-finished"', open(PAGE).read())
+
+    def test_hide_finished_reads_podium_hide_finished_from_local_storage(self):
+        self.assertIn('"podium-hide-finished"', open(PAGE).read())
+        labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "1"})
+        self.assertIn("Show all · 1 hidden", labels)
+        self.assertIn("Show all · 2 hidden", labels)
+
+    def test_hide_finished_is_off_for_any_other_stored_value(self):
+        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "0"})), {"Hide finished"})
 
     def test_fetch_shows_only_while_the_run_syncs(self):
         self.assertIsNone(self.fetch_button({**CYCLIC_RUN, "sync": {"enabled": False}}))
