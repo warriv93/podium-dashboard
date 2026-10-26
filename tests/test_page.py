@@ -262,12 +262,12 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
 
-    def hide_finished_buttons(self, run, stored=None):
-        """The label of every Hide finished button the page rendered, in render order."""
+    def hide_finished_buttons(self, run, stored=None, scope=None):
+        """The label of every Hide finished button the page rendered, in render order, optionally only the map's or the stories'."""
         self.rendered(run, [], PROGRESS, (), localStorage=stored or {})
         labels = []
         for html in self.html:
-            if "data-hide-finished" in html:
+            if f'data-hide-finished="{scope}"' in html if scope else "data-hide-finished" in html:
                 scan = Scan()
                 scan.feed(html)
                 labels.append("".join(scan.text))
@@ -375,7 +375,15 @@ class HostileRun(unittest.TestCase):
         self.assertIn('"podium-hide-finished"', open(PAGE).read())
         labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "1"})
         self.assertIn("Show all · 1 hidden", labels)
-        self.assertIn("Show all · 2 hidden", labels)
+
+    def test_the_story_map_has_its_own_setting_in_podium_hide_finished_stories(self):
+        self.assertIn('"podium-hide-finished-stories"', open(PAGE).read())
+        full = {"podium-hide-finished": "1"}
+        stories = {"podium-hide-finished-stories": "1"}
+        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, full, "stories")), {"Hide finished"})
+        self.assertIn("Show all · 1 hidden", self.hide_finished_buttons(FINISHED_RUN, full, "map"))
+        self.assertIn("Show all · 2 hidden", self.hide_finished_buttons(FINISHED_RUN, stories, "stories"))
+        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, stories, "map")), {"Hide finished"})
 
     def test_hide_finished_is_off_for_any_other_stored_value(self):
         self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "0"})), {"Hide finished"})

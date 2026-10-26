@@ -736,13 +736,13 @@ function setTheme(t) {
   document.querySelectorAll("[data-theme-set]").forEach((b) => { b.classList.toggle("on", b.dataset.themeSet === t); b.setAttribute("aria-checked", b.dataset.themeSet === t); });
   try { localStorage.setItem("podium-theme", t); } catch { /* private mode */ }
 }
-const HIDE_FINISHED_KEY = "podium-hide-finished";
-const readHideFinished = () => { try { return localStorage.getItem(HIDE_FINISHED_KEY) === "1"; } catch { return false; } };
-function setHideFinished(on) {
-  S.hideFinished = on;
-  try { localStorage.setItem(HIDE_FINISHED_KEY, on ? "1" : "0"); } catch { /* private mode */ }
+const HIDE_FINISHED_KEYS = { map: "podium-hide-finished", stories: "podium-hide-finished-stories" };
+const readHideFinished = (scope) => { try { return localStorage.getItem(HIDE_FINISHED_KEYS[scope]) === "1"; } catch { return false; } };
+function setHideFinished(scope, on) {
+  S.hideFinished[scope] = on;
+  try { localStorage.setItem(HIDE_FINISHED_KEYS[scope], on ? "1" : "0"); } catch { /* private mode */ }
 }
-S.hideFinished = readHideFinished();
+S.hideFinished = { map: readHideFinished("map"), stories: readHideFinished("stories") };
 setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (n) => Number(n) || 0;
@@ -1164,8 +1164,8 @@ function renderFull() {
     return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
   const needsId = P.needsYou ? needsMs() : null;
-  const hides = (x) => S.hideFinished && x.status === "done" && x.id !== S.selected && x.id !== needsId && !waitersOf(x.id).length;
-  renderHideFinished(listed.filter(hides).length);
+  const hides = (x) => S.hideFinished.map && x.status === "done" && x.id !== S.selected && x.id !== needsId && !waitersOf(x.id).length;
+  renderHideFinished("map", listed.filter(hides).length);
   const unstarted = (x) => !["done", "working"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
@@ -1441,9 +1441,9 @@ function renderMap() {
   const L = layout(list, sz, cols);
   const map = dict(list.map((s) => [s.id, s]));
   const needsStory = String(S.project.needsYou?.story || "").split("/").pop();
-  const hides = (s) => S.hideFinished && kind === "story" && ["done", "dropped"].includes(s.status) && s.id !== S.selected && s.id !== needsStory;
+  const hides = (s) => S.hideFinished.stories && kind === "story" && ["done", "dropped"].includes(s.status) && s.id !== S.selected && s.id !== needsStory;
   const shown = list.filter((s) => !hides(s));
-  renderHideFinished(list.length - shown.length);
+  renderHideFinished(kind === "story" ? "stories" : "map", list.length - shown.length);
   const edges = [];
   shown.forEach((s) => {
     const deps = (s.deps || []).filter((d) => L.pos[d] && !hides(map[d]));
@@ -1780,9 +1780,9 @@ function renderShare() {
   el.innerHTML = `<button class="share ${on ? "on" : ""}" data-act="share" title="${esc(tip)}"><i></i>${on ? "Shared" : "Share"}</button>`;
 }
 const FETCH_TIP = "Pull your colleagues' latest changes to this run. The Podium also pulls every minute on its own";
-function renderHideFinished(hidden) {
-  const on = S.hideFinished;
-  $("hide-finished").innerHTML = `<button class="share ${on ? "on" : ""}" data-hide-finished aria-pressed="${on}" title="${on ? "Show finished work again" : "Hide finished work from the map. Whatever is open or needs you stays"}">${on ? `Show all${hidden ? ` · ${hidden} hidden` : ""}` : "Hide finished"}</button>`;
+function renderHideFinished(scope, hidden) {
+  const on = S.hideFinished[scope];
+  $("hide-finished").innerHTML = `<button class="share ${on ? "on" : ""}" data-hide-finished="${scope}" aria-pressed="${on}" title="${on ? "Show finished work again" : "Hide finished work from the map. Whatever is open or needs you stays"}">${on ? `Show all${hidden ? ` · ${hidden} hidden` : ""}` : "Hide finished"}</button>`;
 }
 function renderFetch() {
   const el = $("fetch"), on = !!S.project.sync?.enabled, last = S.info?.pull;
@@ -2286,7 +2286,8 @@ document.addEventListener("click", (ev) => {
   const rl = ev.target.closest("[data-release]");
   if (rl) { ev.stopPropagation(); release(rl.dataset.release); return; }
   if (ev.target.closest("[data-restart]")) { restartServer(); return; }
-  if (ev.target.closest("[data-hide-finished]")) { setHideFinished(!S.hideFinished); render(); return; }
+  const hideBtn = ev.target.closest("[data-hide-finished]");
+  if (hideBtn) { const scope = hideBtn.dataset.hideFinished; setHideFinished(scope, !S.hideFinished[scope]); render(); return; }
   if (ev.target.closest("[data-fetch]")) { fetchShared(); return; }
   if (ev.target.closest("[data-ds-back]")) { closeDs(); return; }
   const dt = ev.target.closest("[data-ds-tab]");
