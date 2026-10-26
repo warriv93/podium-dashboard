@@ -3,7 +3,7 @@
 Reads ~/.claude/projects/*/*.jsonl and */<session>/subagents/*.jsonl line by line, skipping files last written before
 --since. An assistant message's tokens are its usage's input, cache creation, cache read and output tokens; a tool
 result's are its text's characters / 4. Messages and tool calls count once per id: the log repeats a message's usage on
-each of its content blocks, and the same call can appear in more than one file. Patterns are scaled to tokens per week
+each of its content blocks, its largest value per field taken, and the same call can appear in more than one file. Patterns are scaled to tokens per week
 of the window.
 """
 import glob
@@ -32,7 +32,10 @@ def normalize(text):
     text = QUOTED.sub("<str>", text)
     text = PATH.sub("<path>", text)
     text = SHA.sub("<sha>", text)
-    text = NUMBER.sub("<n>", text)
+    return one_line(NUMBER.sub("<n>", text))
+
+
+def one_line(text):
     text = " ".join(text.split())
     return text if len(text) <= KEY_WIDTH else text[:KEY_WIDTH - 1] + "…"
 
@@ -83,10 +86,9 @@ def result_chars(content):
 
 class Tally:
     def __init__(self):
-        self.messages = set()
+        self.messages = {}
         self.calls = set()
         self.sessions = set()
-        self.models = Counter()
         self.patterns = {kind: defaultdict(lambda: {"count": 0, "tokens": 0, "streams": set()}) for kind in KINDS}
 
     def add(self, kind, key, tokens, stream):
@@ -124,15 +126,15 @@ def read_file(path, since, prefixes, tally):
 def read_assistant(d, message, stream, calls, sequence, tally):
     usage = message.get("usage")
     mid = message.get("id") or d.get("uuid")
-    if isinstance(usage, dict) and mid not in tally.messages:
-        used = sum(int(usage.get(k) or 0) for k in USAGE_KEYS)
-        tally.messages.add(mid)
+    if isinstance(usage, dict):
+        used = [int(usage.get(k) or 0) for k in USAGE_KEYS]
+        seen = tally.messages.setdefault(mid, {"model": message.get("model") or "unknown", "usage": used})
+        seen["usage"] = [max(a, b) for a, b in zip(seen["usage"], used)]
         tally.sessions.add(d.get("sessionId"))
-        tally.models[message.get("model") or "unknown"] += used
     for item in message.get("content") or []:
         if isinstance(item, dict) and item.get("type") == "tool_use" and item.get("id") not in tally.calls:
             tally.calls.add(item.get("id"))
-            args = item.get("input") or {}
+            args = item.get("input") if isinstance(item.get("input"), dict) else {}
             call = {"name": item.get("name") or "?", "args": args, "key": call_key(item.get("name") or "?", args),
                     "stream": stream, "tokens": 0}
             calls[item.get("id")] = call
@@ -153,7 +155,7 @@ def read_results(message, calls, tally):
         if call["name"] == "Bash" and isinstance(call["args"].get("command"), str):
             tally.add("repeat-command", call["key"], call["tokens"] + len(call["args"]["command"]) / 4, call["stream"])
         if call["name"] == "Read" and isinstance(call["args"].get("file_path"), str):
-            tally.add("reread", f"Read {call['args']['file_path']}", call["tokens"], call["stream"])
+            tally.add("reread", f"Read {one_line(call['args']['file_path'])}", call["tokens"], call["stream"])
 
 
 def report(projects, since, now, prefixes, top):
@@ -166,6 +168,9 @@ def report(projects, since, now, prefixes, top):
             read_file(path, stamp(since), prefixes, tally)
         except OSError:
             continue
+    models = Counter()
+    for m in tally.messages.values():
+        models[m["model"]] += sum(m["usage"])
     per_week = timedelta(weeks=1) / max(now - since, timedelta(hours=1))
     patterns = []
     for kind in KINDS:
@@ -173,8 +178,8 @@ def report(projects, since, now, prefixes, top):
                  for key, e in tally.patterns[kind].items() if kind == "big-output" or len(e["streams"]) >= 2]
         patterns += sorted(found, key=lambda p: (-p["perWeek"], -p["count"], p["key"]))[:top]
     patterns.sort(key=lambda p: (-p["perWeek"], -p["count"], KINDS.index(p["kind"]), p["key"]))
-    return {"since": since.isoformat(), "total": sum(tally.models.values()), "sessions": len(tally.sessions),
-            "models": dict(tally.models.most_common()), "patterns": patterns}
+    return {"since": since.isoformat(), "total": sum(models.values()), "sessions": len(tally.sessions),
+            "models": dict(models.most_common()), "patterns": patterns}
 
 
 def lines(r):

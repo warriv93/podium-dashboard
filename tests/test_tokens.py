@@ -114,6 +114,12 @@ class Totals(Case):
                   ""] + assistant("s1", usage=9))
         self.assertEqual(self.tokens()[0], "TOTAL 9 sessions 1")
 
+    def test_takes_each_usage_fields_largest_value_across_the_lines_of_one_message(self):
+        first, second = assistant("s1", mid="m1", usage=10)[0], assistant("s1", mid="m1", usage=30)[0]
+        first["message"]["usage"]["output_tokens"], second["message"]["usage"]["output_tokens"] = 5, 2
+        self.log([first, second])
+        self.assertEqual(self.tokens()[0], "TOTAL 35 sessions 1")
+
     def test_refuses_a_since_it_cannot_read(self):
         with self.assertRaises(SystemExit):
             self.tokens("--since", "last tuesday")
@@ -151,6 +157,22 @@ class Patterns(Case):
         self.log(assistant("s2", bash("ls"), *steps(3)[:2]), session="s2")
         self.assertEqual([(p["key"], p["count"]) for p in self.patterns("sequence")],
                          [("Bash cd <path> && git status → Read <path> → Edit <path>", 2)])
+
+    def test_a_multi_line_command_or_path_is_one_pattern_line(self):
+        for session in ("s1", "s2"):
+            self.log(assistant(session, bash("python3 - <<'EOF'\nprint(1)\nEOF")), session=session)
+        self.assertEqual([line for line in self.tokens() if line.startswith("PATTERN")],
+                         ["PATTERN repeat-command ×2 ~16/wk Bash python3 - <<<str> print(<n>) EOF"])
+        shutil.rmtree(self.projects)
+        for session in ("s1", "s2"):
+            self.log(assistant(session, read("/r/a\nb.py")), session=session)
+        self.assertEqual([line for line in self.tokens() if line.startswith("PATTERN")],
+                         ["PATTERN reread ×2 ~200/wk Read /r/a b.py"])
+
+    def test_a_call_whose_input_is_no_object_keeps_the_other_results_of_its_line(self):
+        for session in ("s1", "s2"):
+            self.log(assistant(session, (f"toolu{next(ids)}", "Bash", "rm -rf", "ok"), read("/r.py")), session=session)
+        self.assertEqual([p["key"] for p in self.patterns("reread")], ["Read /r.py"])
 
     def test_a_call_logged_in_two_files_counts_once(self):
         calls = [bash("make lint"), bash("make lint")]
