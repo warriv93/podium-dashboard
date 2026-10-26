@@ -266,6 +266,18 @@ class Listing(Case):
         self.assertEqual(self.podium(run, "findings"), ["FINDING gate-reran ×1 wontfix retro feature-qa normal — Gate reran"])
         self.assertEqual(self.podium(run, "findings", "--all"), self.podium(run, "findings"))
 
+    def test_a_finding_event_without_a_key_from_an_older_run_is_no_finding(self):
+        run = self.run_at("api")
+        os.makedirs(os.path.join(run, "podium"), exist_ok=True)
+        with open(os.path.join(run, "podium", "events.jsonl"), "w") as f:
+            f.write(json.dumps({"at": "2026-10-01T10:00:00+00:00", "type": "finding", "text": "gate: missing test"}) + "\n")
+            f.write(json.dumps({"at": "2026-10-01T10:00:00+00:00", "type": "finding", "key": " ", "text": "blank"}) + "\n")
+            f.write(json.dumps({"at": "2026-10-02T10:00:00+00:00", "type": "finding-resolved", "resolution": "wontfix"}) + "\n")
+        self.podium(run, "finding", "add", "--key", "gate-reran", *FINDING)
+        self.assertEqual(self.podium(run, "findings"), ["FINDING gate-reran ×1 open retro feature-qa normal — Gate reran"])
+        self.seed("web", {"text": "legacy", "at": "2026-10-01T10:00:00+00:00"}, {"type": "wontfix", "why": "w"})
+        self.assertEqual(self.all(), ["FINDING gate-reran ×1 open retro feature-qa normal — Gate reran"])
+
     def test_outside_a_run_all_needs_a_remote(self):
         self.podium(None, "findings", "--all", code=1)
         self.podium(None, "findings", code=1)

@@ -147,6 +147,11 @@ def fetched(url):
         return [rec for ref in refs for rec in records(content(g, ref))], why
 
 
+def keyed(record):
+    """Whether a record has a key: older runs' `finding` events, a gate's note with no key, are no findings here."""
+    return isinstance(record.get("key"), str) and bool(record["key"].strip())
+
+
 def from_events(p):
     try:
         with open(os.path.join(p.dir, "events.jsonl"), "rb") as f:
@@ -155,6 +160,8 @@ def from_events(p):
         return []
     found = []
     for e in events:
+        if not keyed(e):
+            continue
         if e.get("type") == "finding":
             found.append({k: v for k, v in e.items() if k != "type"})
         elif e.get("type") == "finding-resolved":
@@ -171,9 +178,9 @@ def grouped(found):
     """One summary per key with a finding, most runs first, then most saving."""
     occurrences, resolutions = {}, {}
     for r in found:
-        key = r.get("key")
-        if not isinstance(key, str) or not key:
+        if not keyed(r):
             continue
+        key = r["key"]
         if r.get("type") in ("resolved", "wontfix"):
             if key not in resolutions or when(r) >= when(resolutions[key]):
                 resolutions[key] = r
