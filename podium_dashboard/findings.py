@@ -40,8 +40,8 @@ LIST_USAGE = "findings [--all] [--remote <url>]... [--open] [--json] [--recur]"
 
 
 def run_slug(p):
-    """The last part of the sync ref when the run syncs, else of the ref it would sync to, in kebab case."""
-    name = (sync.enabled(p) and sync.settings(p).get("ref")) or sync.default_ref(p)
+    """The last part of the run's sync ref, set or default, synced or not, in kebab case."""
+    name = sync.settings(p).get("ref") or sync.default_ref(p)
     return re.sub(r"[^a-z0-9]+", "-", name.rsplit("/", 1)[-1].lower()).strip("-") or "run"
 
 
@@ -242,23 +242,33 @@ def stamp_recur():
 
 
 def recur(p, remotes, now=None):
-    """The RECUR lines: open keys seen in two runs or more, or high; nothing when they were listed within 24 hours."""
+    """The RECUR lines: open keys seen in two runs or more, or high; nothing when they were listed within 24 hours.
+    Only a read that worked, every remote fetched or the run's events, counts as listing them."""
     if not recur_due(now or datetime.now(timezone.utc)):
         return []
-    stamp_recur()
     remotes = remotes or [r for r in (run_remote(p),) if r]
     if remotes:
         found, warnings = from_remotes(p, remotes)
+    elif p is not None:
+        found, warnings = from_events(p), []
     else:
-        found, warnings = (from_events(p) if p else []), []
+        return []
+    if not warnings:
+        stamp_recur()
     return warnings + [f"RECUR {g['key']} ×{len(g['runs'])} — {g['title']}" for g in recurring(grouped(found))]
+
+
+def remote_arg(remote):
+    if remote.startswith("-"):
+        sys.exit(f"--remote {remote!r}: a remote URL cannot start with '-'")
+    return remote
 
 
 def cmd_findings(p, args):
     remotes, flags, i = [], set(), 0
     while i < len(args):
         if args[i] == "--remote" and i + 1 < len(args):
-            remotes.append(args[i + 1])
+            remotes.append(remote_arg(args[i + 1]))
             i += 2
         elif args[i] in ("--all", "--open", "--json", "--recur"):
             flags.add(args[i])
@@ -296,7 +306,7 @@ def cmd_finding(p, args):
     if verb == "add" and p is not None:
         add(p, rest)
     elif verb in ("resolve", "wontfix"):
-        remotes = [rest[i + 1] for i in range(len(rest) - 1) if rest[i] == "--remote"]
+        remotes = [remote_arg(rest[i + 1]) for i in range(len(rest) - 1) if rest[i] == "--remote"]
         rest = [a for i, a in enumerate(rest) if a != "--remote" and (i == 0 or rest[i - 1] != "--remote")]
         if p is None and not remotes:
             sys.exit(f"finding {verb} needs a run dir or --remote <url>")

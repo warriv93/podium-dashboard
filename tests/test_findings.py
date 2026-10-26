@@ -119,6 +119,20 @@ class Add(Case):
         self.assertTrue(sync.is_major(p, {"type": "finding-resolved"}))
         self.assertFalse(sync.is_major(p, {"type": "status"}))
 
+    def test_turning_sync_on_or_off_keeps_the_runs_slug(self):
+        run = self.run_at("api", sync={"enabled": True, "ref": "refs/heads/podium-run/shared-api"})
+        self.podium(run, "finding", "add", "--key", "while-on", *FINDING)
+        self.run_at("api", sync={"enabled": False, "ref": "refs/heads/podium-run/shared-api"})
+        self.podium(run, "finding", "add", "--key", "while-off", *FINDING)
+        self.assertEqual([r["key"] for r in self.on_ref("shared-api")], ["while-on", "while-off"])
+
+    def test_a_remote_that_looks_like_a_flag_is_refused(self):
+        run = self.run_at("api")
+        self.podium(run, "finding", "wontfix", "gate-reran", "--why", "rare", "--remote", "--upload-pack=x", code=1)
+        self.podium(None, "findings", "--all", "--remote", "-x", code=1)
+        self.podium(None, "findings", "--recur", "--remote", "--upload-pack=x", code=1)
+        self.assertFalse(os.path.exists(os.path.join(run, "podium", "events.jsonl")))
+
     def test_an_unsynced_run_is_named_after_its_folder_or_its_repo_for_a_hidden_one(self):
         feature = os.path.join(self.tmp, "parkster-features", "Pay Later")
         os.makedirs(os.path.join(feature, "podium"))
@@ -301,8 +315,17 @@ class Recur(Case):
         self.stamp(datetime.now(timezone.utc) + timedelta(days=2))
         self.assertEqual(len(self.recur()), 2)
 
-    def test_outside_a_run_without_a_remote_it_is_silent(self):
+    def test_outside_a_run_without_a_remote_it_is_silent_and_leaves_the_stamp(self):
         self.assertEqual(self.podium(None, "findings", "--recur"), [])
+        self.assertFalse(os.path.exists(self.stamp_file))
+
+    def test_a_failed_fetch_leaves_the_stamp_so_the_next_turn_tries_again(self):
+        missing = os.path.join(self.tmp, "missing.git")
+        [warning] = self.podium(None, "findings", "--recur", "--remote", missing)
+        self.assertTrue(warning.startswith(f"WARN findings {missing} "), warning)
+        self.assertFalse(os.path.exists(self.stamp_file))
+        self.assertEqual(len(self.recur()), 2)
+        self.assertTrue(os.path.exists(self.stamp_file))
 
 
 if __name__ == "__main__":
