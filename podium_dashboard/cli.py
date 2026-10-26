@@ -1,8 +1,8 @@
 """podium [--dir <run dir>] <command> ...
 
 The run dir is --dir, else $PODIUM_DIR, else the nearest directory at or above the cwd holding
-podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, self-update, init, sync defaults and
---version need no run.
+podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, self-update, init, sync defaults,
+findings --all --remote, findings --recur, finding resolve|wontfix --remote and --version need no run.
 
 TARGETS
     .                  the project (top level); in a run with one state per person, its
@@ -142,6 +142,34 @@ COMMANDS
         (~/.podium/update.json beside human.json); --force ignores that,
         --check prints `BEHIND podium <old>→<new>` and installs nothing. A
         network or pip failure prints `WARN podium <why>`; it always exits 0.
+    finding add --key <slug> --kind retro|tokens --target <target> --title <title> --moment <evidence>
+                --fix <fix> --severity high|normal [--saving <tokens/week>] [--milestone <id>]
+        Record a finding: what went wrong or cost too much, under a kebab-case key reused
+        when the same problem recurs. target is where its fix lands: a skill's name,
+        podium, or repo:<name>. fix is one of check pointer standard delete access
+        script flag brief model tool; --saving (tokens/week) only for --kind tokens.
+        Appends a `finding` event and pushes the record onto
+        refs/heads/findings/<run slug> (the last part of the sync ref, or of the ref the
+        run would sync to when it doesn't) of the extension's FINDINGS_REMOTE,
+        file findings.jsonl, merging the lines with a concurrent push's.
+        Prints `FINDING <key> recorded (pushed | not pushed: <why>)`; a record not
+        pushed is carried by the next push from this machine.
+    finding resolve <key> --sha <sha> --repo <repo> [--remote <url>]...
+    finding wontfix <key> --why <why> [--remote <url>]...
+        Record that a key's fix landed, or that it will not be fixed, the same way,
+        with a `finding-resolved` event: `FINDING <key> resolved <sha>|wontfix (...)`,
+        one line per remote. --remote (repeatable) pushes to those remotes instead;
+        outside a run it is required, and the record goes to
+        refs/heads/findings/resolutions with no event.
+    findings [--all] [--remote <url>]... [--open] [--json] [--recur]
+        The run's findings grouped by key, from its events; --all every run's on
+        the remotes (default the run's FINDINGS_REMOTE; outside a run --remote is
+        required). One line per key, most runs first:
+          FINDING <key> ×<runs> <open|resolved <sha>|wontfix> <kinds> <target> <severity>[ ~<saving>/wk] — <title>
+        A key resolved or wontfix is open again once it recurs after that. --open
+        keeps the open ones, --json prints the groups as a JSON list. --recur prints
+        `RECUR <key> ×<runs> — <title>` for each open key seen in two runs or more,
+        or high, at most once per 24 hours per machine (~/.podium/update.json).
     init --name <name> --command </command> --extension <path to .py> [--phases a,b,c]
         Name the run's orchestrator and its extension module in podium.json's
         `orchestrator` block, creating podium/podium.json when absent.
@@ -152,7 +180,7 @@ import importlib
 import os
 import sys
 
-from podium_dashboard import __version__, extension, sync, update
+from podium_dashboard import __version__, extension, findings, sync, update
 from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
                                        cmd_init, cmd_log, cmd_ls, cmd_ready, cmd_release, cmd_requests, cmd_set, cmd_settle,
                                        cmd_status, cmd_whoami)
@@ -163,7 +191,8 @@ COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_b
             "ls": cmd_ls, "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
             "settle": cmd_settle, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
-            "asana": asana.cmd_asana, "self-update": update.cmd_self_update}
+            "asana": asana.cmd_asana, "self-update": update.cmd_self_update,
+            "finding": findings.cmd_finding, "findings": findings.cmd_findings}
 SUBCOMMANDS = ("server", "watch")
 NO_PODIUM = {"hours", "human", "whoami", "self-update"}
 
@@ -217,7 +246,7 @@ def main(argv=None):
     verb, args = argv[0], argv[1:]
     if verb in SUBCOMMANDS:
         return subcommand(verb)((["--dir", root] if root else []) + args)
-    if verb in NO_PODIUM or argv[:2] == ["sync", "defaults"]:
+    if verb in NO_PODIUM or argv[:2] == ["sync", "defaults"] or (verb in ("finding", "findings") and not root):
         COMMANDS[verb](None, args)
         return
     if not root and verb != "init":

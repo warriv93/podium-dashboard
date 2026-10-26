@@ -2,7 +2,8 @@
 
 It may define COMMANDS ({verb: fn(p, args)}), ACTIONS (extra request actions), prompt(p, kind, target_id),
 on_asana_refresh(p, task_json), SYNC_MAJOR(event) and SHARE_STEPS (the steps a colleague takes to join the run, for
-the Podium's Share button; `{ref}` and `{remote}` stand for the run's sync ref and remote). Every helper here takes the module or None. Only a .py file
+the Podium's Share button; `{ref}` and `{remote}` stand for the run's sync ref and remote) and FINDINGS_REMOTE (the git
+URL whose refs/heads/findings/<run slug> refs hold the runs' findings). Every helper here takes the module or None. Only a .py file
 loads: sync never writes one.
 """
 import importlib.util
@@ -86,3 +87,8 @@ def share_steps(module):
     if isinstance(found, (list, tuple)) and found and all(isinstance(s, str) and s.strip() for s in found):
         return list(found)
     return None
+
+
+def findings_remote(module):
+    found = getattr(module, "FINDINGS_REMOTE", None)
+    return found.strip() if isinstance(found, str) and found.strip() else None

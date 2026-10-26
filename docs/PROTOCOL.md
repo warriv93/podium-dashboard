@@ -25,6 +25,7 @@ The module may define any of these:
 | `prompt(p, kind, target_id)` | Returns the text for the server's prompt endpoints, or None. |
 | `on_asana_refresh(p, task_json)` | Called for each linked Asana task a refresh re-reads, before it writes the generic fields; never for a project. Runs from `podium asana refresh` and when an extension calls `asana.refresh(p)`, for example in `turn`. `task_json["subtasks"]` holds the subtasks of a task read on its own and is absent for an epic's subtask taken from its parent's list. |
 | `SYNC_MAJOR(event)` | Returns whether an event saves the run when sync is on. Replaces the default rule. |
+| `FINDINGS_REMOTE` | A git URL: `podium finding add\|resolve\|wontfix` push their records to its `refs/heads/findings/<run slug>`, and `podium findings --all` and `--recur` read every `refs/heads/findings/*` there. Without it findings stay in the run's events. See Findings. |
 | `SHARE_STEPS` | A list of non-empty strings: the steps a colleague takes to join the run, listed by the Share button's tooltip, with `{ref}` and `{remote}` replaced by the run's `sync.ref` and `sync.remote` (`<ref>` and `<remote>` while unset). Without it the tooltip lists the generic steps: install this tool, install the `<orchestrator.name>` skill, run `<orchestrator.command> join <ref>` in a new empty folder, claim a milestone. |
 
 ### prompt kinds
@@ -183,3 +184,13 @@ Claim a milestone before planning it with `podium claim <milestone>`; `podium re
 ### Status line
 
 `podium sync status` prints `ref <ref> OFF`, or `ref <ref> ON <remote>, never saved here`, or `ref <ref> ON <remote>, last save <sha>` with `; changed since` when the run has changed since that save.
+
+## Findings
+
+A finding record is one JSON object per line of `findings.jsonl`: `key` (kebab-case, reused when the same problem recurs), `kind` (`retro` or `tokens`), `target` (where the fix lands: a skill's name, `podium`, or `repo:<name>`), `title`, `moment` (the evidence: an event, a story id, a sha, a session and tool call), `fix` (`check pointer standard delete access script flag brief model tool`), `severity` (`high` or `normal`), `saving` (tokens per week, `tokens` findings only, optional), `by`, `at`, `run` (the run slug) and `milestone` (the `--milestone` given, else the active one; left out when neither). A resolution is `{"type": "resolved", key, sha, repo, by, at}` or `{"type": "wontfix", key, why, by, at}`; a finding has no `type`.
+
+Each run's records live on `refs/heads/findings/<run slug>` of the extension's `FINDINGS_REMOTE`: the run slug is the last part of the sync ref, or of the ref the run would sync to (`podium-run/<run dir name, or its repo's for a hidden run dir>`) when it doesn't, in kebab case. Resolutions recorded outside a run (`--remote <url>`) go to `refs/heads/findings/resolutions`. Commits are made in a bare cache per remote, `~/.podium/findings-cache/<hash>`, never in a working tree; a push the remote rejects fetches its tip, takes the union of both sides' lines (identical lines once, in `at` order) and retries, three times. A record the remote could not take stays on the cache's ref and goes with the next push from this machine. `finding add` prints `FINDING <key> recorded (pushed | not pushed: <why>)`, `resolve` and `wontfix` `FINDING <key> resolved <sha7>|wontfix (…)`, one line per remote.
+
+The run's `events.jsonl` gets `{"type": "finding", …the record}` or `{"type": "finding-resolved", "resolution": "resolved"|"wontfix", key, …}`; both are major events, whatever the extension's `SYNC_MAJOR` says, so a synced run saves after them.
+
+`podium findings` groups records by key: distinct runs, people and kinds, the latest occurrence's target, title and moment, `high` when any occurrence is, the summed saving, and the status: the latest resolution's, unless an occurrence is newer than it (`open`). Without `--all` the records are the run's own events; `--all` fetches every `refs/heads/findings/*` from each remote (`WARN findings <remote> <why>` when it can't, listing what the cache last fetched). `--recur` keeps open keys with two runs or more or `high`, and runs at most once per 24 hours per machine: key `recur` in `update.json` beside `human.json`, which keeps its other keys.

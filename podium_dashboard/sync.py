@@ -37,7 +37,8 @@ from podium_dashboard.files import MACHINE_FILES, SHARED_FILES, git_argv, write_
 from podium_dashboard.merge import rebase
 from podium_dashboard.state import person_of, watcher_running
 
-MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner"}
+ALWAYS_MAJOR = {"finding", "finding-resolved"}
+MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner", *ALWAYS_MAJOR}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
 MACHINE = ("enabled", "remote", "ref", "include", "exclude")
@@ -141,6 +142,15 @@ def is_url(remote):
     return "://" in remote or remote.startswith(("/", "~", ".")) or bool(re.match(r"[^/:]+@[^/:]+:", remote))
 
 
+def bare_cache(cache, url, ref):
+    """(Git on the private bare repository `cache`, made when missing, for `url` and `ref`, None), or (None, why)."""
+    if not os.path.isdir(cache):
+        r = subprocess.run(git_argv("init", "--bare", "-q", cache), capture_output=True, text=True)
+        if r.returncode:
+            return None, (r.stderr.strip().splitlines() or ["git init failed"])[0]
+    return Git(git_argv("--git-dir", cache), url, ref), None
+
+
 def open_git(p, remote=None, ref=None):
     """(Git, None) where the run's sync plumbing runs, or (None, why it can't)."""
     s = settings(p)
@@ -151,12 +161,7 @@ def open_git(p, remote=None, ref=None):
         url = os.path.expanduser(remote) if remote.startswith("~") else remote
         url = os.path.normpath(os.path.join(p.root, url)) if url.startswith(".") else url
         key = hashlib.sha1(f"{url}\n{ref}\n{os.path.realpath(p.root)}".encode()).hexdigest()[:16]
-        cache = os.path.join(os.path.expanduser(CACHE), key)
-        if not os.path.isdir(cache):
-            r = subprocess.run(git_argv("init", "--bare", "-q", cache), capture_output=True, text=True)
-            if r.returncode:
-                return None, (r.stderr.strip().splitlines() or ["git init failed"])[0]
-        return Git(git_argv("--git-dir", cache), url, ref), None
+        return bare_cache(os.path.join(os.path.expanduser(CACHE), key), url, ref)
     top = subprocess.run(git_argv("-C", p.root, "rev-parse", "--show-toplevel"), capture_output=True, text=True)
     if top.returncode:
         return None, "not in a git repo"
@@ -627,8 +632,10 @@ def merge_into(p, g, head, remote, message, mine=None):
 
 
 def is_major(p, event):
-    """Whether an event changes what the run is, so sync saves after it: the extension's SYNC_MAJOR(event) when it
-    defines one."""
+    """Whether an event changes what the run is, so sync saves after it: a finding or its resolution always, else the
+    extension's SYNC_MAJOR(event) when it defines one."""
+    if event.get("type") in ALWAYS_MAJOR:
+        return True
     module, _ = extension.load(p)
     override = extension.sync_major(module)
     if override:
