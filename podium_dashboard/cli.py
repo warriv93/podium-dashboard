@@ -1,7 +1,7 @@
 """podium [--dir <run dir>] <command> ...
 
 The run dir is --dir, else $PODIUM_DIR, else the nearest directory at or above the cwd holding
-podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, self-update, init, sync defaults,
+podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, self-update, tokens, init, sync defaults,
 findings --all --remote, findings --recur, finding resolve|wontfix --remote and --version need no run.
 
 TARGETS
@@ -153,7 +153,7 @@ COMMANDS
         run would sync to when it doesn't) of the extension's FINDINGS_REMOTE,
         file findings.jsonl, merging the lines with a concurrent push's.
         Prints `FINDING <key> recorded (pushed | not pushed: <why>)`; a record not
-        pushed is carried by the next push from this machine.
+        pushed is carried by the next push to that ref.
     finding resolve <key> --sha <sha> --repo <repo> [--remote <url>]...
     finding wontfix <key> --why <why> [--remote <url>]...
         Record that a key's fix landed, or that it will not be fixed, the same way,
@@ -170,6 +170,18 @@ COMMANDS
         keeps the open ones, --json prints the groups as a JSON list. --recur prints
         `RECUR <key> ×<runs> — <title>` for each open key seen in two runs or more,
         or high, at most once per 24 hours per machine (~/.podium/update.json).
+    tokens [--since 7d|<ISO>] [--cwd <path>]... [--projects <dir>] [--top N] [--json]
+        Where Claude Code's tokens went, from its session logs (--projects, default
+        ~/.claude/projects): main sessions and their subagents, the lines since --since
+        (default 7d; also 24h, 2w or an ISO time) whose cwd is under a --cwd. Prints
+        `TOTAL <tokens> sessions <n>`, `MODEL <model> <tokens>`, then
+        `PATTERN <kind> ×<count> ~<tokens>/wk <normalized>`, ranked by tokens per week,
+        the top N (default 10) of each kind: big-output (tool results of 4000 chars or
+        more, by call), repeat-command (a Bash command, its paths, shas, numbers and
+        quoted strings as <path> <sha> <n> <str>, in 2 sessions or more), reread (a
+        file Read in 2 sessions or more) and sequence (the same 3 consecutive tool
+        calls in 2 sessions or more). Tokens are usage tokens; a tool result's are its
+        characters / 4. --json prints the same as one object. Reads no run.
     init --name <name> --command </command> --extension <path to .py> [--phases a,b,c]
         Name the run's orchestrator and its extension module in podium.json's
         `orchestrator` block, creating podium/podium.json when absent.
@@ -180,7 +192,7 @@ import importlib
 import os
 import sys
 
-from podium_dashboard import __version__, extension, findings, sync, update
+from podium_dashboard import __version__, extension, findings, sync, tokens, update
 from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
                                        cmd_init, cmd_log, cmd_ls, cmd_ready, cmd_release, cmd_requests, cmd_set, cmd_settle,
                                        cmd_status, cmd_whoami)
@@ -191,10 +203,10 @@ COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_b
             "ls": cmd_ls, "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
             "settle": cmd_settle, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
-            "asana": asana.cmd_asana, "self-update": update.cmd_self_update,
+            "asana": asana.cmd_asana, "self-update": update.cmd_self_update, "tokens": tokens.cmd_tokens,
             "finding": findings.cmd_finding, "findings": findings.cmd_findings}
 SUBCOMMANDS = ("server", "watch")
-NO_PODIUM = {"hours", "human", "whoami", "self-update"}
+NO_PODIUM = {"hours", "human", "whoami", "self-update", "tokens"}
 
 
 def usage(root):

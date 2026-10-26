@@ -48,6 +48,7 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 | `claim <milestone>`, `release <milestone>`, `whoami [name]` | ownership in a shared run |
 | `sync on\|off\|save\|pull\|status` | share the run through git |
 | `finding add\|resolve\|wontfix`, `findings [--all] [--open] [--recur]` | record what went wrong or cost too much under a key reused when it recurs, and list the keys across runs, see Findings |
+| `tokens [--since 7d] [--cwd <path>]... [--top N] [--json]` | where Claude Code's tokens went in the last week, and the recurring tool calls worth fixing, see Findings |
 | `asana link\|refresh` | link a run to an Asana project or task and read its progress back, see Linking Asana |
 | `ls stories\|milestones [--milestone ID] [--fields a,b]` | one line per story or milestone |
 | `hours`, `human [set <mode> [--until HH:MM]]` | your working hours and availability, per machine; `human set` flips the toggle |
@@ -74,6 +75,8 @@ Without a token `refresh` prints `NO_TOKEN` and exits 3; a failed read prints `A
 A run records a **finding** when something went wrong or cost too much, under a short kebab-case key that a later run reuses for the same problem: `podium finding add --key gate-reran --kind retro --target feature-qa --title "…" --moment "<evidence>" --fix check --severity normal`. It goes into the run's events (the dashboard's feed shows it) and onto the ref `refs/heads/findings/<run slug>` of the git remote the extension names as `FINDINGS_REMOTE`, file `findings.jsonl`, one JSON record per line, without touching any working tree. With no `FINDINGS_REMOTE` the event is still recorded. `podium finding resolve <key> --sha <sha> --repo <repo>` and `podium finding wontfix <key> --why "<why>"` close a key the same way; outside a run they take `--remote <url>` and write to `refs/heads/findings/resolutions`.
 
 `podium findings` lists the run's own findings grouped by key; `--all` reads every run's ref on the remote (outside a run, `--remote <url>`, repeatable): `FINDING <key> ×<runs> <open|resolved <sha>|wontfix> <kind> <target> <severity>[ ~<saving>/wk] — <title>`. A closed key is open again when it recurs later. `podium findings --recur` prints `RECUR <key> ×<runs> — <title>` for open keys seen in two runs or more, or marked high, at most once a day per machine: an orchestrator's turn can pass those lines on.
+
+`podium tokens` is where a `tokens` finding's evidence comes from. It reads Claude Code's session logs under `~/.claude/projects` (subagents included) since `--since` (default `7d`, or an ISO time), for sessions whose cwd is under a `--cwd`, with no model calls, and prints `TOTAL <tokens> sessions <n>`, a `MODEL <model> <tokens>` line per model, and `PATTERN <kind> ×<count> ~<tokens>/wk <normalized>` lines ranked by tokens per week: `big-output` (large tool results), `repeat-command` (the same Bash command, with paths, shas, numbers and quoted strings as placeholders, in several sessions), `reread` (the same file read in several sessions) and `sequence` (the same three tool calls in a row in several sessions). `--top N` keeps N of each kind (default 10), `--json` prints one object.
 
 ## Writing an orchestrator extension
 
