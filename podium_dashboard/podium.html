@@ -184,7 +184,7 @@ a.wchip { color: inherit; text-decoration: none; }
 @keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(3); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
 
-.toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.toolbar { position: sticky; top: var(--bar-h, 0px); z-index: 10; background: var(--bg); padding: 6px 0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .search { flex: 1 1 280px; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; box-shadow: var(--shadow); height: 40px; }
 .search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 .search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; color: var(--text); font-size: 14px; min-width: 0; }
@@ -229,7 +229,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .ds-paper.zoom img { max-width: none; }
 
 .map-card { padding: 0; overflow: clip; }
-.map-head { position: sticky; top: 56px; z-index: 5; background: var(--card); display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 18px 8px; transition: box-shadow .15s; }
+.map-head { position: sticky; top: calc(var(--bar-h, 0px) + var(--toolbar-h, 0px)); z-index: 5; background: var(--card); display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 14px 18px 8px; transition: box-shadow .15s; }
 .map-head.stuck { box-shadow: 0 6px 10px -8px rgba(0,0,0,.35); }
 .map-sentinel { height: 1px; margin-bottom: -1px; pointer-events: none; }
 .map-head h2 { flex: 1; min-width: 0; }
@@ -472,7 +472,7 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .qline .when { margin-left: auto; color: var(--text-3); font-size: 12px; white-space: nowrap; }
 .muted { color: var(--text-3); font-size: 13px; }
 
-.feed { position: sticky; top: 84px; max-height: calc(100vh - 104px); display: flex; flex-direction: column; }
+.feed { position: sticky; top: calc(var(--bar-h, 0px) + 12px); max-height: calc(100vh - var(--bar-h, 0px) - 32px); display: flex; flex-direction: column; }
 .feed h2 { margin: 0; padding: 14px 18px 10px; font-size: 13px; font-weight: 600; color: var(--text-2); letter-spacing: .02em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
 .feed-filter { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
 .feed-filter button { border: 0; background: transparent; color: var(--text-2); font-size: 12px; font-weight: 500; padding: 4px 8px; border-radius: 999px; cursor: pointer; }
@@ -1394,7 +1394,7 @@ function dsBtn(E) {
     : what === "epic" ? "Draw this epic's process as domain stories, from its brief" : "Draw what this milestone changes as domain stories, starting from the epic's when it has them";
   return orch() ? `<button class="dsbtn" data-act="domain-story" data-id="${esc(E.id)}" title="${esc(tip)}">${DS_ICO}Domain story</button>` : "";
 }
-function openDs(id) { S.ds = { id, tab: 0 }; if (S.epic && S.view && S.view !== id) S.view = null; render(); requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - document.querySelector(".topbar").offsetHeight - 12, behavior: "smooth" })); }
+function openDs(id) { S.ds = { id, tab: 0 }; if (S.epic && S.view && S.view !== id) S.view = null; render(); requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" })); }
 function closeDs() { S.ds = null; render(); }
 function renderDs() {
   const E = S.ds && dsOwner(S.ds.id);
@@ -2335,7 +2335,7 @@ document.addEventListener("click", (ev) => {
     enterEpicOf(d.dataset.drill);
     if (S.epic.single) render(); else setView(d.dataset.drill);
     if (d.dataset.story) openSheet(d.dataset.story);
-    if (!d.closest(".map-card")) requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - document.querySelector(".topbar").offsetHeight - 12, behavior: "smooth" }));
+    if (!d.closest(".map-card")) requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" }));
     return;
   }
   const o = ev.target.closest("[data-open]");
@@ -2377,14 +2377,17 @@ $("feed-filter").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-feed]");
   if (b) { S.feedFilter = b.dataset.feed; renderEvents(); $("events").scrollTop = 0; }
 });
+function stickyOffset() { return parseFloat(getComputedStyle(document.querySelector(".map-head")).top) || 0; }
 function trackStickyBar() {
-  const bar = document.querySelector(".topbar"), head = document.querySelector(".map-head");
+  const bar = document.querySelector(".topbar"), toolbar = document.querySelector(".toolbar"), head = document.querySelector(".map-head"), root = document.documentElement;
   let observer = null, offset = -1;
   const sync = () => {
-    const next = getComputedStyle(bar).position === "sticky" ? bar.offsetHeight : 0;
+    const barH = getComputedStyle(bar).position === "sticky" ? bar.offsetHeight : 0;
+    const next = barH + toolbar.offsetHeight;
+    root.style.setProperty("--bar-h", `${barH}px`);
+    root.style.setProperty("--toolbar-h", `${toolbar.offsetHeight}px`);
     if (next === offset) return;
     offset = next;
-    head.style.top = `${next}px`;
     if (typeof IntersectionObserver === "undefined") return;
     if (observer) observer.disconnect();
     observer = new IntersectionObserver(([e]) => head.classList.toggle("stuck", !e.isIntersecting), { rootMargin: `-${next}px 0px 0px 0px` });
@@ -2392,7 +2395,11 @@ function trackStickyBar() {
   };
   sync();
   window.addEventListener("resize", sync);
-  if (typeof ResizeObserver !== "undefined") new ResizeObserver(sync).observe(bar);
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(sync);
+    ro.observe(bar);
+    ro.observe(toolbar);
+  }
 }
 trackStickyBar();
 window.addEventListener("resize", () => { if (!S.project) return; if (!S.epic || !S.view) drawQueue(); else renderMap(); });

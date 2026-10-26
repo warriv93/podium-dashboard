@@ -110,7 +110,7 @@ function element() {
   const e = {
     get innerHTML() { return html; }, set innerHTML(v) { html = v; OUT.push(v); },
     insertAdjacentHTML(_, v) { OUT.push(v); },
-    textContent: "", hidden: false, style: {}, dataset: {}, title: "", value: "", href: "", placeholder: "", open: false,
+    textContent: "", hidden: false, style: { setProperty() {} }, dataset: {}, title: "", value: "", href: "", placeholder: "", open: false,
     outerHTML: "<svg></svg>", clientWidth: 1200, scrollWidth: 1200, scrollHeight: 800, offsetHeight: 50, offsetLeft: 0,
     classList: { toggle() {}, add() {}, remove() {}, contains() { return false; } },
     setAttribute() {}, removeAttribute() {}, addEventListener() {}, querySelector() { return null; }, querySelectorAll() { return []; },
@@ -533,28 +533,32 @@ class HostileRun(unittest.TestCase):
 STICKY_HARNESS = r"""
 const src = require("fs").readFileSync(process.argv[2], "utf8");
 const fn = src.slice(src.indexOf("function trackStickyBar()"), src.indexOf("trackStickyBar();\n"));
-const bar = { offsetHeight: 50, position: "sticky" }, head = { style: {}, classList: { toggle() {} } };
+const bar = { offsetHeight: 50, position: "sticky" }, toolbar = { offsetHeight: 40 }, vars = {}, head = { style: {}, classList: { toggle() {} } };
 const watchers = [], resizers = [];
 globalThis.window = { addEventListener: (_, f) => resizers.push(f) };
-globalThis.document = { querySelector: (s) => (s === ".topbar" ? bar : head) };
+globalThis.document = { documentElement: { style: { setProperty: (k, v) => (vars[k] = v) } }, querySelector: (s) => (s === ".topbar" ? bar : s === ".toolbar" ? toolbar : head) };
 globalThis.$ = () => ({});
 globalThis.getComputedStyle = (el) => ({ position: el.position });
 globalThis.IntersectionObserver = class { constructor(_, o) { this.margin = o.rootMargin; this.live = true; watchers.push(this); } observe() {} disconnect() { this.live = false; } };
 let resized;
-globalThis.ResizeObserver = class { constructor(f) { resized = f; } observe() {} };
+const observed = [];
+globalThis.ResizeObserver = class { constructor(f) { resized = f; } observe(el) { observed.push(el); } };
 eval(fn + "; trackStickyBar();");
-const out = [[head.style.top, watchers.at(-1).margin]];
+const snap = (...extra) => [vars["--bar-h"], vars["--toolbar-h"], watchers.at(-1).margin, ...extra];
+const out = [snap(observed.length)];
 bar.offsetHeight = 90; resized();
-out.push([head.style.top, watchers.at(-1).margin, watchers[0].live, watchers.filter((w) => w.live).length]);
+out.push(snap(watchers[0].live, watchers.filter((w) => w.live).length));
+toolbar.offsetHeight = 80; resized();
+out.push(snap());
 bar.position = "static"; resizers[0]();
-out.push([head.style.top, watchers.at(-1).margin]);
+out.push(snap());
 process.stdout.write(JSON.stringify(out));
 """
 
 
 @unittest.skipUnless(shutil.which("node"), "needs Node to run the page's script")
 class StickyBar(unittest.TestCase):
-    def test_the_map_head_top_follows_the_header_height(self):
+    def test_the_toolbar_and_map_head_offsets_follow_the_header_and_toolbar_heights(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)
         with open(os.path.join(tmp, "harness.js"), "w") as f:
@@ -562,9 +566,10 @@ class StickyBar(unittest.TestCase):
         r = subprocess.run(["node", os.path.join(tmp, "harness.js"), PAGE], capture_output=True, text=True, cwd=tmp, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout), [
-            ["50px", "-50px 0px 0px 0px"],
-            ["90px", "-90px 0px 0px 0px", False, 1],
-            ["0px", "-0px 0px 0px 0px"],
+            ["50px", "40px", "-90px 0px 0px 0px", 2],
+            ["90px", "40px", "-130px 0px 0px 0px", False, 1],
+            ["90px", "80px", "-170px 0px 0px 0px"],
+            ["0px", "80px", "-80px 0px 0px 0px"],
         ])
 
 
