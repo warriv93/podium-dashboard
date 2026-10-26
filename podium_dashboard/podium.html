@@ -1595,7 +1595,8 @@ const EV = {
   planned: ["◆", "blue", (e) => `${msLink(e.milestone)}planning started`],
   landed: ["✓", "green", (e) => `${msLink(e.milestone)}landed${shortSha(e.sha) ? ` <code>${esc(shortSha(e.sha))}</code>` : ""}${e.repo ? ` in ${esc(e.repo)}` : ""} ${esc(e.subject || "")}`],
   status: ["◇", "", (e) => `${msLink(e.milestone)}${esc(e.text || "")}`],
-  finding: ["⚑", "amber", (e) => `${msLink(e.milestone)}Gate finding: ${esc(e.text || "")}`],
+  finding: [(e) => (e.key ? "◎" : "⚑"), "amber", (e) => (e.key ? findingText(e) : `${msLink(e.milestone)}Gate finding: ${esc(e.text || "")}`)],
+  "finding-resolved": ["◎", (e) => (e.resolution === "wontfix" ? "" : "green"), (e) => `${msLink(e.milestone)}${e.resolution === "wontfix" ? `<b>${esc(e.key || "")}</b> won't fix: ${esc(e.why || "")}` : `<b>${esc(e.key || "")}</b> resolved${shortSha(e.sha) ? ` <code>${esc(shortSha(e.sha))}</code>` : ""}${e.repo ? ` in ${esc(e.repo)}` : ""}`}`],
   needs: ["?", "amber", (e) => `${msLink(e.milestone)}Needs you: ${esc(e.reason || e.text || "a decision")}`],
   request: ["⌘", "", (e) => `Podium: ${esc(e.text || "")}`],
   "domain-story": ["✎", "blue", (e) => ((t) => (e.reason ? `Drawing ${t} failed — ${esc(e.reason)}` : `<a data-ds="${esc(e.epic || e.milestone || "")}">${t}</a> drawn as ${esc(e.count || "")} domain ${e.count === 1 ? "story" : "stories"}`))(esc((S.project && dsOwner(e.epic || e.milestone))?.title || e.epic || e.milestone || "an epic"))],
@@ -1605,6 +1606,12 @@ const EV = {
   settled: ["✓", "", (e) => e.count ? `You ${e.status === "reversed" ? "reversed" : "confirmed"} ${esc(e.count)} decisions` : `${link(e)} You ${e.status === "reversed" ? "reversed" : "confirmed"}: ${esc(e.question || "")}`],
   pr: ["⇡", (e) => ({ __proto__: null, merged: "purple", closed: "red", open: "green" }[e.state] || "blue"), (e) => `${msLink(e.milestone)}${esc(e.repo || "")} ${prPill({ number: e.number, url: e.url, state: e.state })}${e.was ? ` <span class="meta">was ${esc(e.was)}</span>` : ""}`],
 };
+function findingText(e) {
+  const detail = [e.target, e.fix].filter(Boolean).map(esc).join(" · ");
+  const saving = e.kind === "tokens" && e.saving ? ` · ~${esc(e.saving)}/wk` : "";
+  const high = e.severity === "high" ? ` · <b>high</b>` : "";
+  return `${msLink(e.milestone)}finding <b>${esc(e.key)}</b> · ${esc(e.title || "")}<div class="meta">${detail}${saving}${high}</div>`;
+}
 function link(e) {
   if (!e.story) return msLink(e.milestone);
   const pre = multiMs() && e.milestone ? `${esc(e.milestone)} · ` : "";
@@ -1618,6 +1625,7 @@ const FEED = {
   stories: ["dispatched", "merged", "failed", "retry", "conflict", "commit"],
   phases: ["phase", "planned", "landed", "pr", "status", "gate", "finding", "note", "adopted", "build-all"],
   commits: ["commit"],
+  findings: ["finding", "finding-resolved"],
 };
 function feedEvents() {
   const f = S.feedFilter || "all", types = FEED[f];
@@ -1630,7 +1638,7 @@ function feedEvents() {
     if (f === "stories" && e.type === "commit" && !e.story) continue;
     if (f !== "commits" && e.type === "commit" && e.story && merged.has(key(e.milestone || "", e.story))) continue;
     const prev = out[out.length - 1];
-    if (prev && prev.type === e.type && (prev.text || prev.subject || prev.question) === (e.text || e.subject || e.question) && prev.story === e.story) continue;
+    if (prev && prev.type === e.type && (prev.text || prev.subject || prev.question || prev.key) === (e.text || e.subject || e.question || e.key) && prev.story === e.story) continue;
     out.push(e.type === "merged" && e.story ? { ...e, _commit: commitOf.get(key(e.milestone || "", e.story)) } : e);
     if (out.length >= 300) break;
   }
@@ -1641,7 +1649,7 @@ function renderEvents() {
   $("feed-filter").innerHTML = Object.keys(FEED).map((k) => `<button class="${k === f ? "on" : ""}" data-feed="${k}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("");
   $("events").innerHTML = feedEvents().map((e) => {
     const [ico, cls, fn] = EV[e.type] || ["•", "", () => esc(e.text || e.type)];
-    return `<li class="ev"><span class="ico ${typeof cls === "function" ? cls(e) : cls}">${ico}</span><div><div>${fn(e)}</div><div class="meta">${esc(when(e.at))}${e.by ? ` · ${personName(e.by)}` : ""}</div></div></li>`;
+    return `<li class="ev"><span class="ico ${typeof cls === "function" ? cls(e) : cls}">${typeof ico === "function" ? ico(e) : ico}</span><div><div>${fn(e)}</div><div class="meta">${esc(when(e.at))}${e.by ? ` · ${personName(e.by)}` : ""}</div></div></li>`;
   }).join("") || `<li class="muted" style="padding:8px">${f === "all" ? "Nothing yet" : "Nothing here yet"}</li>`;
 }
 

@@ -309,6 +309,22 @@ class HostileRun(unittest.TestCase):
             self.assertIn(shown, text)
         self.assertIn("Re-read the Asana task and its subtasks", [v for _, k, v in scan.attrs if k == "title"])
 
+    def test_the_feed_renders_findings_and_their_resolutions_and_offers_a_findings_filter(self):
+        events = [
+            {"type": "finding", "key": "big-<b>read", "kind": "tokens", "target": "feature-qa", "title": "reads <i>whole</i> files", "fix": "pointer",
+             "severity": "high", "saving": 40000, "milestone": "M1", "by": "ann", "at": ago(hours=3)},
+            {"type": "finding-resolved", "key": "k1", "resolution": "resolved", "sha": "abcdef123456", "repo": "podium", "at": ago(hours=2)},
+            {"type": "finding-resolved", "key": "k2", "resolution": "wontfix", "why": "<u>rare</u>", "at": ago(hours=1)},
+        ]
+        self.rendered(RUN, events, PROGRESS, ())
+        feed = [h for h in self.html if 'class="ev"' in h][-1]
+        self.assertEqual(feed.count("◎"), 3)
+        for found in ("finding <b>big-&lt;b&gt;read</b>", "reads &lt;i&gt;whole&lt;/i&gt; files", "feature-qa · pointer", "~40000/wk", "<b>high</b>",
+                      "<b>k1</b> resolved <code>abcdef1</code> in podium", "<b>k2</b> won't fix: &lt;u&gt;rare&lt;/u&gt;"):
+            self.assertIn(found, feed)
+        self.assertNotIn("<i>whole", feed)
+        self.assertTrue(any('data-feed="findings"' in h for h in self.html))
+
     def test_renders_a_run_whose_stories_and_milestones_depend_on_each_other_in_a_cycle(self):
         scan = self.rendered(CYCLIC_RUN, [], PROGRESS, ("S1", "S2", "S3"))
         text = "".join(scan.text)
