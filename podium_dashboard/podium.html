@@ -521,6 +521,8 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
   transform: translateX(calc(100% + 24px)); transition: transform .32s cubic-bezier(.2,.8,.2,1); display: flex; flex-direction: column;
 }
 .sheet.on { transform: none; }
+.sheet.wide { width: min(max(760px, 50vw), calc(100vw - 24px)); }
+.sec.preview iframe { display: block; width: 100%; height: calc(100vh - 210px); min-height: 360px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .sheet-head { padding: 18px 20px 14px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid var(--line); }
 .sheet-head h2 { margin: 2px 0 6px; font-size: 20px; letter-spacing: -.02em; line-height: 1.2; }
 .sheet-body { overflow-y: auto; padding: 4px 20px 24px; }
@@ -2023,7 +2025,10 @@ async function openSheet(id) {
   const target = id === "__root" ? (vm || null) : byId()[id];
   const path = id === "__root" && !vm ? S.epic.epic.spec || (S.epic.epic.quest && questOf()?.doc) : target?.brief || document.querySelector(`[data-open="${CSS.escape(id)}"]`)?.dataset.path;
   if (path && S.briefs[path] === undefined) {
-    try { S.briefs[path] = await getText(path); } catch { try { S.briefs[path] = await getText(`podium/${path}`); } catch { S.briefs[path] = null; } }
+    S.docUrl ||= dict();
+    for (const at of [path, `podium/${path}`]) {
+      try { S.briefs[path] = await getText(at); S.docUrl[path] = at; break; } catch { S.briefs[path] = null; }
+    }
     if (S.selected === id) renderSheet();
   }
   if (vm && target && target !== vm && (isBuilding(vm) || S.progress[key(vm.id, id)] === undefined)) {
@@ -2067,8 +2072,17 @@ function landedLinks(landed) {
 }
 const shortSha = (sha) => (typeof sha === "string" ? sha.slice(0, 7) : "");
 
+const isHtml = (path) => /\.html?$/i.test(path || "");
+function htmlPreview(path) {
+  const text = S.briefs[path], at = S.docUrl?.[path];
+  if (text === undefined) return `<div class="sec"><div class="muted">Loading…</div></div>`;
+  if (text === null || !at) return `<div class="sec"><div class="muted">${esc(path)} not readable from the Podium</div></div>`;
+  const href = runHref(at);
+  return `<div class="sec preview"><h3>Preview<a href="${esc(href)}" target="_blank" rel="noopener">Open in a new tab ↗</a></h3><iframe sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" src="${esc(href)}" title="${esc(path)}"></iframe></div>`;
+}
 function renderSheet() {
   const id = S.selected, e = S.epic, vm = viewMs();
+  $("sheet").classList.remove("wide");
   if (id === "__quest") return questSheet();
   if (id === "__root" && !vm) return epicSheet();
   if (id === "__root" || (!vm && msById()[id])) return milestoneSheet(id === "__root" ? vm : msById()[id]);
@@ -2077,7 +2091,8 @@ function renderSheet() {
     const el = document.querySelector(`[data-open="${CSS.escape(id)}"]`);
     const path = el?.dataset.path;
     $("sheet-head").innerHTML = `<span class="sid">Artifact</span><h2>${esc(el?.querySelector(".title")?.textContent || id)}</h2><div class="muted mono">${esc(path)}</div>`;
-    $("sheet-body").innerHTML = briefSec(path, "Document");
+    $("sheet-body").innerHTML = isHtml(path) ? htmlPreview(path) : briefSec(path, "Document");
+    $("sheet").classList.toggle("wide", isHtml(path));
     return;
   }
   const live = isBuilding(vm), sk = key(vm.id, id);

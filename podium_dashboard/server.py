@@ -152,7 +152,7 @@ PAGE = os.path.join(PACKAGE, "podium.html")
 PAGE_PATHS = ("/", "/index.html", "/podium.html")
 SANDBOX = "sandbox allow-scripts allow-forms allow-popups"
 PAGE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-            "connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'")
+            "connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'")
 
 
 def orchestrator_of(data):
