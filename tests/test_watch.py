@@ -294,6 +294,43 @@ class Synced(Watcher):
         self.assertTrue(watch.built_here(self.ann.root, self.pod("stories", "M1", "S1.progress", run_dir=self.ann.root)))
         self.assertFalse(watch.built_here(self.ann.root, self.pod("stories", "M9", "S1.progress", run_dir=self.ann.root)))
 
+    def refer(self, p, mid, **fields):
+        p.milestone(mid).update(fields)
+        p.save()
+
+    def test_saves_a_referenced_document_changed_since_the_last_save_once_and_never_under_anothers_lock(self):
+        os.environ["PODIUM_ME"] = "ann"
+        doc = self.pod("cta.html", run_dir=self.ann.root)
+        self.append(doc, "one")
+        self.refer(self.ann, "M1", artifacts=[{"name": "CTA", "path": "cta.html"}])
+        self.assertRegex(sync.save(self.ann), r"^SAVED ")
+        offsets, seen = watch.fresh(self.ann.dir)
+        self.append(doc, "two")
+        with self.ann.locked():
+            watch.sync_turn(self.ann, offsets, seen, set())
+        before = self.tip()
+        self.assertEqual(git("--git-dir", self.bare, "show", f"{REF}:podium/cta.html"), "one\n")
+        watch.sync_turn(self.ann, offsets, seen, set())
+        self.assertNotEqual(self.tip(), before)
+        self.assertEqual(git("--git-dir", self.bare, "show", f"{REF}:podium/cta.html"), "one\ntwo\n")
+        after = self.tip()
+        watch.sync_turn(self.ann, offsets, seen, set())
+        self.assertEqual(self.tip(), after)
+
+    def test_tells_the_owner_once_of_a_document_no_save_can_carry(self):
+        os.environ["PODIUM_ME"] = "bob"
+        self.append(self.pod("tool.py", run_dir=self.bob.root), "x")
+        self.refer(self.bob, "M1", owner="bob", artifacts=[{"name": "tool", "path": "tool.py"}], spec="../../elsewhere.md")
+        self.refer(self.bob, "M2", owner="ann", brief="../../theirs.md")
+        self.assertEqual(self.lines(self.start(run_dir=self.bob.root)), [
+            "UNSYNCED M1 ../../elsewhere.md outside the run dir",
+            "UNSYNCED M1 tool.py never syncs (Python code, a native module or this machine's own file)"])
+        with open(self.pod("watcher.json", run_dir=self.bob.root)) as f:
+            warned = set(json.load(f)["warned"])
+        self.assertEqual(warned, {"../../elsewhere.md", "tool.py"})
+        offsets, seen = watch.fresh(self.bob.dir)
+        self.assertEqual(watch.sync_turn(self.bob, offsets, seen, warned), [])
+
     def test_skips_a_pull_while_another_podium_command_holds_the_lock(self):
         self.assertFalse(watch.busy(self.bob))
         with self.bob.locked():

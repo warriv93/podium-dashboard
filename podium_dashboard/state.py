@@ -67,6 +67,7 @@ class Podium:
         self.lock_fd, self.lock_depth = None, 0
         self._me = None
         self.load()
+        self.opened = self.base
 
     def read(self):
         """podium.json as it is on disk now; {} before the first write."""

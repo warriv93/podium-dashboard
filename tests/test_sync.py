@@ -812,6 +812,120 @@ class Merge(SyncCase):
         self.assertIsNone(b.needs_you())
 
 
+class Documents(SyncCase):
+    def refer(self, p, mid="M1", **fields):
+        p.milestone(mid).update(fields)
+        p.save()
+
+    def test_an_artifact_no_include_covers_reaches_the_other_machine(self):
+        a, b = self.machine("a"), self.machine("b")
+        self.write(os.path.join(a.dir, "api", "us4.html"), "<p>cta</p>\n")
+        self.write(os.path.join(a.dir, "api", "other.html"), "<p>not referenced</p>\n")
+        self.refer(a, artifacts=[{"name": "CTA", "path": "api/us4.html", "phase": "mock"}])
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertIn("podium/api/us4.html", self.remote_files())
+        self.assertNotIn("podium/api/other.html", self.remote_files())
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual(self.read(os.path.join(b.dir, "api", "us4.html")), "<p>cta</p>\n")
+
+    def test_a_save_uploads_only_the_documents_of_this_persons_milestones_plus_the_epic_and_quest_ones(self):
+        a = self.as_("ann", self.machine("a"))
+        for name in ("local.html", "mine.html", "epic.html", "quest.html", "epic-artifact.html"):
+            self.write(os.path.join(a.dir, name), "x\n")
+        data = json.loads(json.dumps(DATA))
+        data["project"]["quest"] = {"doc": "quest.html"}
+        data["epics"][0].update(spec="epic.html", artifacts=[{"name": "e", "path": "epic-artifact.html"}])
+        for m, owner, path in zip(data["epics"][0]["milestones"], ("bob", "ann"), ("local.html", "mine.html")):
+            m.update(owner=owner, artifacts=[{"name": "doc", "path": path}])
+        self.push_tree({"podium/podium.json": json.dumps(data)})
+        self.assertRegex(sync.pull(a), r"^PULLED ")
+        self.assertRegex(sync.save(a, "docs"), r"^SAVED ")
+        self.assertEqual(sorted(f for f in self.remote_files() if f.endswith(".html")),
+                         ["podium/epic-artifact.html", "podium/epic.html", "podium/mine.html", "podium/quest.html"])
+        self.refer(a, "M1", owner="ann")
+        self.assertRegex(sync.save(a, "claimed"), r"^SAVED ")
+        self.assertIn("podium/local.html", self.remote_files())
+
+    def test_a_referenced_document_the_remote_deletes_is_deleted_here_and_one_it_changes_is_rewritten(self):
+        a = self.machine("a")
+        self.write(os.path.join(a.root, "brief.txt"), "one\n")
+        self.write(os.path.join(a.root, "ledger.txt"), "ledger\n")
+        self.refer(a, brief="brief.txt", archive="ledger.txt")
+        sync.save(a)
+        b = self.machine("b")
+        self.assertEqual(self.read(os.path.join(b.root, "brief.txt")), "one\n")
+        self.write(os.path.join(a.root, "brief.txt"), "two\n")
+        os.remove(os.path.join(a.root, "ledger.txt"))
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual(self.read(os.path.join(b.root, "brief.txt")), "two\n")
+        self.assertFalse(os.path.exists(os.path.join(b.root, "ledger.txt")))
+
+    def test_a_milestone_spec_resolves_from_the_git_toplevel_and_syncs_only_inside_the_run_dir(self):
+        a = self.machine("a")
+        top = os.path.dirname(a.root)
+        self.write(os.path.join(top, "docs", "outside.txt"), "outside\n")
+        self.write(os.path.join(a.root, "notes", "m1.txt"), "m1\n")
+        self.write(os.path.join(a.root, "specs", "m2", "a.txt"), "a\n")
+        self.write(os.path.join(a.root, "specs", "m2", "deep", "b.txt"), "b\n")
+        self.write(os.path.join(a.root, "specs", "m2", "tool.py"), "x\n")
+        self.refer(a, spec=".deep-plan/notes/m1.txt")
+        self.refer(a, "M2", spec=".deep-plan/specs/m2/")
+        a.epics()[0]["spec"] = "../docs/outside.txt"
+        a.save()
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertEqual(sorted(f for f in self.remote_files() if not f.startswith("podium/")),
+                         ["notes/m1.txt", "specs/m2/a.txt", "specs/m2/deep/b.txt"])
+
+    def test_a_referenced_python_file_or_excluded_one_never_syncs_either_way(self):
+        a = self.run_in(self.clone("a"), exclude=["*.secret.html"])
+        for name in ("tool.py", "ext.so", "x.secret.html", "ok.html"):
+            self.write(os.path.join(a.dir, name), "x\n")
+        self.refer(a, artifacts=[{"name": n, "path": n} for n in ("tool.py", "ext.so", "x.secret.html", "ok.html")])
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertEqual(sorted(f for f in self.remote_files() if f != "podium/podium.json"), ["podium/ok.html"])
+        refs = [{"name": n, "path": n} for n in ("evil.py", "kept.html", "ok.html")]
+        data = {**DATA, "epics": [{"id": "e", "milestones": [{"id": "M1", "artifacts": refs}]}]}
+        self.push_tree({"podium/podium.json": json.dumps(data), "podium/evil.py": "x\n", "podium/kept.html": "x\n",
+                        "podium/ok.html": "ok\n"})
+        b = self.run_in(self.clone("b"), None, exclude=["kept.html"])
+        self.assertRegex(sync.pull(b), r"^PULLED ")
+        self.assertEqual(sorted(n for n in os.listdir(b.dir) if n.endswith((".py", ".html"))), ["ok.html"])
+
+    def test_a_document_outside_the_run_dir_or_through_a_symlink_never_syncs(self):
+        a = self.machine("a")
+        outside = os.path.join(self.tmp, "elsewhere")
+        self.write(os.path.join(outside, "x.html"), "x\n")
+        os.symlink(outside, os.path.join(a.dir, "linked"))
+        self.refer(a, artifacts=[{"name": "x", "path": "../../../elsewhere/x.html"}, {"name": "l", "path": "linked/x.html"},
+                                 {"name": "abs", "path": os.path.join(outside, "x.html")}])
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertFalse([f for f in self.remote_files() if f.endswith("x.html")])
+
+    def test_unsynced_names_the_owners_documents_no_save_can_carry(self):
+        a = self.as_("ann", self.run_in(self.clone("a"), exclude=["*.secret.html"]))
+        for name in ("tool.py", "x.secret.html", "ok.html"):
+            self.write(os.path.join(a.dir, name), "x\n")
+        self.refer(a, owner="ann", artifacts=[{"name": n, "path": n} for n in ("tool.py", "x.secret.html", "ok.html", "gone.html")],
+                   spec="../outside.md")
+        self.refer(a, "M2", owner="bob", brief="tool.py")
+        self.assertEqual(sync.unsynced(a), [
+            ("M1", "../outside.md", "outside the run dir"),
+            ("M1", "tool.py", "never syncs (Python code, a native module or this machine's own file)"),
+            ("M1", "x.secret.html", "excluded by the sync lists")])
+
+    def test_unsaved_documents_notices_a_referenced_documents_change_until_the_next_save(self):
+        a = self.machine("a")
+        self.assertFalse(sync.unsaved_documents(a))
+        self.write(os.path.join(a.dir, "cta.html"), "one\n")
+        self.refer(a, artifacts=[{"name": "CTA", "path": "cta.html"}])
+        self.assertTrue(sync.unsaved_documents(a))
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertFalse(sync.unsaved_documents(a))
+        self.write(os.path.join(a.dir, "cta.html"), "two\n")
+        self.assertTrue(sync.unsaved_documents(a))
+
+
 class Ref(SyncCase):
     def test_the_default_ref_is_one_per_run_named_after_its_folder(self):
         hidden = self.run_in(os.path.join(self.tmp, "My Repo"))
@@ -961,6 +1075,22 @@ class AutoSave(SyncCase):
         self.podium(p, "set", "S1", "--event", "status", "status=working", "at=2026-01-01T00:00:00+00:00")
         self.podium(p, "set", "S1", "--event", "commit", "sha=abc")
         self.assertIsNone(self.remote_tip())
+
+    def test_adding_an_artifact_or_pointing_a_brief_or_spec_elsewhere_saves_on_its_own(self):
+        p = self.run_in(self.clone("a"))
+        self.write(os.path.join(p.dir, "api", "us4.html"), "<p>cta</p>\n")
+        out = self.podium(p, "set", "milestone:M1", 'artifacts+={"name": "CTA", "path": "api/us4.html", "phase": "mock"}')
+        self.assertRegex(out, r"SAVED [0-9a-f]{7} documents api/us4\.html")
+        self.assertEqual(self.remote_file("podium/api/us4.html"), "<p>cta</p>\n")
+        for change in ("brief=b.md", "spec=s.md", "archive=l.md"):
+            self.assertRegex(self.podium(p, "set", "milestone:M1", change), r"^SAVED ")
+        self.assertEqual(self.podium(p, "set", "milestone:M1", "title=Renamed"), "")
+
+    def test_a_reference_a_pull_brought_saves_nothing_on_its_own(self):
+        a = self.run_in(self.clone("a"))
+        self.assertRegex(self.podium(a, "set", "milestone:M1", "brief=b.md"), r"^SAVED ")
+        b = self.run_in(self.clone("b"), None)
+        self.assertRegex(self.podium(b, "sync", "pull"), r"^PULLED [0-9a-f]{7}\n$")
 
     def test_the_extensions_sync_major_decides_which_events_save(self):
         ext = os.path.join(self.tmp, "ext.py")

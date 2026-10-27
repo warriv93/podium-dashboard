@@ -15,12 +15,15 @@ Prints one line per event the orchestrator must act on:
     SYNCED <sha> <summary>          a pull brought someone else's saves (sync on): the new events' types by who
                                     made them (`ann: status×2, owner`), else the save's commit subject
     REVIEWED <milestone> [<repo>]#<n> by=<who>   with SYNCED: someone looked at the PR of a milestone this person owns
+    UNSYNCED <milestone> <path> <why>   (sync on) a milestone this person owns references a document no save can
+                                    carry: outside the run dir, Python code or a native module, or excluded; once per path
     LAPSE <mode>, nothing building  the last line: nothing needs watching, so it exits
 
 It needs watching while the user is available or a story of any milestone is working. Otherwise
 the only events left are Podium buttons, which need the user at this computer.
 
-In a run that syncs it pulls every 60 s, skipping a turn while another podium command holds the run's lock. The
+In a run that syncs it pulls every 60 s, skipping a turn while another podium command holds the run's lock, then
+saves when a document the run references (an artifact, a brief, a spec, a ledger) changed since the last save here. The
 progress lines a pull brings are the other machine's stories: it never prints them, but prints every line logged
 here, also one logged while the pull ran. A progress file a save's merge rewrote behind it (a new inode, or shorter
 than where it read to) is read whole: it prints the lines it never handled, and only for a story of a milestone the
@@ -204,6 +207,26 @@ def pull(p, offsets, seen):
     return found
 
 
+def unsynced(p, warned):
+    """UNSYNCED lines for the documents of this person's milestones that no save can carry, each path not yet in
+    `warned`, which gains it."""
+    out = []
+    for mid, path, why in sync.unsynced(p):
+        if path not in warned:
+            warned.add(path)
+            out.append(f"UNSYNCED {mid} {path} {why}")
+    return out
+
+
+def sync_turn(p, offsets, seen, warned):
+    """The lines to print for a turn of a synced run: the pull's, then UNSYNCED ones. Then it saves, silently, when a
+    document the run references changed since the last save here, unless another podium command took the lock."""
+    found = pull(p, offsets, seen) + unsynced(p, warned)
+    if not busy(p) and sync.unsaved_documents(p):
+        sync.save(p, "documents changed")
+    return found
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="podium watch")
     ap.add_argument("--dir")
@@ -224,7 +247,7 @@ def main(argv=None):
     if time.time() - last.get("at", 0) < 600 and "offsets" in last:
         offsets, mode = dict(last["offsets"]), last.get("mode") or human()
         waiting, idle = set(last.get("waiting", [])), set(last.get("idle", []))
-        since = dict(last.get("since") or {})
+        since, warned = dict(last.get("since") or {}), set(last.get("warned") or [])
         seen = {path: {"ino": v["ino"], "lines": set(v["lines"])} for path, v in (last.get("seen") or {}).items()}
         for path in watched(podium_dir(root)):
             if path.endswith(".progress") and path in offsets and path not in seen and os.path.exists(path):
@@ -232,7 +255,7 @@ def main(argv=None):
             offsets.setdefault(path, 0)
     else:
         offsets, seen = fresh(podium_dir(root))
-        mode, waiting, idle = human(), set(), set()
+        mode, waiting, idle, warned = human(), set(), set(), set()
         since = dict(offsets)
 
     def needed():
@@ -243,7 +266,7 @@ def main(argv=None):
         write_atomic(beat, json.dumps({"pid": os.getpid(), "at": time.time(), "offsets": offsets, "mode": mode,
                                        "since": {path: since.get(path, 0) for path in offsets},
                                        "seen": {path: {"ino": v["ino"], "lines": sorted(v["lines"])} for path, v in seen.items()},
-                                       "waiting": sorted(waiting), "idle": sorted(idle)}))
+                                       "waiting": sorted(waiting), "idle": sorted(idle), "warned": sorted(warned)}))
 
     first = None
     def emit(line):
@@ -275,7 +298,7 @@ def main(argv=None):
             last_sync = time.time()
             p = load_podium(root)
             if p and sync.enabled(p) and not busy(p):
-                for line in pull(p, offsets, seen):
+                for line in sync_turn(p, offsets, seen, warned):
                     emit(line)
 
         if time.time() - last_human > 15:

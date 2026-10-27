@@ -404,6 +404,16 @@ class HostileRun(unittest.TestCase):
     def test_hide_finished_is_off_for_any_other_stored_value(self):
         self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "0"})), {"Hide finished"})
 
+    def test_a_missing_document_of_a_colleagues_milestone_is_not_synced_from_their_machine_yet(self):
+        run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
+            {"id": "M1", "title": "M", "status": "working", "owner": "bob", "brief": "m1.md"},
+            {"id": "M2", "title": "N", "status": "todo", "owner": "ann", "brief": "m2.md"}]}]}
+        self.rendered(run, [], PROGRESS, ())
+        text = "".join(self.html)
+        self.assertIn("Not synced from bob's machine yet", text)
+        self.assertNotIn("m1.md not readable from the Podium", text)
+        self.assertIn("m2.md not readable from the Podium", text)
+
     def test_fetch_shows_only_while_the_run_syncs(self):
         self.assertIsNone(self.fetch_button({**CYCLIC_RUN, "sync": {"enabled": False}}))
         self.assertIsNone(self.fetch_button(CYCLIC_RUN))

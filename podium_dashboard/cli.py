@@ -134,10 +134,13 @@ COMMANDS
         (relative to the run dir) change that for one run, `sync defaults` for
         every run on this machine. The request queue, its cursor, the
         watcher's heartbeat, the server log, Python code, repos/, worktrees/
-        and *.logs/ folders never sync.
+        and *.logs/ folders never sync. A document podium.json references
+        (an artifact, a brief, a spec, a ledger) inside the run dir syncs
+        even when no include covers it, unless excluded.
         The sync block, include and exclude too, is this machine's: a save
         never pushes it and a pull never takes it. While on, every command
-        that appends a major event saves on its own.
+        that appends a major event or changes which documents the run
+        references saves on its own.
           save: SAVED <sha> <message>[ (not pushed: <why>)] | UNCHANGED | BEHIND | FAILED <why>
           pull: PULLED <sha> | UP-TO-DATE | KEPT <why> | FAILED <why>
           status: the ref and ON/OFF, then `include <JSON> (run|default|built-in)

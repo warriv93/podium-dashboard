@@ -2060,9 +2060,11 @@ function depChips(ids, map, none, doneWord) {
   const sum = doneWord && ids.length > 1 ? `<div class="dep-sum">${left.length ? `<b>${left.length} left</b> · ${ids.length - left.length} ${doneWord}` : `All ${ids.length} ${doneWord}`}</div>` : "";
   return `${sum}<div class="links">${[...left, ...ids.filter((x) => finished(x, map))].map((x) => chip(x, map)).join("")}</div>`;
 }
+const sheetOwner = () => S.epic && (viewMs() || msById()[S.selected])?.owner;
+const unreadable = (path) => (sheetOwner() && !isMe(sheetOwner()) ? `Not synced from ${esc(sheetOwner())}'s machine yet` : `${esc(path)} not readable from the Podium`);
 const briefSec = (path, title = "Brief", base = "runDir", key = path) => {
   const text = S.briefs[key];
-  return `<div class="sec"><h3>${title}${vsc(path, base) ? `<a href="${esc(vsc(path, base))}">Open in VS Code ↗</a>` : ""}</h3>${text ? `<div class="md">${md(text)}</div>` : text === null ? `<div class="muted">${esc(path)} not readable from the Podium</div>` : path ? `<div class="muted">Loading…</div>` : `<div class="muted">No brief</div>`}</div>`;
+  return `<div class="sec"><h3>${title}${vsc(path, base) ? `<a href="${esc(vsc(path, base))}">Open in VS Code ↗</a>` : ""}</h3>${text ? `<div class="md">${md(text)}</div>` : text === null ? `<div class="muted">${unreadable(path)}</div>` : path ? `<div class="muted">Loading…</div>` : `<div class="muted">No brief</div>`}</div>`;
 };
 const fileLink = (p, base = "runDir") => (vsc(p, base) ? `<a class="file mono" data-doc="${esc(p)}" data-base="${esc(base)}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
 function shaLink(sha, repo = null) {
@@ -2081,7 +2083,7 @@ const isHtml = (path) => /\.html?$/i.test(path || "");
 function htmlPreview(path, key = path) {
   const text = S.briefs[key], at = S.docUrl?.[key];
   if (text === undefined) return `<div class="sec"><div class="muted">Loading…</div></div>`;
-  if (text === null || !at) return `<div class="sec"><div class="muted">${esc(path)} not readable from the Podium</div></div>`;
+  if (text === null || !at) return `<div class="sec"><div class="muted">${unreadable(path)}</div></div>`;
   const href = runHref(at);
   return `<div class="sec preview"><h3>Preview<a href="${esc(href)}" target="_blank" rel="noopener">Open in a new tab ↗</a></h3><iframe sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" src="${esc(href)}" title="${esc(path)}"></iframe></div>`;
 }

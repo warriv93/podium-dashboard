@@ -13,6 +13,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 | `stories/<milestone>/<story>.md`, `.progress` | orchestrator, `podium log` | yes (`.progress` merged as a union, except that the owner's machine keeps its own milestone's as it is) |
 | `handoffs.json` | the server | yes |
 | planning docs (`*.md` and `**/*.md` anywhere in the run dir, `spec/**`, `mock/**`, `domain-stories/**`) | orchestrator | yes, unless this machine's lists leave them out |
+| documents `podium.json` references inside the run dir: the references of your own milestones, plus the epics' specs and artifacts and the quest doc (every reference in a run without owners or `people`) | orchestrator | yes, even when no include covers them; never a Python file, a native module or an excluded one. A pull writes the ones any reference names |
 | `requests.jsonl` | the server | never |
 | `cursor.json` | `podium requests` | never |
 | `watcher.json` | `podium watch` | never |
@@ -152,7 +153,7 @@ One JSON object per line, appended in time order: `{"at": "<ISO time>", "type": 
 
 `planned`, `grilled`, `phase` (`phase`), `status` (`text`), `dispatched` (`backend`, `model`), `commit` (`sha`, `subject`), `merged` (`into`, `wave`), `conflict`, `retry` (`attempt`, `reason`), `failed` (`reason`), `approval` (`tool`), `landed` (`sha`, `repo`, `subject`).
 
-An event is major, and saves the run when sync is on, if its type is `status`, `grilled`, `failed`, `landed`, `settled`, `owner`, `moved`, `decision` or `decision-closed`, a `phase` of `spec`, `architecture` or `build`, or a `merged` with `wave: true`. An extension can replace this rule with `SYNC_MAJOR`, except for `finding`, `finding-resolved` and `reviewed`, which always save.
+An event is major, and saves the run when sync is on, if its type is `status`, `grilled`, `failed`, `landed`, `settled`, `owner`, `moved`, `decision` or `decision-closed`, a `phase` of `spec`, `architecture` or `build`, or a `merged` with `wave: true`. An extension can replace this rule with `SYNC_MAJOR`, except for `finding`, `finding-resolved` and `reviewed`, which always save. A run also saves when a command changes which documents it uploads: the references of your own milestones, plus the epics' specs and artifacts and the quest doc (a milestone's or story's `brief`, `spec`, `archive` or `artifacts`; an epic's `spec` or `artifacts`; the quest's `doc`), with no event needed, and the watcher saves when one of those documents changed on disk since the last save here.
 
 ## Progress files
 
@@ -184,7 +185,7 @@ The server appends one line per button press: `{"action": "assign", "story": "M2
 
 ## watcher.json
 
-The watcher's heartbeat, rewritten every few seconds: `{pid, at, offsets, seen, mode, since, waiting, idle}`; `seen` holds each progress file's inode and digests of the lines the watcher handled. The server accepts orchestrator requests only while `at` is under 30 seconds old.
+The watcher's heartbeat, rewritten every few seconds: `{pid, at, offsets, seen, mode, since, waiting, idle, warned}`; `seen` holds each progress file's inode and digests of the lines the watcher handled, `warned` the document paths it printed `UNSYNCED` for. The server accepts orchestrator requests only while `at` is under 30 seconds old.
 
 ## sync.json
 

@@ -6,7 +6,9 @@ commits live in a private bare cache per run under ~/.podium/sync, so a run outs
 globs (relative to the run dir) pick the files, and `exclude` ones drop some: each list the run's own, else this
 machine's default (sync.json beside human.json), else the state files plus the planning docs (Markdown files anywhere in
 the run dir, spec/, mock/, domain-stories/) and no exclude; this machine's own files never go: the request queue and its cursor,
-the watcher's heartbeat, the server log; nor does Python code or a native module. The whole `sync` block, `include` and `exclude` too,
+the watcher's heartbeat, the server log; nor does Python code or a native module. A document podium.json references (an
+artifact, a brief, a spec, a ledger, the quest doc) inside the run dir syncs even when no include covers it, unless
+excluded. The whole `sync` block, `include` and `exclude` too,
 is this machine's and stays out of the synced podium.json: a remote's save never widens what lands here. The
 orchestrator's `extension` is this machine's too: the run carries the value its first save seeded, and only a first
 pull or merge here sets it, on a machine that has none.
@@ -16,7 +18,8 @@ events.jsonl and *.progress as the union of their lines in time order (a progres
 owns stays as it is here), any other text through `git merge-file`; a conflict keeps this machine's file, writes the other beside
 it as `<file>.remote`, or the first free `<file>.<n>.remote` (n = 2, 3, ...) while an earlier conflict's copy is
 unresolved, and adds to this person's needsYou; so does a file the run dir holds that the remote's save
-brings with other content. A pull or merge writes only files this machine's include and exclude lists carry, and
+brings with other content. A pull or merge writes only files this machine's include and exclude lists carry, or a
+document either side's podium.json references, and
 deletes only a file that common save had, unchanged here, that those lists still carry; a save carries the files
 those lists leave out as the last save had them, so a machine that shares fewer files never drops another's.
 """
@@ -47,6 +50,7 @@ LOCAL = [*MACHINE_FILES, "*.tmp", "*.remote", "*.py", "*.pyc", "*.pth", "*.so", 
 IGNORABLE = re.compile("[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 APPEND_ONLY = ["events.jsonl", "*.progress"]
 PLANNING_DOCS = ["*.md", "**/*.md", "spec/**", "mock/**", "domain-stories/**"]
+DOCUMENT_KEYS = ("brief", "spec", "archive")
 LISTS = ("include", "exclude")
 CACHE = "~/.podium/sync"
 USAGE = ("sync on [--remote <name or URL>] [--ref <ref>] | off | save [<message>] | pull | status"
@@ -265,6 +269,136 @@ def lists(p):
     return {key: globs for key, (globs, _) in resolved(p).items()}
 
 
+def dicts(value):
+    return [x for x in value if isinstance(x, dict)] if isinstance(value, list) else []
+
+
+def references(data):
+    """[(milestone id or None, path, base, key)] of each document podium.json's `data` points to, as the Podium opens
+    it: the quest's doc, an epic's spec and artifacts, a milestone's or story's brief, spec, archive and artifact paths.
+    `base` is `repo` for a milestone's spec, which the Podium reads from the run dir's git toplevel, else `run`."""
+    data, found = data if isinstance(data, dict) else {}, []
+    project = data.get("project")
+    quest = project.get("quest") if isinstance(project, dict) else None
+    if isinstance(quest, dict):
+        found.append((None, quest.get("doc"), "run", "doc"))
+    for e in dicts(data.get("epics")):
+        found += [(None, e.get("spec"), "run", "spec"), *((None, a.get("path"), "run", "artifacts") for a in dicts(e.get("artifacts")))]
+        for m in dicts(e.get("milestones")):
+            for x in [m, *dicts(m.get("stories"))]:
+                found += [(m.get("id"), x.get(k), "repo" if k == "spec" and x is m else "run", k) for k in DOCUMENT_KEYS]
+                found += [(m.get("id"), a.get("path"), "run", "artifacts") for a in dicts(x.get("artifacts"))]
+    return [ref for ref in found if isinstance(ref[1], str) and ref[1].strip() and "://" not in ref[1]]
+
+
+def own_references(p, data):
+    """The `references` a save here counts, so another person's podium.json never widens what this machine uploads:
+    in a run with owners or a `people` block, those of the milestones this person owns, an epic's spec and artifacts
+    and the quest's doc; in any other run, all of them."""
+    refs, owned = references(data), owners(data)
+    if not (isinstance(data, dict) and isinstance(data.get("people"), dict) or any(owned.values())):
+        return refs
+    mine = {mid for mid, owner in owned.items() if mid and p.me and owner == p.me}
+    return [ref for ref in refs if ref[0] is None or ref[0] in mine]
+
+
+def toplevel(p):
+    r = subprocess.run(git_argv("-C", p.root, "rev-parse", "--show-toplevel"), capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else p.root
+
+
+def named(p, path, base, top=None):
+    """The run dir paths a document reference may name, those the Podium tries: a `run` one as given and under
+    podium/, a `repo` one from `top` (default the run dir's git toplevel); [] when it lands outside the run dir."""
+    if base == "repo" or path.startswith(("~", "/")):
+        full = os.path.join(top or toplevel(p), os.path.expanduser(path)) if base == "repo" else os.path.expanduser(path)
+        rel = os.path.relpath(os.path.realpath(full), os.path.realpath(p.root)).replace(os.sep, "/")
+        return [] if rel in (".", "..") or rel.startswith("../") else [rel]
+    rel = posixpath.normpath(path)
+    return [] if rel in (".", "..") or rel.startswith("../") else [rel, posixpath.join("podium", rel)]
+
+
+def podium_data(raw):
+    try:
+        data = json.loads(raw) if raw else {}
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def documents(p, *datas, everyone=False):
+    """The run dir paths of the documents the podium.json `datas` (default this machine's) reference, a folder
+    standing for the files under it: those inside the run dir, of `own_references` unless `everyone` (what a pull may
+    write). `carried` still asks `restorable` of each file."""
+    datas = datas or (podium_data(on_disk(p, podium_json(p))),)
+    refs = [(ref[1], ref[2]) for data in datas for ref in (references(data) if everyone else own_references(p, data))]
+    top = toplevel(p) if any(base == "repo" for _, base in refs) else None
+    return {rel for path, base in refs for rel in named(p, path, base, top) if inside_run(p, rel)}
+
+
+def carried(p, rel, docs):
+    """Whether the sync carries the run dir's `rel`: its lists cover it, or it is one of the documents `docs` or a
+    file under one, and `restorable` (an explicit exclude wins; Python code and native modules never)."""
+    return covered(p, rel) or any(rel == d or rel.startswith(d + "/") for d in docs) and restorable(p, rel)
+
+
+def document_files(p, docs):
+    """The run dir's files `docs` name, each one or under a folder one, that the sync may carry."""
+    found = set()
+    for d in docs:
+        path = os.path.join(p.root, *d.split("/"))
+        if os.path.isdir(path) and not os.path.islink(path) and restorable(p, d):
+            found |= {posixpath.join(d, os.path.relpath(os.path.join(at, n), path).replace(os.sep, "/"))
+                      for at, _, names in os.walk(path) for n in names}
+        elif os.path.isfile(path):
+            found.add(d)
+    return {rel for rel in found if os.path.isfile(os.path.join(p.root, rel)) and inside_run(p, rel) and restorable(p, rel)}
+
+
+def unsynced(p):
+    """[(milestone id, path, why)] of each document a milestone this person owns references that no save can carry:
+    outside the run dir, a file that never syncs (Python code, a native module or this machine's own), or excluded."""
+    out, top, data = [], None, podium_data(on_disk(p, podium_json(p)))
+    mine = {mid for mid, owner in owners(data).items() if mid and p.me and owner == p.me}
+    for mid, path, base, _ in references(data):
+        if mid not in mine:
+            continue
+        top = top or (toplevel(p) if base == "repo" else None)
+        rels = [rel for rel in named(p, path, base, top) if inside_run(p, rel)]
+        here = next((rel for rel in rels if os.path.exists(os.path.join(p.root, *rel.split("/")))), None)
+        if not rels:
+            why = "outside the run dir"
+        elif here is None:
+            continue
+        elif not restorable(p, here, {}):
+            why = "never syncs (Python code, a native module or this machine's own file)"
+        elif not restorable(p, here):
+            why = "excluded by the sync lists"
+        else:
+            continue
+        out.append((mid, path, why))
+    return out
+
+
+def unsaved_documents(p):
+    """Whether a document the run references differs on disk from this machine's last save, or is missing from it;
+    False before the first save here. Hashes only those files."""
+    g, _ = open_git(p)
+    local = g and g.rev(g.ref + "^{commit}")
+    if not local:
+        return False
+    rels = sorted(document_files(p, documents(p)))
+    if not rels:
+        return False
+    try:
+        saved = g.files(p, local)
+        blobs = g.out("hash-object", "--no-filters", "--stdin-paths",
+                      input="".join(os.path.join(p.root, r) + "\n" for r in rels)).split()
+    except SyncError:
+        return False
+    return any(saved.get(rel) != blob for rel, blob in zip(rels, blobs))
+
+
 def widen(p, g):
     """Write the files of this machine's last save or pull that its lists cover now but did not then, and that the
     run dir lacks, then record the lists in synced.json: a file the lists start to cover is the run's, not one
@@ -284,9 +418,10 @@ def widen(p, g):
     write_atomic(path, json.dumps(now))
 
 
-def synced_files(p):
-    """The run dir's files the sync carries, relative to the run dir, sorted."""
-    found = set()
+def synced_files(p, docs=None):
+    """The run dir's files the sync carries, relative to the run dir, sorted: those its lists cover and the documents
+    `docs` (default those this machine's podium.json references) name."""
+    found = document_files(p, documents(p) if docs is None else docs)
     for pattern in includes(p):
         for path in glob.glob(os.path.join(glob.escape(p.root), pattern), recursive=True):
             rel = os.path.relpath(path, p.root).replace(os.sep, "/")
@@ -371,10 +506,11 @@ def state_tree(p, g, seed=None):
     podium.json carries: this machine's own only when that has none, so the first save seeds it, and no machine
     changes it after."""
     seed = seed or g.rev(g.ref + "^{commit}")
-    carried = {rel: sha for rel, sha in (g.files(p, seed) if seed else {}).items()
-               if rel != podium_json(p) and not covered(p, rel)}
-    rels, blobs, paths = list(carried), list(carried.values()), []
-    for rel in synced_files(p):
+    seeded = g.files(p, seed) if seed else {}
+    docs = documents(p, podium_data(on_disk(p, podium_json(p))), podium_data(podium_blob(p, g, seeded)))
+    kept = {rel: sha for rel, sha in seeded.items() if rel != podium_json(p) and not carried(p, rel, docs)}
+    rels, blobs, paths = list(kept), list(kept.values()), []
+    for rel in synced_files(p, docs):
         if rel != podium_json(p):
             paths.append(rel)
             continue
@@ -393,6 +529,12 @@ def state_tree(p, g, seed=None):
         env = {**os.environ, "GIT_INDEX_FILE": os.path.join(tmp, "index")}
         g.out("update-index", "--index-info", env=env, input="".join(f"100644 {b}\t{r}\n" for b, r in zip(blobs, rels)))
         return g.out("write-tree", env=env).strip()
+
+
+def podium_blob(p, g, files):
+    """The podium.json of a commit's `files` ({path: blob sha}), None when it has none."""
+    sha = files.get(podium_json(p))
+    return g.cat(sha) if sha else None
 
 
 def on_disk(p, rel):
@@ -592,8 +734,9 @@ def merged(p, g, base, mine, theirs):
     file of this person's milestones, whatever either side has."""
     b, m, t = (g.files(p, c) if c else {} for c in (base, mine, theirs))
     pj, out, conflicts, kept = podium_json(p), {}, {}, own_progress(p)
+    docs = documents(p, podium_data(on_disk(p, pj)), *(podium_data(podium_blob(p, g, x)) for x in (b, m, t)), everyone=True)
     for rel in sorted(set(m) | set(t), key=lambda x: x != pj):
-        if rel != pj and not covered(p, rel) or kept(rel):
+        if rel != pj and not carried(p, rel, docs) or kept(rel):
             continue
         bs, ms, ts = b.get(rel), m.get(rel), t.get(rel)
         if ms == ts or ts == bs:
@@ -617,7 +760,7 @@ def merged(p, g, base, mine, theirs):
         data = json.loads(out[pj]) if pj in out else json.loads(on_disk(p, pj) or b"{}")
         flag(p, data, conflicts)
         out[pj] = dump(data)
-    gone = {rel for rel in set(b) - set(out) - set(conflicts) if covered(p, rel) and not kept(rel)
+    gone = {rel for rel in set(b) - set(out) - set(conflicts) if carried(p, rel, docs) and not kept(rel)
             and on_disk(p, rel) in (None, g.cat(b[rel]), g.cat(m[rel]) if rel in m else None)}
     return out, gone
 
@@ -644,12 +787,21 @@ def is_major(p, event):
     return kind in MAJOR or (kind == "phase" and event.get("phase") in MAJOR_PHASES) or (kind == "merged" and bool(event.get("wave")))
 
 
+def referenced(p, data):
+    return {(path, base) for _, path, base, _ in own_references(p, data)}
+
+
 def autosave(p):
+    """Save after a command that appended a major event or changed which documents the run references, its own
+    change: `p.opened` moves past what a pull or a save's merge brought."""
     if not enabled(p):
         return
-    major = [e for e in p.new_events if is_major(p, e)]
-    if major:
-        print(save(p, "; ".join(describe(e) for e in major)))
+    reasons = [describe(e) for e in p.new_events if is_major(p, e)]
+    before, now = referenced(p, p.opened), referenced(p, podium_data(on_disk(p, podium_json(p))))
+    if before != now:
+        reasons.append(" ".join(["documents", *sorted(path for path, _ in now - before)]))
+    if reasons:
+        print(save(p, "; ".join(reasons)))
 
 
 def describe(event):
@@ -694,6 +846,7 @@ def _save(p, g, message):
                 g.update_ref(head, local)
         if merged_here:
             p.refresh()
+            p.opened = p.base
         if err:
             return f"SAVED {head[:7]} {message} (not pushed: {err})" if head != local else "UNCHANGED"
         if head == remote:
@@ -723,6 +876,7 @@ def pull(p, from_watcher=False):
         return f"FAILED {e}"
     if out.startswith("PULLED"):
         p.refresh()
+        p.opened = p.base
     return out
 
 
