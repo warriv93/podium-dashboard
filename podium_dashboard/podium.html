@@ -153,8 +153,10 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 a.wchip { color: inherit; text-decoration: none; }
 .wchip:hover { border-color: var(--line-2); }
 .wchip b { font-weight: 600; }
-.looked { display: inline-flex; align-items: center; gap: 6px; margin: 0 6px 0 -2px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
-.looked input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+.pr-chip { cursor: default; }
+.pr-link { color: inherit; text-decoration: none; cursor: pointer; }
+.looked { display: inline-flex; align-items: center; gap: 4px; padding-left: 8px; border-left: 1px solid var(--line); font-size: 12px; color: var(--text-2); cursor: pointer; }
+.looked input { margin: 0; width: 12px; height: 12px; accent-color: var(--accent); cursor: pointer; }
 .stage { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; padding: 2px 7px; border-radius: 6px; background: var(--gray-soft); color: var(--text-2); }
 .stage.RED { background: var(--red-soft); color: var(--red); }
 .stage.GREEN { background: var(--green-soft); color: var(--green); }
@@ -1371,8 +1373,8 @@ function needsBanner() {
   const ids = [...new Set([...prs.map((pr) => pr.ms), ...(nms ? [nms] : [])])];
   const story = nid && nms ? `<span class="wchip" data-open="${esc(nid)}" data-ms="${esc(nms)}"><b>${esc(nid)}</b> open story ›</span>` : "";
   const looked = (pr) => ((who) => (who.length ? ` <span class="cycle">· ${who.map(personName).join(", ")} looked at it</span>` : ""))(lookedBy(pr));
-  const tick = (pr) => (colleaguesPr(pr) ? `<label class="looked" title="Tells ${personName(pr.owner)} and hides it here until the PR changes"><input type="checkbox" data-looked="${esc(prKey(pr.ms, pr.repo, pr.number))}">Looked at it</label>` : "");
-  const chips = prs.map((pr) => ((url, text) => (url ? `<a class="wchip" href="${esc(url)}" target="_blank" rel="noopener">${text} <span class="cycle">· draft ↗</span>${looked(pr)}</a>` : `<span class="wchip">${text} <span class="cycle">· draft</span>${looked(pr)}</span>`) + tick(pr))(
+  const tick = (pr) => (colleaguesPr(pr) ? `<label class="looked" title="Tells ${personName(pr.owner)} and hides it here until the PR changes"><input type="checkbox" data-looked="${esc(prKey(pr.ms, pr.repo, pr.number))}">Looked</label>` : "");
+  const chips = prs.map((pr) => ((url, text) => `<span class="wchip pr-chip">${url ? `<a class="pr-link" href="${esc(url)}" target="_blank" rel="noopener">${text} <span class="cycle">· draft ↗</span>${looked(pr)}</a>` : `<span class="pr-link">${text} <span class="cycle">· draft</span>${looked(pr)}</span>`}${tick(pr)}</span>`)(
     safeUrl(pr.url), `<b>${esc(pr.ms)}</b>${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)}`)).join("")
     + story + ids.map((id) => `<span class="wchip" data-drill="${esc(id)}"><b>${esc(id)}</b> go to milestone in map ›</span>`).join("");
   const what = prs.length ? ` · ${prs.length === 1 ? "a draft PR" : `${prs.length} draft PRs`}` : "";

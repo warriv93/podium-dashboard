@@ -451,6 +451,19 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(cards["M1"][:2], ("core#7 Draftapi" + "no PR yet", ["https://github.com/o/core/pull/7"]))
         self.assertEqual(cards["M2"][0], "webno PR yet")
 
+    def test_the_looked_checkbox_sits_inside_a_colleagues_pr_pill_and_outside_its_link(self):
+        pr = {"number": 8, "url": "https://github.com/o/core/pull/8", "state": "draft"}
+        run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
+            {"id": "M1", "title": "a", "status": "working", "owner": "bob", "repos": {"core": {"pr": pr}}}]}]}
+        self.rendered(run, [], PROGRESS, ())
+        banner = [h for h in self.html if 'class="banner needs"' in h][-1]
+        pill = re.search(r'<span class="wchip pr-chip">(.*?</label>)</span>', banner, re.S).group(1)
+        link = re.search(r'<a class="pr-link"[^>]*>.*?</a>', pill, re.S).group(0)
+        self.assertIn('data-looked="M1:core:8"', pill)
+        self.assertNotIn("data-looked", link)
+        self.assertNotIn("<label", link)
+        self.assertTrue(pill.endswith("</label>"))
+
     def test_milestone_cards_add_the_repos_only_their_stories_name_after_their_own(self):
         cards = self.card_repos([{"id": "M1", "title": "a", "status": "todo", "repos": {"core": {}},
                                   "stories": [{"id": "S1", "title": "s", "status": "todo", "repos": ["web", "core"]},
