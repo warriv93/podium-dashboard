@@ -94,11 +94,12 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `POST /pull` | pull the run's shared state now, with no watcher needed and never a save or push: 200 `{result, at}` with `sync pull`'s line, or `{"result": "OFF"}` when the run doesn't sync; the page's Fetch button |
 | `POST /asana[/<epic>]?url=<Asana link>` | queue a link, 202; it takes any `https://app.asana.com/...` link, 400 for any other and 404 for an unknown epic. `podium asana link` later refuses a link that is not a project or task |
 | `POST /asana-done/<milestone>?choice=<drop\|keep>` | queue the answer, 202 |
+| `POST /reviewed/<milestone>?number=<n>[&repo=<repo>]` | record a `reviewed` event for the milestone's PR and save it at once, 202 `{"reviewed": {...}}`; no watcher needed; 404 for an unknown milestone or a PR the milestone doesn't have. The Needs you banner's Looked at it checkbox on a colleague's draft PR, which then hides that PR here until a `pr` event changes it |
 | `POST /handoff/<story>` | record the story in `handoffs.json` and return the `handoff` prompt; `DELETE /handoff/<story>` takes it back |
 | `POST /human/<available\|mobile\|unavailable\|auto>[?until=HH:MM]` | set the availability toggle; `podium human set <mode> [--until HH:MM]` does the same from a shell, with no server, and prints the new `podium human` line |
 | `POST /restart` | 202; the server starts a fresh process on the same port |
 
-Status codes: 202 queued; 400 a malformed value; 403 Host or Origin refused; 404 an unknown action, id or file; 409 no watcher is running, for every POST except `confirm`, `reverse`, the Asana ones, `/pull` and `/human/`; 500 a `prompt` hook raised; 501 no extension `prompt` for `assign` or `handoff`.
+Status codes: 202 queued; 400 a malformed value; 403 Host or Origin refused; 404 an unknown action, id or file; 409 no watcher is running, for every POST except `confirm`, `reverse`, the Asana ones, `/reviewed/`, `/pull` and `/human/`; 500 a `prompt` hook raised; 501 no extension `prompt` for `assign` or `handoff`.
 
 A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 
@@ -115,6 +116,7 @@ A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 | `IDLE <story>` | a working story's Paseo agent went idle (`--paseo`) |
 | `HUMAN <available\|mobile\|unavailable>` | the user's availability changed |
 | `SYNCED <sha> <summary>` | a pull brought someone else's changes: their new event types by `by`, as in `ann: status×2, owner`, else the commit subject |
+| `REVIEWED <milestone> [<repo>]#<n> by=<who>` | after `SYNCED`: someone else looked at the draft PR of a milestone this person owns; the orchestrator tells the user and answers the review |
 | `LAPSE <mode>, nothing building` | the last line |
 
 When sync is on, the watcher pulls every 60 seconds, skipping a round while another podium command holds the lock. It pulls during a build too: the pull merges the remote's saves with the unsaved changes here (see Merge), so another person's claim arrives within a minute. Progress lines that arrive with a pull belong to the other person's stories and are not printed; a line logged here while the pull ran is. A progress file a save's merge rewrote behind the watcher is read again whole: it prints the lines it never handled, for a story of a milestone the run has, with no owner or this person, and nothing twice. A progress file that appeared since the watcher started is printed under the same rule.

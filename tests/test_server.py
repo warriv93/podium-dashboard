@@ -378,6 +378,25 @@ class Requests(Server):
         self.assertEqual(self.requests(), [("confirm", "t0"), ("reverse", "0")])
 
 
+class Reviewed(Server):
+    def events(self):
+        with open(os.path.join(self.pod, "events.jsonl")) as f:
+            return [json.loads(line) for line in f]
+
+    def test_records_a_reviewed_event_for_the_owner_with_no_watcher_and_refuses_an_unknown_pr(self):
+        data = json.loads(json.dumps(DATA))
+        data["epics"][0]["milestones"][1].update(owner="bob", repos={"core": {"pr": {"number": 7, "state": "draft"}}})
+        self.serve({**data, "people": {"ann": {}, "bob": {}}})
+        self.assertEqual(self.call("POST", "/reviewed/M2?repo=core&number=8")[0], 404)
+        self.assertEqual(self.call("POST", "/reviewed/M9?repo=core&number=7")[0], 404)
+        self.assertEqual(self.call("POST", "/reviewed/M2?repo=core&number=7")[0], 202)
+        e = self.events()[-1]
+        self.assertEqual({k: e[k] for k in ("type", "milestone", "repo", "number", "state", "owner", "by")},
+                         {"type": "reviewed", "milestone": "M2", "repo": "core", "number": 7, "state": "draft",
+                          "owner": "bob", "by": "ann"})
+        self.assertEqual(self.requests(), [])
+
+
 class Prompts(Server):
     def test_takes_prompts_and_actions_from_the_extension(self):
         self.serve(extension=EXTENSION)

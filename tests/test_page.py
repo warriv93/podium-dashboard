@@ -659,7 +659,7 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(re.findall(r'data-decision="([^"]*)"', strip), ["D3", "D1", "D2"])
         self.assertEqual(re.findall(r'<div class="fdec( frontier)?" data-decision', strip), [" frontier", "", ""])
         self.assertIn('<span class="sid">D3</span><span class="dtype">unblock</span></div><span class="title">Get keys</span>', strip)
-        self.assertIn('<span class="owner " title="bo is settling it">👤 bo</span>', strip)
+        self.assertIn('<span class="owner" style="background:hsl(156 50% 45%)" title="bo is settling it">👤 <span class="who">bo</span></span>', strip)
         self.assertIn('<span class="dmeta">blocked by D1</span><span class="dmeta">missing: a price list</span>', strip)
         for closed in ("Old", "Gone", "Elsewhere"):
             self.assertNotIn(closed, strip)
@@ -667,7 +667,7 @@ class HostileRun(unittest.TestCase):
     def test_the_strip_marks_your_own_claim_and_drills_into_affected_milestones(self):
         [strip, _] = self.strips([{"id": "D1", "epic": "e1", "question": "Q", "type": "discussion", "status": "open",
                                    "owner": "ann", "affects": ["M11", "billing", "M99"]}])
-        self.assertIn('<span class="owner me" title="Yours (ann): you are settling it">👤 you</span>', strip)
+        self.assertIn('<span class="owner" style="background:hsl(354 50% 45%)" title="Yours (ann): you are settling it">👤 <span class="who">you</span></span>', strip)
         self.assertIn('<span class="dmeta">affects <a data-drill="M11">M11</a>, billing, M99</span>', strip)
 
     def test_a_strip_of_closed_decisions_only_shows_the_count(self):

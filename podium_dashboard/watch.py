@@ -14,6 +14,7 @@ Prints one line per event the orchestrator must act on:
     HUMAN <available|mobile|unavailable>   the user's availability flipped (hours or the Podium toggle)
     SYNCED <sha> <summary>          a pull brought someone else's saves (sync on): the new events' types by who
                                     made them (`ann: status×2, owner`), else the save's commit subject
+    REVIEWED <milestone> [<repo>]#<n> by=<who>   with SYNCED: someone looked at the PR of a milestone this person owns
     LAPSE <mode>, nothing building  the last line: nothing needs watching, so it exits
 
 It needs watching while the user is available or a story of any milestone is working. Otherwise
@@ -162,6 +163,22 @@ def printed(path, chunk):
     return found
 
 
+def reviewed(p, before, after):
+    """REVIEWED lines for the `reviewed` events in `after` that `before` lacks, made by someone else on a PR of a
+    milestone this person owns."""
+    seen, out = set(before), []
+    for raw in after:
+        if raw in seen or not raw.strip():
+            continue
+        try:
+            e = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(e, dict) and e.get("type") == "reviewed" and e.get("owner") == p.me and e.get("by") != p.me:
+            out.append(f"REVIEWED {e.get('milestone')} {e.get('repo') or ''}#{e.get('number')} by={e.get('by')}")
+    return out
+
+
 def pull(p, offsets, seen):
     """The lines to print after a pull: the progress logged here that the watcher had not read when the pull rewrote
     its file, then SYNCED <sha> <summary> when the pull brought someone else's saves. A rewritten file's offset moves
@@ -181,7 +198,9 @@ def pull(p, offsets, seen):
         seen.pop(path, None)
     if out.startswith("PULLED "):
         sha = out.split()[1]
-        found.append(f"SYNCED {sha} {summary(before, lines_of(events)) or subject(p, sha)}".rstrip())
+        after = lines_of(events)
+        found.append(f"SYNCED {sha} {summary(before, after) or subject(p, sha)}".rstrip())
+        found += reviewed(p, before, after)
     return found
 
 

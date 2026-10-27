@@ -406,6 +406,8 @@ def make_handler(root):
                 return self.reply(202, {"restarting": True})
             if url.path == "/pull":
                 return self.reply(200, pull_run(root) or {"result": "OFF"})
+            if first == "reviewed":
+                return self.reviewed(urllib.parse.unquote(url.path[len("/reviewed/"):]), parse_qs(url.query))
             if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
                 return self.reply(409, {"error": "no orchestrator is watching"})
             if url.path.startswith("/handoff/"):
@@ -533,6 +535,21 @@ def make_handler(root):
             if choice not in ("drop", "keep") or mid not in {m.get("id") for m in milestones}:
                 return self.reply(404, {"error": "unknown milestone or choice"})
             self.queue({"action": "asana-done", "story": mid, "note": choice, "at": NOW()})
+
+        def reviewed(self, mid, query):
+            """POST /reviewed/<milestone>?number=<n>[&repo=<repo>]: the user looked at the milestone's PR. Records a
+            `reviewed` event for the milestone's owner and saves it at once, so the owner's watcher prints REVIEWED;
+            it needs no watcher here."""
+            repo, number = query.get("repo", [""])[0], query.get("number", [""])[0]
+            p = load_podium(root)
+            m = next((x for x in p.milestones() if x.get("id") == mid), None) if p else None
+            pr = m and ((m.get("repos") or {}).get(repo) or {}).get("pr") if repo else m and m.get("pr")
+            if not isinstance(pr, dict) or str(pr.get("number")) != number:
+                return self.reply(404, {"error": "unknown milestone or PR"})
+            fields = {k: v for k, v in (("repo", repo), ("state", pr.get("state")), ("owner", m.get("owner"))) if v}
+            p.event("reviewed", mid, number=pr.get("number"), **fields)
+            threading.Thread(target=sync.autosave, args=(p,), daemon=True).start()
+            self.reply(202, {"reviewed": p.new_events[-1]})
 
         def queue(self, line):
             os.makedirs(podium_dir(root), exist_ok=True)

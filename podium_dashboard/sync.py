@@ -37,7 +37,7 @@ from podium_dashboard.files import MACHINE_FILES, SHARED_FILES, git_argv, write_
 from podium_dashboard.merge import rebase
 from podium_dashboard.state import person_of, watcher_running
 
-ALWAYS_MAJOR = {"finding", "finding-resolved"}
+ALWAYS_MAJOR = {"finding", "finding-resolved", "reviewed"}
 MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner", "moved", "decision", "decision-closed", *ALWAYS_MAJOR}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
@@ -632,7 +632,7 @@ def merge_into(p, g, head, remote, message, mine=None):
 
 
 def is_major(p, event):
-    """Whether an event changes what the run is, so sync saves after it: a finding or its resolution always, else the
+    """Whether an event changes what the run is, so sync saves after it: a finding, its resolution or a reviewed PR always, else the
     extension's SYNC_MAJOR(event) when it defines one."""
     if event.get("type") in ALWAYS_MAJOR:
         return True

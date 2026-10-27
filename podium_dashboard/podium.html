@@ -153,6 +153,8 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 a.wchip { color: inherit; text-decoration: none; }
 .wchip:hover { border-color: var(--line-2); }
 .wchip b { font-weight: 600; }
+.looked { display: inline-flex; align-items: center; gap: 6px; margin: 0 6px 0 -2px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+.looked input { margin: 0; accent-color: var(--accent); cursor: pointer; }
 .stage { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; padding: 2px 7px; border-radius: 6px; background: var(--gray-soft); color: var(--text-2); }
 .stage.RED { background: var(--red-soft); color: var(--red); }
 .stage.GREEN { background: var(--green-soft); color: var(--green); }
@@ -264,7 +266,11 @@ a.wchip { color: inherit; text-decoration: none; }
 .ford { font-size: 11px; font-weight: 700; color: var(--text-3); text-align: right; align-self: center; letter-spacing: .04em; }
 .fms { margin: 7px 0; display: flex; flex-direction: column; gap: 6px; }
 .fms:hover, .fepic:hover { border-color: var(--line-2); }
-.fms .ftop { display: flex; align-items: baseline; gap: 6px; min-height: 22px; }
+.fms .ftop { display: flex; align-items: flex-start; gap: 6px; min-height: 22px; }
+.fms .fid { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; flex: 1 1 auto; }
+.fms .fidrow { display: flex; align-items: baseline; gap: 6px; }
+.fms .fid .owner { max-width: 100%; }
+.fms .ftools { flex: 0 1 auto; }
 .fms .title { font-weight: 620; font-size: 13.5px; }
 .fms .foot { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-2); flex-wrap: wrap; }
 .fms.done { background: transparent; box-shadow: none; }
@@ -450,8 +456,8 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .asana-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .achip { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--gray-soft); color: var(--text-2); white-space: nowrap; }
 .achip .k { color: var(--text-3); }
-.owner { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--gray-soft); color: var(--text-2); white-space: nowrap; text-transform: none; letter-spacing: 0; }
-.owner.me { background: var(--accent-soft); color: var(--accent); }
+.owner { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--gray-soft); color: #fff; white-space: nowrap; text-transform: none; letter-spacing: 0; min-width: 0; }
+.owner .who { overflow: hidden; text-overflow: ellipsis; }
 .claim { padding: 1px 9px; border-radius: 999px; border: 1px dashed var(--line-2); background: transparent; color: var(--text-2); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; text-transform: none; letter-spacing: 0; }
 .claim:hover { border-style: solid; border-color: var(--accent); color: var(--accent); }
 .people { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--text-2); min-width: 0; }
@@ -1003,7 +1009,8 @@ function msBranch(m) {
 
 const isMe = (who) => !!who && who === S.info?.me;
 const personName = (who) => (isMe(who) ? "you" : esc(who));
-const ownerChip = (m) => (m?.owner ? `<span class="owner ${isMe(m.owner) ? "me" : ""}" title="${esc(isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`)}">👤 ${personName(m.owner)}</span>` : "");
+const ownerPill = (who, title) => `<span class="owner" style="background:${personColor(who)}" title="${esc(title)}">👤 <span class="who">${personName(who)}</span></span>`;
+const ownerChip = (m) => (m?.owner ? ownerPill(m.owner, isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`) : "");
 const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
 const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
 const ownerOrClaim = (m) => ownerChip(m) || claimBtn(m);
@@ -1139,7 +1146,7 @@ const fullStatus = (x, map) => (x.status !== "todo" ? x.status : !depsLeft(x, ma
 const movedPill = (m, all) => (m.movedTo == null ? "" : ((to) => `<span class="badge moved"${all[to] ? ` data-drill="${esc(to)}"` : ""}>Moved to ${esc(to)}</span>`)(String(m.movedTo)));
 const includesLine = (m) => (Array.isArray(m.includes) && m.includes.length ? `<div class="fincl">includes ${esc(m.includes.join(", "))}</div>` : "");
 const infraTag = (m) => (m.cut?.valuable === false && m.cut.kept ? `<span class="infra" title="${esc(m.cut.kept)}">infra</span>` : "");
-const decisionOwner = (d) => (d.owner ? `<span class="owner ${isMe(d.owner) ? "me" : ""}" title="${esc(isMe(d.owner) ? `Yours (${d.owner}): you are settling it` : `${d.owner} is settling it`)}">👤 ${personName(d.owner)}</span>` : "");
+const decisionOwner = (d) => (d.owner ? ownerPill(d.owner, isMe(d.owner) ? `Yours (${d.owner}): you are settling it` : `${d.owner} is settling it`) : "");
 const affectsLine = (d, all) => (Array.isArray(d.affects) && d.affects.length ? `<span class="dmeta">affects ${d.affects.map((a) => (typeof a === "string" && all[a] ? `<a data-drill="${esc(a)}">${esc(a)}</a>` : esc(a))).join(", ")}</span>` : "");
 function decisionStrip(E, decs, all) {
   const mine = Object.values(decs).filter((d) => d.epic === E.id);
@@ -1168,7 +1175,7 @@ function fullMs(m, all) {
   const map = dict(stories.map((s) => [s.id, s]));
   const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
-  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${waves}</div>`;
+  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${waves}</div>`;
 }
 function miniMap(vm) {
   const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
@@ -1244,8 +1251,8 @@ function grilledWaits(m) {
   return after.length ? `next after ${after.join(", ")}` : "ready to plan";
 }
 function msDoing(m) {
-  const prs = msPrs(m).filter((pr) => pr.state !== "closed");
-  if (prs.length) return prs.map((pr) => prPill(pr, pr.repo)).join(" ");
+  const prs = msPrs(m).filter((pr) => !pr.repo && pr.state !== "closed");
+  if (prs.length) return prs.map((pr) => prPill(pr)).join(" ");
   const w = (m.stories || []).filter((s) => ["working", "approval"].includes(s.status)).map((s) => s.id);
   return w.length ? `Building ${esc(w.join(", "))}` : esc(phaseLabel(m.phase));
 }
@@ -1332,15 +1339,38 @@ function renderBanner() {
 function draftPrs() {
   return S.project.epics.flatMap((E) => (E.milestones || []).flatMap((m) =>
     [m.pr, ...Object.entries(m.repos || {}).map(([repo, r]) => r?.pr && { ...r.pr, repo })]
-      .filter((pr) => pr?.state === "draft").map((pr) => ({ ...pr, ms: m.id }))));
+      .filter((pr) => pr?.state === "draft").map((pr) => ({ ...pr, ms: m.id, owner: m.owner }))));
+}
+const prKey = (ms, repo, n) => `${ms}:${repo || ""}:${n}`;
+function looksAt(pr) {
+  const k = prKey(pr.ms, pr.repo, pr.number);
+  let out = [];
+  for (const e of S.events || []) {
+    if (prKey(e.milestone, e.repo, e.number) !== k) continue;
+    if (e.type === "pr") out = [];
+    else if (e.type === "reviewed" && e.state === pr.state && !out.some((x) => x.by === e.by)) out.push(e);
+  }
+  return out;
+}
+const colleaguesPr = (pr) => !!pr.owner && !isMe(pr.owner);
+const prsToReview = () => draftPrs().filter((pr) => !(colleaguesPr(pr) && looksAt(pr).some((e) => isMe(e.by))));
+const lookedBy = (pr) => (colleaguesPr(pr) ? [] : looksAt(pr).filter((e) => e.by && !isMe(e.by)).map((e) => e.by));
+async function markLooked(pr) {
+  const r = await fetch(`/reviewed/${encodeURIComponent(pr.ms)}?number=${encodeURIComponent(pr.number)}${pr.repo ? `&repo=${encodeURIComponent(pr.repo)}` : ""}`, { method: "POST" }).catch(() => null);
+  if (!r?.ok) return toast(r ? `Couldn't mark ${pr.ms} #${pr.number}: ${r.status}` : SERVER_DOWN);
+  S.events = [...(S.events || []), (await r.json()).reviewed];
+  render();
+  toast(`${personName(pr.owner)} hears you looked at ${pr.repo ? `${pr.repo} ` : ""}#${pr.number}`);
 }
 function needsBanner() {
-  const prs = draftPrs(), n = S.project.needsYou;
+  const prs = prsToReview(), n = S.project.needsYou;
   if (!prs.length && !n) return "";
   const nms = n ? needsMs() : null, nid = n?.story ? String(n.story).split("/").pop() : null;
   const ids = [...new Set([...prs.map((pr) => pr.ms), ...(nms ? [nms] : [])])];
   const story = nid && nms ? `<span class="wchip" data-open="${esc(nid)}" data-ms="${esc(nms)}"><b>${esc(nid)}</b> open story ›</span>` : "";
-  const chips = prs.map((pr) => ((url, text) => (url ? `<a class="wchip" href="${esc(url)}" target="_blank" rel="noopener">${text} <span class="cycle">· draft ↗</span></a>` : `<span class="wchip">${text} <span class="cycle">· draft</span></span>`))(
+  const looked = (pr) => ((who) => (who.length ? ` <span class="cycle">· ${who.map(personName).join(", ")} looked at it</span>` : ""))(lookedBy(pr));
+  const tick = (pr) => (colleaguesPr(pr) ? `<label class="looked" title="Tells ${personName(pr.owner)} and hides it here until the PR changes"><input type="checkbox" data-looked="${esc(prKey(pr.ms, pr.repo, pr.number))}">Looked at it</label>` : "");
+  const chips = prs.map((pr) => ((url, text) => (url ? `<a class="wchip" href="${esc(url)}" target="_blank" rel="noopener">${text} <span class="cycle">· draft ↗</span>${looked(pr)}</a>` : `<span class="wchip">${text} <span class="cycle">· draft</span>${looked(pr)}</span>`) + tick(pr))(
     safeUrl(pr.url), `<b>${esc(pr.ms)}</b>${pr.repo ? ` ${esc(pr.repo)}` : ""} #${esc(pr.number)}`)).join("")
     + story + ids.map((id) => `<span class="wchip" data-drill="${esc(id)}"><b>${esc(id)}</b> go to milestone in map ›</span>`).join("");
   const what = prs.length ? ` · ${prs.length === 1 ? "a draft PR" : `${prs.length} draft PRs`}` : "";
@@ -1647,6 +1677,7 @@ const EV = {
   assumed: ["◇", "blue", (e) => `${link(e)} Decided: ${esc(e.question || "")} → <b>${esc(e.choice || "")}</b>`],
   denied: ["⊘", "amber", (e) => `${link(e)} permission denied while you're away: ${esc(e.tool || "")} — finding another way`],
   settled: ["✓", "", (e) => e.count ? `You ${e.status === "reversed" ? "reversed" : "confirmed"} ${esc(e.count)} decisions` : `${link(e)} You ${e.status === "reversed" ? "reversed" : "confirmed"}: ${esc(e.question || "")}`],
+  reviewed: ["✓", "blue", (e) => `${msLink(e.milestone)}Looked at ${esc(e.repo || "")} #${esc(e.number)}${e.owner ? ` for ${personName(e.owner)}` : ""}`],
   pr: ["⇡", (e) => ({ __proto__: null, merged: "purple", closed: "red", open: "green" }[e.state] || "blue"), (e) => `${msLink(e.milestone)}${esc(e.repo || "")} ${prPill({ number: e.number, url: e.url, state: e.state })}${e.was ? ` <span class="meta">was ${esc(e.was)}</span>` : ""}`],
 };
 function findingText(e) {
@@ -1733,7 +1764,10 @@ function attention() {
   if (!P) return out;
   if (P.needsYou) out.push([`needs:${P.needsYou.reason}`, `Needs you: ${P.needsYou.reason}`, "amber"]);
   msList().forEach((m) => { if (waitingOn(m).length) out.push([`wait:${m.id}`, `${m.id}'s planning recommends doing ${waitingOn(m).map((w) => w.id).join(", ")} first`, "amber"]); });
-  draftPrs().forEach((pr) => out.push([`pr:${pr.ms}:${pr.repo || ""}:${pr.number}`, `${pr.ms} draft PR #${pr.number} to review`, "amber"]));
+  prsToReview().forEach((pr) => {
+    out.push([`pr:${prKey(pr.ms, pr.repo, pr.number)}`, `${pr.ms} draft PR #${pr.number} to review`, "amber"]);
+    lookedBy(pr).forEach((who) => out.push([`looked:${prKey(pr.ms, pr.repo, pr.number)}:${who}`, `${who} looked at ${pr.ms} #${pr.number}`, "amber"]));
+  });
   (P.assumptions || []).forEach((a) => { if (a.status === "open" && !S.settling?.[a.n]) out.push([`a:${a.n}`, `${assumptionName(a.n)} to settle: ${a.short || a.question}`, "amber"]); });
   P.epics.forEach((E) => (E.milestones || []).forEach((m) => (m.stories || []).forEach((s) => {
     if (s.status === "failed") out.push([`f:${m.id}/${s.id}`, `${m.id} · ${s.id} failed`, "red"]);
@@ -1890,6 +1924,7 @@ function initials(name) {
   return (words.length > 1 ? [...words[0]][0] + [...words[1]][0] : [...(words[0] || name)].slice(0, 2).join("")).toUpperCase();
 }
 const hue = (name) => [...name].reduce((h, c) => (h * 31 + c.codePointAt(0)) >>> 0, 7) % 360;
+const personColor = (name) => `hsl(${hue(name)} 50% 45%)`;
 function crewTip(p) {
   const ms = typeof p.active === "string" ? p.active : p.active?.milestone;
   const m = typeof ms === "string" && S.project.epics.flatMap((E) => E.milestones || []).find((x) => x.id === ms);
@@ -1899,7 +1934,7 @@ function crewTip(p) {
     p.owns.length ? `Owns ${p.owns.join(", ")}` : "Owns no milestone",
   ].join("\n");
 }
-const avatar = (p) => `<span class="av ${isMe(p.name) ? "me" : ""}" style="background:hsl(${hue(p.name)} 50% 45%)" title="${esc(crewTip(p))}">${esc(initials(p.name))}${Date.now() - p.last < RECENT_MS ? "<i></i>" : ""}</span>`;
+const avatar = (p) => `<span class="av ${isMe(p.name) ? "me" : ""}" style="background:${personColor(p.name)}" title="${esc(crewTip(p))}">${esc(initials(p.name))}${Date.now() - p.last < RECENT_MS ? "<i></i>" : ""}</span>`;
 function renderCrew() {
   const el = $("crew"), all = S.project ? crew() : [];
   el.hidden = all.length < 2;
@@ -2361,6 +2396,8 @@ document.addEventListener("click", (ev) => {
     keep(); requestAnimationFrame(keep);
     return;
   }
+  const lk = ev.target.closest("[data-looked]");
+  if (lk) { const pr = prsToReview().find((x) => prKey(x.ms, x.repo, x.number) === lk.dataset.looked); if (pr) markLooked(pr); return; }
   const st = ev.target.closest("[data-settle]");
   if (st) { ev.stopPropagation(); settle(st.dataset.settle, st.dataset.id); return; }
   const a = ev.target.closest("[data-act]");

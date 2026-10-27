@@ -197,6 +197,13 @@ class Synced(Watcher):
         self.assertEqual(self.lines(self.start(run_dir=self.bob.root)), [f"SYNCED {self.tip()} ann: owner, status×2"])
         self.assertEqual(Podium(self.bob.root).milestone("M2").get("owner"), "ann")
 
+    def test_tells_the_owner_who_looked_at_their_pr_and_nobody_else(self):
+        self.ann.event("reviewed", "M2", repo="core", number=7, state="draft", owner="bob")
+        self.ann.event("reviewed", "M1", number=3, state="draft", owner="cid")
+        self.assertRegex(sync.save(self.ann, "reviewed"), r"^SAVED ")
+        self.assertEqual(self.lines(self.start(run_dir=self.bob.root)),
+                         [f"SYNCED {self.tip()} ann: reviewed×2", "REVIEWED M2 core#7 by=ann"])
+
     def test_names_the_save_when_it_brought_no_events_and_never_prints_the_progress_it_brought(self):
         self.append(self.pod("stories", "M1", "S1.progress", run_dir=self.ann.root), "2026-01-01T00:02:00+00:00 COMMITTED abc1234")
         self.ann.milestone("M2")["title"] = "Renamed"
