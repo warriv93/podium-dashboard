@@ -510,7 +510,7 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .ev .ico.blue { background: var(--accent-soft); color: var(--accent); }
 .ev .meta { color: var(--text-3); font-size: 11.5px; }
 .ev a { color: var(--accent); cursor: pointer; text-decoration: none; font-weight: 600; }
-.close-x { border: 0; background: var(--gray-soft); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; color: var(--text-2); flex: none; }
+.close-x, .back-x { border: 0; background: var(--gray-soft); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; color: var(--text-2); flex: none; }
 
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 40; }
 .scrim.on { opacity: 1; pointer-events: auto; }
@@ -543,7 +543,7 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .dep-sum { font-size: 12.5px; color: var(--text-3); margin-bottom: 6px; }
 .dep-sum b { color: var(--text); font-weight: 600; }
 a.link-chip, a.file { color: inherit; text-decoration: none; }
-a.file { display: block; border-radius: 6px; padding: 1px 4px; margin: 0 -4px; }
+a.file { display: block; border-radius: 6px; padding: 1px 4px; margin: 0 -4px; cursor: pointer; }
 a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-soft); }
 .sec h3 a { float: right; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-3); text-decoration: none; border-radius: 6px; padding: 0 6px; }
 .md { font-size: 14px; }
@@ -754,7 +754,7 @@ const W = 236, H = 140, EPIC_W = 380, EPIC_W_REPOS = 460, EPIC_H = 132, GX = 22,
 
 /* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
 const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
-const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), selected: null, view: undefined, query: "", filter: "all", online: true };
+const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), selected: null, doc: null, back: [], view: undefined, query: "", filter: "all", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -2011,7 +2011,7 @@ function setView(id) {
 }
 
 async function openSheet(id) {
-  S.selected = id;
+  S.selected = id; S.doc = null; S.back = [];
   $("sheet").classList.add("on"); $("scrim").classList.add("on");
   $("sheet").setAttribute("aria-hidden", "false");
   render();
@@ -2037,7 +2037,7 @@ async function openSheet(id) {
   }
 }
 function closeSheet() {
-  S.selected = null;
+  S.selected = null; S.doc = null; S.back = [];
   $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
   $("sheet").setAttribute("aria-hidden", "true");
   if (!S.epic || !S.view) renderFull(); else renderMap();
@@ -2055,11 +2055,11 @@ function depChips(ids, map, none, doneWord) {
   const sum = doneWord && ids.length > 1 ? `<div class="dep-sum">${left.length ? `<b>${left.length} left</b> · ${ids.length - left.length} ${doneWord}` : `All ${ids.length} ${doneWord}`}</div>` : "";
   return `${sum}<div class="links">${[...left, ...ids.filter((x) => finished(x, map))].map((x) => chip(x, map)).join("")}</div>`;
 }
-const briefSec = (path, title = "Brief") => {
-  const text = S.briefs[path];
-  return `<div class="sec"><h3>${title}${vsc(path) ? `<a href="${esc(vsc(path))}">Open in VS Code ↗</a>` : ""}</h3>${text ? `<div class="md">${md(text)}</div>` : text === null ? `<div class="muted">${esc(path)} not readable from the Podium</div>` : path ? `<div class="muted">Loading…</div>` : `<div class="muted">No brief</div>`}</div>`;
+const briefSec = (path, title = "Brief", base = "runDir", key = path) => {
+  const text = S.briefs[key];
+  return `<div class="sec"><h3>${title}${vsc(path, base) ? `<a href="${esc(vsc(path, base))}">Open in VS Code ↗</a>` : ""}</h3>${text ? `<div class="md">${md(text)}</div>` : text === null ? `<div class="muted">${esc(path)} not readable from the Podium</div>` : path ? `<div class="muted">Loading…</div>` : `<div class="muted">No brief</div>`}</div>`;
 };
-const fileLink = (p, base) => (vsc(p, base) ? `<a class="file mono" href="${esc(vsc(p, base))}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
+const fileLink = (p, base = "runDir") => (vsc(p, base) ? `<a class="file mono" data-doc="${esc(p)}" data-base="${esc(base)}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
 function shaLink(sha, repo = null) {
   if (!sha || typeof sha !== "string") return "—";
   const url = safeUrl(repoUrl(repo));
@@ -2073,16 +2073,41 @@ function landedLinks(landed) {
 const shortSha = (sha) => (typeof sha === "string" ? sha.slice(0, 7) : "");
 
 const isHtml = (path) => /\.html?$/i.test(path || "");
-function htmlPreview(path) {
-  const text = S.briefs[path], at = S.docUrl?.[path];
+function htmlPreview(path, key = path) {
+  const text = S.briefs[key], at = S.docUrl?.[key];
   if (text === undefined) return `<div class="sec"><div class="muted">Loading…</div></div>`;
   if (text === null || !at) return `<div class="sec"><div class="muted">${esc(path)} not readable from the Podium</div></div>`;
   const href = runHref(at);
   return `<div class="sec preview"><h3>Preview<a href="${esc(href)}" target="_blank" rel="noopener">Open in a new tab ↗</a></h3><iframe sandbox="allow-scripts allow-popups" referrerpolicy="no-referrer" src="${esc(href)}" title="${esc(path)}"></iframe></div>`;
 }
+async function openDoc(path, base) {
+  const key = base === "repoDir" ? `/repo/${path}` : path;
+  S.back.push({ id: S.selected, doc: S.doc }); S.doc = { path, base, key };
+  renderSheet();
+  if (S.briefs[key] === undefined) {
+    S.docUrl ||= dict();
+    for (const at of base === "repoDir" ? [key] : [path, `podium/${path}`]) {
+      try { S.briefs[key] = await getText(at); S.docUrl[key] = at; break; } catch { S.briefs[key] = null; }
+    }
+    if (S.doc?.key === key) renderSheet();
+  }
+}
+function sheetBack() {
+  const prev = S.back.pop();
+  if (!prev) return;
+  S.selected = prev.id; S.doc = prev.doc;
+  renderSheet();
+}
+function docSheet() {
+  const { path, base, key } = S.doc;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><button class="back-x" data-back aria-label="Back">←</button><span class="sid">Document</span></div><h2>${esc(path.split("/").pop())}</h2><div class="muted mono">${esc(path)}</div>`;
+  $("sheet-body").innerHTML = isHtml(path) ? htmlPreview(path, key) + (vsc(path, base) ? `<div class="sec"><a class="prlink" href="${esc(vsc(path, base))}">Open in VS Code ↗</a></div>` : "") : briefSec(path, "Document", base, key);
+  $("sheet").classList.toggle("wide", isHtml(path));
+}
 function renderSheet() {
   const id = S.selected, e = S.epic, vm = viewMs();
   $("sheet").classList.remove("wide");
+  if (S.doc) return docSheet();
   if (id === "__quest") return questSheet();
   if (id === "__root" && !vm) return epicSheet();
   if (id === "__root" || (!vm && msById()[id])) return milestoneSheet(id === "__root" ? vm : msById()[id]);
@@ -2291,21 +2316,28 @@ function iconSheetHeads() {
 function md(src) {
   const inline = (t) => esc(t).replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, `<a href="$2" target="_blank" rel="noopener">$1 ↗</a>`).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\W)_([^_]+)_(?=\W|$)/g, "$1<i>$2</i>");
   const out = [];
-  let list = null, code = null;
+  let list = null, code = null, indent = "", inList = false;
   const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const pre = (text) => `<pre><code>${esc(text)}</code></pre>`;
+  const flush = () => {
+    if (inList && /<\/li>$/.test(out.at(-1) || "")) out[out.length - 1] = out.at(-1).replace(/<\/li>$/, `${pre(code)}</li>`);
+    else out.push(pre(code));
+    code = null;
+  };
   for (const line of src.split("\n")) {
-    if (code !== null) { if (/^```/.test(line)) { out.push(`<pre><code>${esc(code)}</code></pre>`); code = null; } else code += (code ? "\n" : "") + line; continue; }
-    if (/^```/.test(line)) { closeList(); code = ""; continue; }
+    if (code !== null) { if (/^\s*```/.test(line)) flush(); else code += (code ? "\n" : "") + (line.startsWith(indent) ? line.slice(indent.length) : line.trimStart()); continue; }
+    const fence = line.match(/^(\s*)```/);
+    if (fence) { indent = fence[1]; inList = !!indent && !!list; if (!inList) closeList(); code = ""; continue; }
     let m;
     if ((m = line.match(/^(#{1,3})\s+(.*)/))) { closeList(); out.push(`<h${m[1].length}>${withIcon(m[2], inline(m[2]))}</h${m[1].length}>`); }
     else if ((m = line.match(/^\s*[-*]\s+\[( |x)\]\s+(.*)/i))) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li class="task">${m[1].trim() ? "☑" : "☐"} <span>${inline(m[2])}</span></li>`); }
     else if ((m = line.match(/^\s*[-*]\s+(.*)/))) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(m[1])}</li>`); }
-    else if ((m = line.match(/^\s*\d+\.\s+(.*)/))) { if (list !== "ol") { closeList(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(m[1])}</li>`); }
-    else if (!line.trim()) closeList();
+    else if ((m = line.match(/^\s*(\d+)\.\s+(.*)/))) { if (list !== "ol") { closeList(); out.push(`<ol start="${Number(m[1])}">`); list = "ol"; } out.push(`<li>${inline(m[2])}</li>`); }
+    else if (!line.trim()) { if (list !== "ol") closeList(); }
     else { closeList(); out.push(`<p>${inline(line)}</p>`); }
   }
+  if (code !== null) flush();
   closeList();
-  if (code !== null) out.push(`<pre><code>${esc(code)}</code></pre>`);
   return out.join("");
 }
 
@@ -2441,6 +2473,9 @@ document.addEventListener("click", (ev) => {
     if (!d.closest(".map-card")) requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" }));
     return;
   }
+  if (ev.target.closest("[data-back]")) return sheetBack();
+  const dc = ev.target.closest("[data-doc]");
+  if (dc) return openDoc(dc.dataset.doc, dc.dataset.base);
   const o = ev.target.closest("[data-open]");
   if (o) {
     if (narrow) $("feed").classList.remove("on");
