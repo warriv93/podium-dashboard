@@ -243,6 +243,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .mpill.done { background: var(--gray-soft); border-color: transparent; color: var(--text-3); }
 .mpill.working { border-color: var(--green-dot); color: var(--green); }
 .mpill.waiting { border-style: dashed; }
+.mpill.moved { background: var(--gray-soft); border-color: transparent; color: var(--text-3); text-decoration: line-through; }
 .mpill.here { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
 .ftools { margin-left: auto; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; align-items: center; min-width: 0; text-transform: none; letter-spacing: 0; }
 .ftools .mockbtn, .ftools .asanabtn { margin-left: 0; }
@@ -289,6 +290,10 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms.waits { background: linear-gradient(var(--amber-soft), var(--amber-soft)), var(--card); border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
 .fms.waitfor { border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
 .fms.failed { border: 1.5px solid var(--red); }
+.fms.moved { background: transparent; box-shadow: none; opacity: .6; }
+.fms.moved .title { color: var(--text-3); }
+.fms .fincl { font-size: 11px; color: var(--text-3); }
+.infra { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--gray-soft); color: var(--text-3); cursor: help; }
 .fnext { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 2px; position: relative; z-index: 1; }
 .fnext::after { content: ""; flex: 1; border-top: 1.5px dashed var(--accent); opacity: .5; }
 .fwaves { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
@@ -358,6 +363,8 @@ a.wchip { color: inherit; text-decoration: none; }
 .badge.approval { background: var(--amber-soft); color: var(--amber); }
 .badge.waitfor { background: var(--amber-soft); color: var(--amber); cursor: help; }
 .badge.goahead { background: var(--gray-soft); color: var(--text-2); }
+.badge.moved { background: var(--gray-soft); color: var(--text-2); }
+.badge.moved[data-drill] { cursor: pointer; }
 .badge.awaited { color: var(--amber); border: 1px dashed var(--amber-dot); }
 .badge.failed { background: var(--red-soft); color: var(--red); }
 .badge.blocked, .badge.waiting { color: var(--text-3); padding-left: 0; font-weight: 500; }
@@ -987,7 +994,7 @@ const isMe = (who) => !!who && who === S.info?.me;
 const personName = (who) => (isMe(who) ? "you" : esc(who));
 const ownerChip = (m) => (m?.owner ? `<span class="owner ${isMe(m.owner) ? "me" : ""}" title="${esc(isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`)}">👤 ${personName(m.owner)}</span>` : "");
 const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
-const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
+const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
 const ownerOrClaim = (m) => ownerChip(m) || claimBtn(m);
 function renderPeople() {
   const el = $("people"), people = Object.entries(S.info?.people || {});
@@ -1046,12 +1053,12 @@ function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
 }
 function runOrder(list) {
   const by = dict(list.map((m) => [m.id, m]));
-  const group = (m) => ({ __proto__: null, done: 0, working: 1, dropped: 3 }[m.status] ?? 2);
+  const group = (m) => ({ __proto__: null, done: 0, moved: 0, working: 1, dropped: 3 }[m.status] ?? 2);
   const out = [], seen = new Set();
   const visit = (m) => {
     if (seen.has(m.id)) return;
     seen.add(m.id);
-    (m.deps || []).filter((d) => by[d]).forEach((d) => visit(by[d]));
+    (m.deps || []).map((d) => moveChain(String(d), by).at(-1)).filter((d) => by[d]).forEach((d) => visit(by[d]));
     out.push(m);
   };
   [...list].sort((a, b) => group(a) - group(b)).forEach(visit);
@@ -1115,25 +1122,31 @@ function wavesOf(list) {
   list.forEach((s) => (rows[r(s) - 1] ||= []).push(s));
   return rows.filter(Boolean);
 }
-const fullStatus = (x, map) => (x.status !== "todo" ? x.status : (x.deps || []).every((d) => !map[d] || finished(d, map)) ? "ready" : "waiting");
+const depsLeft = (m, all) => (m.deps || []).map((d) => ({ id: moveChain(String(d), all).at(-1), was: String(d) }))
+  .filter((w, i, on) => w.id !== String(m.id) && all[w.id] && !finished(w.id, all) && on.findIndex((x) => x.id === w.id) === i);
+const fullStatus = (x, map) => (x.status !== "todo" ? x.status : !depsLeft(x, map).length ? "ready" : "waiting");
+const movedPill = (m, all) => (m.movedTo == null ? "" : ((to) => `<span class="badge moved"${all[to] ? ` data-drill="${esc(to)}"` : ""}>Moved to ${esc(to)}</span>`)(String(m.movedTo)));
+const includesLine = (m) => (Array.isArray(m.includes) && m.includes.length ? `<div class="fincl">includes ${esc(m.includes.join(", "))}</div>` : "");
+const infraTag = (m) => (m.cut?.valuable === false && m.cut.kept ? `<span class="infra" title="${esc(m.cut.kept)}">infra</span>` : "");
 const planBtns = (m) => (orch() ? `<span class="fplan"><button class="btn" data-act="plan" data-id="${esc(m.id)}">Plan</button>${copyBtn("plan", m.id)}</span>` : "");
 function fullMs(m, all) {
   const st = fullStatus(m, all), stories = m.stories || [];
   const merged = stories.filter((s) => s.status === "done").length;
-  const left = (m.deps || []).filter((d) => all[d] && !finished(d, all));
+  const left = depsLeft(m, all);
   let foot;
   if (isResearch(m)) foot = st === "done" ? `<span class="badge done">Answered</span>` : `<span class="badge research">Research</span><span>${esc(m.asana?.assignee || "")}</span>`;
+  else if (st === "moved") foot = movedPill(m, all) || `<span class="badge moved">Moved</span>`;
   else if (st === "done") foot = `<span class="badge done">Landed${m.shippedAt ? ` ${day(m.shippedAt)}` : ""}</span>${stories.length ? `<span>${stories.length} stories</span>` : ""}`;
   else if (st === "working") foot = msWaits(m) ? `<span class="pulse amber"></span><span class="badge needs">Waiting on you</span><span>${msDoing(m)}</span>`
     : `<span class="pulse"></span><span class="badge working">${planning(m) ? "Planning in progress" : "Working on"}</span><span>${msDoing(m)}${stories.length ? ` · ${merged}/${stories.length} merged` : ""}</span>`;
   else if (planAsked(m)) foot = `<span class="pulse"></span><span class="badge working">Planning requested</span><span>the orchestrator picks it up</span>`;
   else if (grilledWaits(m)) foot = `<span class="badge grilled">Grilled</span><span>${esc(grilledWaits(m))}</span>${grilledWaits(m) === "ready to plan" ? planBtns(m) : ""}`;
-  else if (left.length) foot = `<span class="badge waiting">Needs ${esc(left.join(", "))}</span>`;
+  else if (left.length) foot = `<span class="badge waiting">Needs ${esc(waitIds(left))}</span>`;
   else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ __proto__: null, draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
   const map = dict(stories.map((s) => [s.id, s]));
   const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
-  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${waves}</div>`;
+  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${waves}</div>`;
 }
 function miniMap(vm) {
   const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
@@ -1158,15 +1171,15 @@ function renderFull() {
   const order = listed.filter((x) => !isResearch(x)), research = listed.filter(isResearch);
   const cols = `34px ${P.epics.map((E) => (E.id === P.active?.epic ? "minmax(300px, 1.7fr)" : "minmax(200px, 1fr)")).join(" ")}`;
   const head = `<div></div>${P.epics.map((E) => {
-    const kept = (E.milestones || []).filter((x) => x.status !== "dropped"), ms = kept.filter((x) => !isResearch(x)), landed = ms.filter((x) => x.status === "done").length;
+    const kept = (E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status)), ms = kept.filter((x) => !isResearch(x)), landed = ms.filter((x) => x.status === "done").length;
     const rs = kept.filter(isResearch), answered = rs.filter((x) => x.status === "done").length;
     const now = ms.find((x) => x.status === "working");
     return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
   const needsId = P.needsYou ? needsMs() : null;
-  const hides = (x) => S.hideFinished.map && x.status === "done" && x.id !== S.selected && x.id !== needsId && !waitersOf(x.id).length;
+  const hides = (x) => S.hideFinished.map && ["done", "moved"].includes(x.status) && x.id !== S.selected && x.id !== needsId && !waitersOf(x.id).length;
   renderHideFinished("map", listed.filter(hides).length);
-  const unstarted = (x) => !["done", "working"].includes(x.status);
+  const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
   const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hides(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
@@ -1203,9 +1216,9 @@ const planningPhases = () => ((ks) => (ks.indexOf("build") > 0 ? ks.slice(0, ks.
 const planning = (m) => m.status === "working" && planningPhases().includes(m.phase);
 const planAsked = (m) => m.status !== "working" && Date.now() - (S.planAsked?.[m.id] || 0) < 120000;
 function grilledWaits(m) {
-  if (!m.grilled || ["working", "done", "dropped"].includes(m.status)) return "";
+  if (!m.grilled || ["working", "done", "dropped", "moved"].includes(m.status)) return "";
   const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
-  const after = [...new Set([S.project.active?.milestone, ...(m.deps || []).filter((d) => all[d] && all[d].status !== "done")].filter(Boolean))];
+  const after = [...new Set([S.project.active?.milestone, ...depsLeft(m, all).map((w) => waitIds([w]))].filter(Boolean))];
   return after.length ? `next after ${after.join(", ")}` : "ready to plan";
 }
 function msDoing(m) {
@@ -1221,14 +1234,21 @@ function msWaits(m) {
   return pr || (!!S.project.needsYou && needsMs() === m.id);
 }
 const msList = () => S.project.epics.flatMap((E) => E.milestones || []);
-const closedMs = (m) => ["done", "dropped"].includes(m.status);
+const closedMs = (m) => ["done", "dropped", "moved"].includes(m.status);
+function moveChain(id, all) {
+  const chain = [id];
+  for (let at = all[id]; at?.status === "moved" && at.movedTo != null && !chain.includes(String(at.movedTo)); at = all[chain.at(-1)]) chain.push(String(at.movedTo));
+  return chain;
+}
 const waitsOn = (m) => ((all) => (Array.isArray(m.waitsFor) ? m.waitsFor : []).filter((w) => w?.milestone != null)
-  .map((w) => ({ id: String(w.milestone), reason: w.reason == null ? "" : String(w.reason) })).filter((w) => !(all[w.id] && closedMs(all[w.id]))))(dict(msList().map((x) => [x.id, x])));
+  .map((w) => ({ id: moveChain(String(w.milestone), all).at(-1), was: String(w.milestone), reason: w.reason == null ? "" : String(w.reason) }))
+  .filter((w, i, on) => w.id !== String(m.id) && !(all[w.id] && ["done", "dropped"].includes(all[w.id].status)) && on.findIndex((x) => x.id === w.id) === i))(dict(msList().map((x) => [x.id, x])));
+const waitIds = (on) => on.map((w) => (w.id === w.was ? w.id : `${w.id} (was ${w.was})`)).join(", ");
 const waitingOn = (m) => (m.waitsForAck === true || closedMs(m) ? [] : waitsOn(m));
 const waitersOf = (id) => msList().filter((m) => waitingOn(m).some((w) => w.id === id)).map((m) => m.id);
 const proceedAsked = (m) => Date.now() - (S.proceedAsked?.[m.id] || 0) < 120000;
 function waitPills(m) {
-  const on = closedMs(m) ? [] : waitsOn(m), ids = esc(on.map((w) => w.id).join(", ")), by = waitersOf(m.id);
+  const on = closedMs(m) ? [] : waitsOn(m), ids = esc(waitIds(on)), by = waitersOf(m.id);
   const pill = !on.length ? "" : m.waitsForAck === true ? `<span class="badge goahead">Going ahead without ${ids}</span>`
     : `<span class="badge waitfor" title="${esc(on.map((w) => w.reason).filter(Boolean).join("\n"))}">Waiting for ${ids}</span>`;
   return pill + (by.length ? `<span class="badge awaited">${esc(by.join(", "))} ${by.length > 1 ? "are" : "is"} waiting</span>` : "");
@@ -1240,7 +1260,7 @@ function waitBanner() {
     const plan = orch() ? on.filter((w) => all[w.id] && [...UNSTARTED, "todo", "ready"].includes(all[w.id].status))
       .map((w) => `<button class="btn" data-act="plan" data-id="${esc(w.id)}">Plan ${esc(w.id)}</button>`).join("") : "";
     const go = !orch() ? "" : proceedAsked(m) ? `<span class="sub">Going ahead requested</span>` : `<button class="btn ghost" data-act="proceed" data-id="${esc(m.id)}">Go ahead</button>`;
-    return `<div class="banner needs waitfor"><span class="label"><span class="pulse amber"></span>${esc(m.id)}'s planning recommends doing ${esc(on.map((w) => w.id).join(", "))} first${reason ? ":" : ""}</span>${reason ? `<span class="sub">${esc(reason)}</span>` : ""}${plan || go ? `<div class="chips">${plan}${go}</div>` : ""}</div>`;
+    return `<div class="banner needs waitfor"><span class="label"><span class="pulse amber"></span>${esc(m.id)}'s planning recommends doing ${esc(waitIds(on))} first${reason ? ":" : ""}</span>${reason ? `<span class="sub">${esc(reason)}</span>` : ""}${plan || go ? `<div class="chips">${plan}${go}</div>` : ""}</div>`;
   }).join("");
 }
 const storyDone = (m) => (m.status === "done" ? "Completed" : "Merged to branch");
@@ -1269,7 +1289,7 @@ function renderBanner() {
   const ms = e.milestones;
   const working = ms.filter(isBuilding).flatMap((m) => (m.stories || []).filter((s) => s.status === "working" || s.status === "approval").map((s) => [m, s]));
   let html;
-  const allDone = ms.every((m) => ["done", "dropped"].includes(m.status));
+  const allDone = ms.every((m) => ["done", "dropped", "moved"].includes(m.status));
   if (e.needsYou) {
     html = working.length ? workingBanner(working) : "";
   } else if (working.length) {
@@ -1593,6 +1613,7 @@ const EV = {
   approval: ["?", "amber", (e) => `${link(e)} waiting for approval: ${esc(e.tool || "")}`],
   phase: ["◆", "blue", (e) => `${msLink(e.milestone)}Phase → <b>${esc(phaseLabel(e.phase))}</b>`],
   planned: ["◆", "blue", (e) => `${msLink(e.milestone)}planning started`],
+  moved: ["→", "", (e) => `${msLink(e.milestone)}moved to ${msLink(e.to)}${e.pattern ? `(${esc(e.pattern)})` : ""}`],
   landed: ["✓", "green", (e) => `${msLink(e.milestone)}landed${shortSha(e.sha) ? ` <code>${esc(shortSha(e.sha))}</code>` : ""}${e.repo ? ` in ${esc(e.repo)}` : ""} ${esc(e.subject || "")}`],
   status: ["◇", "", (e) => `${msLink(e.milestone)}${esc(e.text || "")}`],
   finding: [(e) => (e.key ? "◎" : "⚑"), "amber", (e) => (e.key ? findingText(e) : `${msLink(e.milestone)}Gate finding: ${esc(e.text || "")}`)],
@@ -1623,7 +1644,7 @@ const FEED = {
   all: null,
   decisions: ["assumed", "settled", "needs", "human", "request", "denied", "approval"],
   stories: ["dispatched", "merged", "failed", "retry", "conflict", "commit"],
-  phases: ["phase", "planned", "landed", "pr", "status", "gate", "finding", "note", "adopted", "build-all"],
+  phases: ["phase", "planned", "landed", "moved", "pr", "status", "gate", "finding", "note", "adopted", "build-all"],
   commits: ["commit"],
   findings: ["finding", "finding-resolved"],
 };
@@ -1875,7 +1896,7 @@ function renderGit() {
 }
 
 const ASANA_ICO = `<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6.5" r="4.6" fill="currentColor"/><circle cx="5.4" cy="16.4" r="4.6" fill="currentColor"/><circle cx="18.6" cy="16.4" r="4.6" fill="currentColor"/></svg>`;
-const completedInAsanaNotLanded = (x) => !!(x?.asana?.completed && x.status && x.status !== "done" && !x.asana.keep && !isResearch(x));
+const completedInAsanaNotLanded = (x) => !!(x?.asana?.completed && x.status && !["done", "moved"].includes(x.status) && !x.asana.keep && !isResearch(x));
 function asanaBtn(x, compact) {
   const a = x?.asana;
   if (!a?.url) return "";
@@ -1961,7 +1982,7 @@ function closeSheet() {
   if (!S.epic || !S.view) renderFull(); else renderMap();
 }
 const CHIP_DOT = { __proto__: null, working: "var(--green-dot)", approval: "var(--amber-dot)", failed: "var(--red)", blocked: "var(--red)" };
-const finished = (x, map) => ["done", "dropped"].includes(map[x]?.status);
+const finished = (x, map) => ["done", "dropped"].includes(map[moveChain(String(x), map).at(-1)]?.status);
 const chip = (x, map) => {
   const st = map[x]?.status;
   const mark = finished(x, map) ? `<span class="tick">✓</span>` : CHIP_DOT[st] ? `<span class="cdot" style="background:${CHIP_DOT[st]}"></span>` : "";
@@ -2078,7 +2099,7 @@ function milestoneSheet(m) {
   const map = msById(), st = viewStatus(m, map);
   const stories = m.stories || [];
   const wt = st === "working" && msWaits(m), bst = wt ? "needs" : grilledWaits(m) ? "grilled" : st;
-  const label = isResearch(m) ? (st === "done" ? "Answered" : "Research") : wt ? "Waiting on you" : grilledWaits(m) ? `Grilled · ${grilledWaits(m)}` : st === "working" && planning(m) ? "Planning in progress" : planAsked(m) ? "Planning requested" : { __proto__: null, done: "Completed", working: "Working on", ready: "Ready", waiting: "Waiting on dependencies", draft: "Draft", parked: "Parked", later: "Later", dropped: "Dropped" }[st] || st;
+  const label = isResearch(m) ? (st === "done" ? "Answered" : "Research") : wt ? "Waiting on you" : grilledWaits(m) ? `Grilled · ${grilledWaits(m)}` : st === "working" && planning(m) ? "Planning in progress" : planAsked(m) ? "Planning requested" : { __proto__: null, done: "Completed", working: "Working on", ready: "Ready", waiting: "Waiting on dependencies", draft: "Draft", parked: "Parked", later: "Later", dropped: "Dropped", moved: "Moved" }[st] || st;
   const blocks = S.epic.milestones.filter((x) => (x.deps || []).includes(m.id));
   const actions = [
     stories.length && S.view !== m.id && !S.epic.single ? `<button class="btn big" data-drill="${esc(m.id)}">Open story map ›</button>` : "",
@@ -2139,7 +2160,7 @@ function appLink(l) {
 }
 const questLinks = (q) => (q.links || []).map(appLink).join("");
 function questTile(P) {
-  const q = P.project.quest, all = P.epics.flatMap((E) => E.milestones || []).filter((x) => x.status !== "dropped");
+  const q = P.project.quest, all = P.epics.flatMap((E) => E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status));
   const rs = all.filter(isResearch), ms = all.filter((x) => !isResearch(x)), open = (q.tasks || []).filter((t) => !t.asana?.completed).length;
   const counts = [`${P.epics.length} epics`, rs.length && `${rs.filter((x) => x.status === "done").length} of ${rs.length} research answered`,
     `${ms.filter((x) => x.status === "done").length} of ${ms.length} milestones landed`, open && `${open} open quest ${open === 1 ? "task" : "tasks"}`].filter(Boolean);
@@ -2160,7 +2181,7 @@ async function asanaSync() {
 }
 function questSheet() {
   const P = S.project, q = P.project.quest, tasks = q.tasks || [];
-  const tally = (E) => ((ms) => `${ms.filter((x) => x.status === "done").length}/${ms.length}`)((E.milestones || []).filter((x) => !isResearch(x) && x.status !== "dropped"));
+  const tally = (E) => ((ms) => `${ms.filter((x) => x.status === "done").length}/${ms.length}`)((E.milestones || []).filter((x) => !isResearch(x) && !["dropped", "moved"].includes(x.status)));
   $("sheet-head").innerHTML = `<span class="sid">Quest</span><h2>${esc(P.project.title)}</h2><div class="muted">${esc(P.project.summary || "")}</div>`;
   $("sheet-body").innerHTML = `
     <div class="sec"><div class="qlinks-sheet">${asanaBtn(P.project)}${syncBtn(P.project)}${questLinks(q)}</div>${asanaMeta(P.project)}</div>

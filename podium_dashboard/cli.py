@@ -81,6 +81,13 @@ COMMANDS
         The open assumptions, numbered by their index in the list.
     settle <n>[,<n>...] <confirmed|reversed>
         Settle those assumptions with one write and one `settled` event.
+    move <milestone> --to <target> [--pattern <slug>]
+        Fold a milestone into another: sets its status to moved and movedTo to the
+        target, adds it to the target's includes, and appends a `moved` event
+        (`to`, `pattern`). Refused (exit 1) for an unknown milestone, the milestone
+        itself, or a target already moved into it. A wait on a moved milestone
+        follows movedTo to where it ends: ` · waiting for M11 (was M10)`. Prints
+        `MOVED <milestone> → <target>`.
     log [<milestone>/<story>] <STAGE> <note>
         Append `<ISO time> <STAGE> <note>` to the story's progress file. STAGE is
         one of STARTED RED GREEN REFACTOR FIX CONTRACT COMMITTED FAILED, or a key
@@ -194,14 +201,14 @@ import sys
 
 from podium_dashboard import __version__, extension, findings, sync, tokens, update
 from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
-                                       cmd_init, cmd_log, cmd_ls, cmd_ready, cmd_release, cmd_requests, cmd_set, cmd_settle,
-                                       cmd_status, cmd_whoami)
+                                       cmd_init, cmd_log, cmd_ls, cmd_move, cmd_ready, cmd_release, cmd_requests, cmd_set,
+                                       cmd_settle, cmd_status, cmd_whoami)
 from podium_dashboard.plugins import asana
 from podium_dashboard.state import Podium, find_run
 
 COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_batch, "ready": cmd_ready,
             "ls": cmd_ls, "human": cmd_human, "hours": cmd_hours, "assume": cmd_assume, "assumptions": cmd_assumptions,
-            "settle": cmd_settle, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
+            "settle": cmd_settle, "move": cmd_move, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
             "asana": asana.cmd_asana, "self-update": update.cmd_self_update, "tokens": tokens.cmd_tokens,
             "finding": findings.cmd_finding, "findings": findings.cmd_findings}

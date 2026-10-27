@@ -12,6 +12,7 @@ from podium_dashboard.human import availability, day_set, human_hours, human_lin
 from podium_dashboard.state import NOW, STAGES, assign, building, pairs, queued_requests, valid_id
 
 PERSONAL = ("active", "needsYou")
+MOVE_USAGE = "move <milestone> --to <target> [--pattern <slug>]"
 
 
 def option(args, flag):
@@ -37,11 +38,32 @@ def refuse(milestone_id, owner):
     sys.exit(f"podium: milestone {milestone_id} is owned by {owner}")
 
 
+def move_chain(by_id, mid):
+    """The milestones a wait on `mid` passes through, ending where it lands: each moved milestone's `movedTo` in turn,
+    stopping before a cycle."""
+    chain = [mid]
+    while (by_id.get(mid) or {}).get("status") == "moved" and by_id[mid].get("movedTo") is not None:
+        mid = str(by_id[mid]["movedTo"])
+        if mid in chain:
+            break
+        chain.append(mid)
+    return chain
+
+
 def waiting(p, m):
-    met = {str(x.get("id")) for x in p.milestones() if x.get("status") in ("done", "dropped")}
-    ids = ", ".join(str(w["milestone"]) for w in (m["waitsFor"] if isinstance(m.get("waitsFor"), list) else [])
-                    if isinstance(w, dict) and w.get("milestone") is not None and str(w["milestone"]) not in met)
-    if not ids or m.get("status") in ("done", "dropped"):
+    by_id = {str(x.get("id")): x for x in p.milestones()}
+    if m.get("status") in ("done", "dropped", "moved"):
+        return ""
+    labels = {}
+    for w in m["waitsFor"] if isinstance(m.get("waitsFor"), list) else []:
+        if not isinstance(w, dict) or w.get("milestone") is None:
+            continue
+        was = str(w["milestone"])
+        mid = move_chain(by_id, was)[-1]
+        if mid != str(m.get("id")) and (by_id.get(mid) or {}).get("status") not in ("done", "dropped"):
+            labels.setdefault(mid, mid if mid == was else f"{mid} (was {was})")
+    ids = ", ".join(labels.values())
+    if not ids:
         return ""
     return f" · going ahead without {ids}" if m.get("waitsForAck") is True else f" · waiting for {ids}"
 
@@ -156,6 +178,28 @@ def cmd_batch(p, args):
         apply_set(p, op)  # an op that fails exits here, before anything is written
     p.save()
     print(f"{len(ops)} sets, {p.release()} events")
+
+
+def cmd_move(p, args):
+    values, rest = split_flags(args, ("--to", "--pattern"), MOVE_USAGE)
+    if len(rest) != 1 or not values.get("--to"):
+        sys.exit(MOVE_USAGE)
+    m, target = p.milestone(rest[0]), p.milestone(values["--to"])
+    if target is m:
+        sys.exit(f"podium: cannot move {m['id']} into itself")
+    if str(m["id"]) in move_chain({str(x.get("id")): x for x in p.milestones()}, str(target["id"])):
+        sys.exit(f"podium: {target['id']} is moved into {m['id']}: moving {m['id']} into it makes a cycle")
+    if m.get("status") == "moved":
+        before = next((x for x in p.milestones() if x.get("id") == m.get("movedTo")), {})
+        if isinstance(before.get("includes"), list):
+            before["includes"] = [x for x in before["includes"] if x != m["id"]]
+    m["status"], m["movedTo"] = "moved", target["id"]
+    includes = target["includes"] if isinstance(target.get("includes"), list) else []
+    target["includes"] = includes + ([] if m["id"] in includes else [m["id"]])
+    pattern = values.get("--pattern")
+    p.event("moved", m["id"], to=target["id"], **({"pattern": pattern} if pattern else {}))
+    p.save()
+    print(f"MOVED {m['id']} → {target['id']}")
 
 
 def cmd_ready(p, args):

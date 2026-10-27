@@ -554,6 +554,76 @@ class HostileRun(unittest.TestCase):
             self.assertIn(X, "".join(scan.text) + "".join(v for _, _, v in scan.attrs))
 
 
+    def moved(self, m10=None, m11=None, events=(), stored=None, extra=()):
+        """The full map's cards by id, as (class, html), and the last feed, for a run where M10 moved into M11 (which
+        carries an infra cut and includes M10) and M12 waits for M10."""
+        milestones = [{"id": "M10", "title": "Login", "status": "moved", "movedTo": "M11", **(m10 or {})},
+                      {"id": "M11", "title": "Auth", "status": "todo", "includes": ["M10"],
+                       "cut": {"pattern": "simple-complex", "valuable": False, "kept": "the API needs it first"}, **(m11 or {})},
+                      {"id": "M12", "title": "Upload", "status": "working", "phase": "build", "waitsFor": [{"milestone": "M10", "reason": "login"}]}, *extra]
+        self.rendered({**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": milestones}]}, list(events), PROGRESS, (),
+                      localStorage=stored or {})
+        cards = {}
+        for card in re.split(r'(?=<div class="fms )', [h for h in self.html if 'class="fms ' in h][-1])[1:]:
+            cards[re.search(r'data-id="([^"]*)"', card).group(1)] = (re.match(r'<div class="fms ([^"]*)"', card).group(1), card)
+        feeds = [h for h in self.html if 'class="ev"' in h]
+        return cards, feeds[-1] if feeds else ""
+
+    def test_a_moved_milestone_card_is_greyed_with_a_pill_that_jumps_to_its_target(self):
+        cards, _ = self.moved()
+        self.assertIn("moved", cards["M10"][0].split())
+        self.assertIn('<span class="badge moved" data-drill="M11">Moved to M11</span>', cards["M10"][1])
+        self.assertNotIn("Ready", cards["M10"][1])
+
+    def test_the_target_card_says_what_it_includes(self):
+        cards, _ = self.moved()
+        self.assertIn('<div class="fincl">includes M10</div>', cards["M11"][1])
+        self.assertNotIn("fincl", cards["M12"][1])
+
+    def test_a_kept_milestone_that_is_not_valuable_shows_an_infra_tag_with_the_reason(self):
+        cards, _ = self.moved()
+        self.assertIn('<span class="infra" title="the API needs it first">infra</span>', cards["M11"][1])
+        for cut in ({"valuable": True, "kept": "x"}, {"valuable": False}, "infra"):
+            self.assertNotIn('class="infra"', self.moved(m11={"cut": cut})[0]["M11"][1])
+
+    def test_a_wait_on_a_moved_milestone_names_the_target_and_where_it_was(self):
+        cards, _ = self.moved()
+        self.assertIn('<span class="badge waitfor" title="login">Waiting for M11 (was M10)</span>', cards["M12"][1])
+        self.assertIn('<span class="badge awaited">M12 is waiting</span>', cards["M11"][1])
+        self.assertNotIn("is waiting", cards["M10"][1])
+
+    def test_a_wait_through_a_move_is_met_once_the_target_lands(self):
+        cards, _ = self.moved(m11={"status": "done"})
+        self.assertNotIn("badge waitfor", cards["M12"][1])
+        self.assertNotIn("waitfor", cards["M12"][0].split())
+
+    def test_a_dependency_on_a_moved_milestone_needs_its_target_until_it_lands(self):
+        m13 = {"id": "M13", "title": "Share", "status": "todo", "deps": ["M10"]}
+        cards, _ = self.moved(extra=[m13])
+        self.assertIn('<span class="badge waiting">Needs M11 (was M10)</span>', cards["M13"][1])
+        cards, _ = self.moved(m11={"status": "done"}, extra=[m13])
+        self.assertNotIn("Needs", cards["M13"][1])
+        self.assertIn("ready", cards["M13"][0].split())
+
+    def test_hide_finished_hides_a_moved_milestone_like_a_landed_one(self):
+        cards, _ = self.moved(stored={"podium-hide-finished": "1"})
+        self.assertNotIn("M10", cards)
+        self.assertIn("M11", cards)
+
+    def test_the_feed_says_a_milestone_moved_and_why_under_phases(self):
+        _, feed = self.moved(events=[{"type": "moved", "milestone": "M10", "to": "M11", "pattern": "<b>simple</b>", "at": ago(hours=1)}])
+        self.assertIn('<a data-drill="M10">M10</a> moved to <a data-drill="M11">M11</a> (&lt;b&gt;simple&lt;/b&gt;)', feed)
+        self.assertIn('"moved"', re.search(r"phases: \[[^\]]*\]", open(PAGE).read()).group(0))
+
+    def test_hostile_move_fields_are_text(self):
+        cards, _ = self.moved(m10={"movedTo": X}, m11={"includes": [X], "cut": {"valuable": False, "kept": X}})
+        for html in (cards["M10"][1], cards["M11"][1]):
+            scan = Scan()
+            scan.feed(html)
+            self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+            self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+            self.assertIn(X, "".join(scan.text) + "".join(v for _, _, v in scan.attrs))
+
 STICKY_HARNESS = r"""
 const src = require("fs").readFileSync(process.argv[2], "utf8");
 const fn = src.slice(src.indexOf("function trackStickyBar()"), src.indexOf("trackStickyBar();\n"));

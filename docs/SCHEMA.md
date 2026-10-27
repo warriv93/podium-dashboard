@@ -64,10 +64,13 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | Key | Meaning |
 |---|---|
 | `id`, `title`, `summary` | |
-| `status` | `draft`, `later`, `parked`, `todo`, `working`, `done`, `dropped` |
+| `status` | `draft`, `later`, `parked`, `todo`, `working`, `done`, `dropped`, `moved` (folded into another milestone by `podium move`) |
+| `movedTo` | a moved milestone's target. The Podium greys its card with a "Moved to <id>" pill that opens the target, and Hide finished hides it like a landed one; it counts as neither landed nor open |
+| `includes` | ids of the milestones moved into this one, in the order they were moved; the card says "includes <ids>" |
+| `cut` | `{pattern, valuable, kept}`: the splitting pattern that cut it (a slug), whether a user notices it, and why it stays when not (`podium set milestone:<id> cut=<json>`). `valuable: false` with `kept` shows a small "infra" tag whose tooltip is `kept` |
 | `phase` | the stepper position, one of `orchestrator.phases` (default `recon spec mock architecture stories build gate verify land`) |
 | `deps` | milestone ids that must be done first |
-| `waitsFor` | `[{milestone, reason}]`: milestones this one is better done after, a soft relation unlike `deps`: building on (with mocks) is always allowed. An awaited milestone that is done or dropped counts as met and is left out everywhere. The Podium marks the card "Waiting for <id>" in amber, gives the awaited milestone an "<id> is waiting" chip and prefers it as up next, and shows a banner with Plan and Go ahead until `waitsForAck` |
+| `waitsFor` | `[{milestone, reason}]`: milestones this one is better done after, a soft relation unlike `deps`: building on (with mocks) is always allowed. A wait on a moved milestone follows `movedTo`, through chains, to where it ends (a cycle stops at the last milestone before it repeats), and reads "Waiting for M11 (was M10)". An awaited milestone that is done or dropped counts as met and is left out everywhere. The Podium marks the card "Waiting for <id>" in amber, gives the awaited milestone an "<id> is waiting" chip and prefers it as up next, and shows a banner with Plan and Go ahead until `waitsForAck` |
 | `waitsForAck` | true once the user chose to go ahead without the `waitsFor` milestones (a `proceed` request); cleared when `waitsFor` changes. The card then shows a muted "Going ahead without <id>" |
 | `owner` | the `me` of the person who may change it, see Collaboration |
 | `buildAll` | true while the orchestrator should keep launching ready stories |
@@ -138,11 +141,11 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
 
 One JSON object per line, appended in time order: `{"at": "<ISO time>", "type": "<type>", "milestone": "M2", "story": "S4", ...}`. `milestone` and `story` are present when the event concerns one. `by` holds `me` and is added in runs with per-person state.
 
-`podium set <target> ... --event TYPE key=value` appends one, filling `at`, `milestone` and `story` from the target. Core commands write `assumed`, `settled`, `owner` (`owner` is null on release), `handover` (`from`, `to`) and `asana` (`text`, the line the command printed: written on `asana link` and for each change an `asana refresh` reports). The rest are the orchestrator's vocabulary; the Podium draws a timeline from these:
+`podium set <target> ... --event TYPE key=value` appends one, filling `at`, `milestone` and `story` from the target. Core commands write `assumed`, `settled`, `owner` (`owner` is null on release), `handover` (`from`, `to`), `moved` (`to`, `pattern`) and `asana` (`text`, the line the command printed: written on `asana link` and for each change an `asana refresh` reports). The rest are the orchestrator's vocabulary; the Podium draws a timeline from these:
 
 `planned`, `grilled`, `phase` (`phase`), `status` (`text`), `dispatched` (`backend`, `model`), `commit` (`sha`, `subject`), `merged` (`into`, `wave`), `conflict`, `retry` (`attempt`, `reason`), `failed` (`reason`), `approval` (`tool`), `landed` (`sha`, `repo`, `subject`).
 
-An event is major, and saves the run when sync is on, if its type is `status`, `grilled`, `failed`, `landed`, `settled` or `owner`, a `phase` of `spec`, `architecture` or `build`, or a `merged` with `wave: true`. An extension can replace this rule with `SYNC_MAJOR`.
+An event is major, and saves the run when sync is on, if its type is `status`, `grilled`, `failed`, `landed`, `settled`, `owner` or `moved`, a `phase` of `spec`, `architecture` or `build`, or a `merged` with `wave: true`. An extension can replace this rule with `SYNC_MAJOR`.
 
 ## Progress files
 

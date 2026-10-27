@@ -181,7 +181,7 @@ def refresh(p, token=None):
 
     def refresh_milestone(m, t, kind="task"):
         old = update(m, t, m["id"], m["id"], kind)
-        if t.get("completed") and not old.get("completed") and m.get("status") not in ("done", "dropped"):
+        if t.get("completed") and not old.get("completed") and m.get("status") not in ("done", "dropped", "moved"):
             note(f"COMPLETED {m['id']} in Asana, not landed: the Podium asks Done?", m["id"])
 
     for e in p.epics():
@@ -196,7 +196,7 @@ def refresh(p, token=None):
             if m:
                 refresh_milestone(m, sub)
                 continue
-            unlinked = [m for m in e.get("milestones", []) if not (m.get("asana") or {}).get("gid") and m.get("status") != "dropped"]
+            unlinked = [m for m in e.get("milestones", []) if not (m.get("asana") or {}).get("gid") and m.get("status") not in ("dropped", "moved")]
             named = lambda m: (norm(m.get("title", "")) == norm(title(sub)) or re.search(rf"(?<!\w){re.escape(m['id'])}(?!\w)", sub["name"], re.I)
                                or (re.fullmatch(r"M(\d+)", m["id"]) and re.search(rf"\bmilestone\s+{m['id'][1:]}\b", sub["name"], re.I)))
             obvious = [m for m in unlinked if named(m)]

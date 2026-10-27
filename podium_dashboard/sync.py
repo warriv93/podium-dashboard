@@ -38,7 +38,7 @@ from podium_dashboard.merge import rebase
 from podium_dashboard.state import person_of, watcher_running
 
 ALWAYS_MAJOR = {"finding", "finding-resolved"}
-MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner", *ALWAYS_MAJOR}
+MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner", "moved", *ALWAYS_MAJOR}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
 MACHINE = ("enabled", "remote", "ref", "include", "exclude")

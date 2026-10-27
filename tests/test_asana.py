@@ -208,6 +208,21 @@ class Refresh(Run):
         self.data = self.state()
         self.assertEqual(self.podium("asana", "refresh"), (["ASANA 2 tasks read, no changes"], 0))
 
+    def test_a_moved_milestone_completed_in_asana_asks_nothing(self):
+        ms = self.data["epics"][0]["milestones"]
+        ms[0]["asana"] = {"kind": "task", "gid": "30"}
+        ms.append({"id": "M2", "title": "Folded", "status": "moved", "movedTo": "M1", "asana": {"kind": "task", "gid": "31"}})
+        self.tasks.update({"30": task("30", "Feat", subtasks=[]), "31": task("31", "Folded", completed=True, subtasks=[])})
+        self.assertEqual(self.podium("asana", "refresh"), (["ASANA 2 tasks read, no changes"], 0))
+
+    def test_a_new_subtask_never_goes_to_a_moved_milestone(self):
+        e = self.data["epics"][0]
+        e["asana"] = {"kind": "task", "gid": "1"}
+        e["milestones"][0]["asana"] = {"kind": "task", "gid": "10"}
+        e["milestones"].append({"id": "M2", "title": "Folded", "status": "moved", "movedTo": "M1"})
+        self.tasks["1"] = task("1", "Epic", subtasks=[task("10", "Feat"), task("11", "Folded")])
+        self.assertEqual(self.podium("asana", "refresh")[0], ['NEW M3 draft "Folded" in e'])
+
     def test_refreshes_a_linked_project(self):
         self.data["project"]["asana"] = {"kind": "project", "gid": "300", "syncedAt": "2026-10-01T00:00:00+00:00", "url": "old"}
         self.projects["300"] = {"gid": "300", "name": "P", "permalink_url": "https://app.asana.com/0/300/300", "owner": {"name": "Bo"}, "custom_fields": []}
