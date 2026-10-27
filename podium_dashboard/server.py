@@ -58,6 +58,11 @@ and arguments, so it picks up the change; the run's state is all on disk.
 On start, in a run dir inside a git repo, it lists the run's files in the clone's .git/info/exclude, so they stay out
 of git: machine-local state that would otherwise swap with every branch switch.
 
+GET /open?run=<slug> is where a shared deep link lands (`http://127.0.0.1:8765/open?run=<slug>#/M24`, the port a
+Podium takes first): it redirects to the Podium of that run on this machine, this one or the first of ports
+8765-8784 whose /info says the same `run` (the run's sync ref slug), keeping the link's #route; 404 with the command to
+start one when none does. It only selects a localhost port, never a path, and writes nothing.
+
 GET /git says, per repo the run works in (its own, plus the active milestone's `repos`), how far the checkout's branch
 and the default branch are behind origin, refreshed by a `git fetch` every --git-every minutes (default 5, 0 =
 never): a run that moved on another machine shows in the Podium.
@@ -86,14 +91,16 @@ from podium_dashboard import extension, sync
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
 from podium_dashboard.plugins import paseo
-from podium_dashboard.state import ACT_ON, ID, NOW, Podium, checkout_path, find_run, podium_dir, watcher_running
+from podium_dashboard.state import ACT_ON, ID, NOW, Podium, checkout_path, find_run, http, podium_dir, watcher_running
 
 STORY_ID = ID
 SETTLE = {"confirm", "reverse"}
 MILESTONE_ACTIONS = {"plan", "build-all", "stop", "claim", "proceed"}
 RUN_ACTIONS = {"share"}
 NO_PROMPT = "no orchestrator extension prompt"
+PORT = 8765
 PORTS = 20
+RUN_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 STARTED = time.time()
 PACKAGE = os.path.dirname(os.path.abspath(__file__))
 ARGV = []
@@ -167,12 +174,18 @@ def repo_dir(root):
     return git(root, "rev-parse", "--show-toplevel") or root
 
 
+def run_slug(p):
+    """What every machine sharing the run agrees on: the last part of its sync ref, `podium-run/<slug>`."""
+    ref = sync.settings(p).get("ref") or sync.default_ref(p)
+    return re.sub(r"[^a-z0-9]+", "-", ref.rsplit("/", 1)[-1].lower()).strip("-") or "run"
+
+
 def info(root):
     p = load_podium(root)
     data = p.data if p else {}
     people = data.get("people") if isinstance(data.get("people"), dict) else {}
     module = extension.load(p)[0] if p else None
-    return {"runDir": root, "repoDir": repo_dir(root), "watching": watcher_running(podium_dir(root)),
+    return {"runDir": root, "repoDir": repo_dir(root), "run": run_slug(p) if p else None, "watching": watcher_running(podium_dir(root)),
             "orchestrator": {**orchestrator_of(data), "shareSteps": extension.share_steps(module)},
             "me": p.me if p else None,
             "people": {name: {"active": who.get("active")} for name, who in people.items() if isinstance(who, dict)},
@@ -365,6 +378,8 @@ def make_handler(root):
         def do_GET(self):
             if self.path == "/info":
                 return self.reply(200, info(root))
+            if self.path.split("?")[0] == "/open":
+                return self.open_run(parse_qs(urlparse(self.path).query).get("run", [""])[0])
             if self.path == "/git":
                 return self.reply(200, GIT)
             if self.path.startswith("/prompt/"):
@@ -388,6 +403,29 @@ def make_handler(root):
                 self.send_error(404)
                 return None
             return super().send_head()
+
+        def open_run(self, run):
+            """Redirect to the Podium of run `run` on this machine, the page's own fragment (the deep link) kept by the
+            browser: this server if it serves it, else the first one of the port range that does; else a page saying how
+            to open it. Only a port number of this machine goes into the Location."""
+            if not RUN_SLUG.match(run):
+                return self.send_error(400)
+            own = self.server.server_address[1]
+            p = load_podium(root)
+            if p and run_slug(p) == run:
+                return self.redirect("/")
+            for port in (x for x in range(PORT, PORT + PORTS) if x != own):
+                got = http(f"http://127.0.0.1:{port}/info", timeout=0.5)
+                if isinstance(got, dict) and got.get("run") == run:
+                    return self.redirect(f"http://127.0.0.1:{port}/")
+            page = f"<!doctype html><meta charset=utf-8><title>Podium</title><body style=\"font:16px system-ui;max-width:40em;margin:4em auto\"><h1>This run isn't open here</h1><p>No Podium on this machine serves the run <b>{run}</b>. In your checkout of the run, start one, then open the link again:</p><pre>podium server --detach</pre>"
+            self.send(404, "text/html; charset=utf-8", page.encode())
+
+        def redirect(self, to):
+            self.send_response(302)
+            self.send_header("Location", to)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
         def repo_file(self, rel):
             """A file of the repo the run dir sits in, read-only: a mock kept outside the run dir."""
@@ -618,7 +656,7 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     ap = argparse.ArgumentParser(prog="podium server")
     ap.add_argument("--dir")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=PORT)
     ap.add_argument("--idle", type=float, default=60, help="minutes without activity before stopping; 0 = never")
     ap.add_argument("--detach", action="store_true", help="print the URL, then keep serving in the background")
     ap.add_argument("--git-every", type=float, default=5, help="minutes between fetches for GET /git; 0 = never")

@@ -526,6 +526,7 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .sheet.wide { width: min(max(760px, 50vw), calc(100vw - 24px)); }
 .sec.preview iframe { display: block; width: 100%; height: calc(100vh - 210px); min-height: 360px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .sheet-head { padding: 18px 20px 14px; display: flex; gap: 12px; align-items: flex-start; border-bottom: 1px solid var(--line); }
+.sheet-head .copy { width: 28px; height: 28px; margin: 0; }
 .sheet-head h2 { margin: 2px 0 6px; font-size: 20px; letter-spacing: -.02em; line-height: 1.2; }
 .sheet-body { overflow-y: auto; padding: 4px 20px 24px; }
 .sheet .muted { color: var(--text-2); font-size: 14px; line-height: 1.5; }
@@ -726,6 +727,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
 <aside class="sheet" id="sheet" aria-hidden="true">
   <div class="sheet-head">
     <div style="flex:1;min-width:0" id="sheet-head"></div>
+    <button class="copy" id="sheet-link" title="Copy a link to this sheet for a colleague" aria-label="Copy link"></button>
     <button class="close-x" id="sheet-close" aria-label="Close">✕</button>
   </div>
   <div class="sheet-body" id="sheet-body"></div>
@@ -908,6 +910,7 @@ async function poll() {
     } catch { /* an older server */ }
     if (markSeen()) changed = true;
     if (changed) render();
+    followLink();
   } catch {
     S.online = false;
   }
@@ -2365,6 +2368,7 @@ async function release(id) {
     toast("Couldn't take it back — is the Podium server running? Start it with podium server --detach");
   }
 }
+const LINK_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.8 9.2a2.5 2.5 0 0 0 3.5 0l2.2-2.2a2.5 2.5 0 0 0-3.5-3.5l-.7.7M9.2 6.8a2.5 2.5 0 0 0-3.5 0L3.5 9a2.5 2.5 0 0 0 3.5 3.5l.7-.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 const copyBtn = (action, id) => `<button class="copy" data-copy="${action}" data-id="${esc(id)}" title="Copy the prompt to run it in another session" aria-label="Copy prompt">${COPY_ICON}</button>`;
 async function copyPrompt(action, id) {
   try {
@@ -2408,6 +2412,73 @@ async function act(action, id) {
   } catch {
     toast(S.stale ? "The Podium server runs older code than this page — press Restart at the top, then click again" : SERVER_DOWN);
   }
+}
+const LINK_PORT = 8765;
+function sheetRoute() {
+  const sel = S.doc ? S.back[0]?.id : S.selected, vm = viewMs(), enc = encodeURIComponent;
+  let head = "", label = "", doc = S.doc;
+  if (sel === "__quest") [head, label] = ["/quest", "the quest"];
+  else if (sel === "__root" && !vm) [head, label] = [`/epic/${enc(S.epicView)}`, `epic ${S.epicView}`];
+  else if (sel === "__root") [head, label] = [`/${enc(vm.id)}`, vm.id];
+  else if (!vm && msById()[sel]) [head, label] = [`/${enc(sel)}`, sel];
+  else if (vm && byId()[sel]) [head, label] = [`/${enc(vm.id)}/${enc(sel)}`, `${vm.id}/${sel}`];
+  else if (!doc) {
+    const path = document.querySelector(`[data-open="${CSS.escape(sel)}"]`)?.dataset.path;
+    doc = path ? { path, base: "runDir" } : null;
+  }
+  if (!head && !doc) return null;
+  const tail = doc ? `/${doc.base === "repoDir" ? "repo" : "doc"}/${doc.path.split("/").map(enc).join("/")}` : "";
+  return { hash: `#${head}${tail}`, label: doc ? `${head ? `${label}'s document` : "document"} ${doc.path}` : label };
+}
+async function copyLink() {
+  const r = sheetRoute();
+  if (!r) return toast("Nothing to link to on this sheet");
+  const url = (S.info?.run ? `http://127.0.0.1:${LINK_PORT}/open?run=${S.info.run}` : `${location.origin}/`) + r.hash;
+  try { await navigator.clipboard.writeText(url); } catch {
+    const t = Object.assign(document.createElement("textarea"), { value: url });
+    document.body.append(t); t.select();
+    const ok = document.execCommand("copy");
+    t.remove();
+    if (!ok) return toast("Couldn't copy the link");
+  }
+  toast(`Link copied — opens ${r.label} in their Podium`);
+}
+function parseRoute() {
+  const segs = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (!segs.length) return null;
+  let d;
+  try { d = segs.map(decodeURIComponent); } catch { return { bad: true }; }
+  const at = d.findIndex((x, i) => i < 3 && (x === "doc" || x === "repo"));
+  const head = at < 0 ? d : d.slice(0, at);
+  return { head, doc: at < 0 ? null : { base: d[at] === "repo" ? "repoDir" : "runDir", path: d.slice(at + 1).join("/") } };
+}
+async function goTo(r) {
+  const none = (what) => toast(`This run has no ${what}`);
+  const [a, b] = r.head || [];
+  const badPath = r.doc && (!r.doc.path || r.doc.path.includes("\\") || r.doc.path.split("/").some((x) => !x || x === "." || x === ".."));
+  if (r.bad || r.head.length > 2 || badPath || (!a && !r.doc)) return toast("That link isn't one this Podium understands");
+  if (a === "quest" && !b) { if (!S.epic) return none("quest"); await openSheet("__quest"); }
+  else if (a === "epic" && b) {
+    if (!S.project.epics.some((x) => x.id === b)) return none(`epic ${b}`);
+    S.epicView = b; S.epic = epicCtx(b); S.view = null;
+    await openSheet("__root");
+  } else if (a) {
+    if (!epicOfMs(a)) return none(`milestone ${a}`);
+    enterEpicOf(a);
+    if (S.epic.single) render(); else setView(a);
+    if (b && !byId()[b]) return none(`story ${a}/${b}`);
+    await openSheet(b || "__root");
+  } else {
+    if (!S.epic) return none("epic to show it in");
+    await openSheet("__root");
+  }
+  if (r.doc) await openDoc(r.doc.path, r.doc.base);
+}
+function followLink() {
+  if (!S.route || !S.project) return;
+  const r = S.route;
+  S.route = null;
+  goTo(r).catch(() => toast("Couldn't open that link"));
 }
 let toastT;
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3200); }
@@ -2503,6 +2574,10 @@ $("q").addEventListener("input", (ev) => { S.query = ev.target.value; applyFilte
 new MutationObserver(iconSheetHeads).observe($("sheet-body"), { childList: true });
 $("scrim").addEventListener("click", closeSheet);
 $("sheet-close").addEventListener("click", closeSheet);
+$("sheet-link").innerHTML = LINK_ICON;
+$("sheet-link").addEventListener("click", copyLink);
+S.route = parseRoute();
+window.addEventListener("hashchange", () => { S.route = parseRoute(); followLink(); });
 $("feed-toggle").addEventListener("click", () => $("feed").classList.toggle("on"));
 $("feed-close").addEventListener("click", () => $("feed").classList.remove("on"));
 $("bell").addEventListener("click", async () => {

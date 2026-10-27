@@ -122,7 +122,7 @@ function element() {
 const node = (key) => (els[key] ||= element());
 const FILES = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
 Object.assign(globalThis, {
-  window: globalThis, location: { href: "http://127.0.0.1:8765/", port: "8765" }, innerWidth: 1400, scrollY: 0,
+  window: globalThis, location: { href: "http://127.0.0.1:8765/", port: "8765", hash: "" }, innerWidth: 1400, scrollY: 0,
   document: { getElementById: node, querySelector: (s) => node("query " + s), querySelectorAll: () => [], documentElement: element(),
               addEventListener() {}, visibilityState: "visible", hidden: false, title: "", createElement: element },
   localStorage: { getItem: (k) => (FILES.localStorage || {})[k] ?? null, setItem() {}, removeItem() {} },

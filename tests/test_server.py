@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 import time
 import unittest
 import unittest.mock
@@ -125,9 +126,9 @@ class Info(Server):
         self.serve({**DATA, "people": {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}}})
         code, info = self.call("GET", "/info")
         self.assertEqual(code, 200)
-        self.assertEqual(set(info), {"runDir", "repoDir", "watching", "orchestrator", "me", "people", "paseoServer",
+        self.assertEqual(set(info), {"runDir", "repoDir", "run", "watching", "orchestrator", "me", "people", "paseoServer",
                                      "lastUse", "stale", "pull"})
-        self.assertEqual((info["runDir"], info["repoDir"]), (self.run_dir, self.repo))
+        self.assertEqual((info["runDir"], info["repoDir"], info["run"]), (self.run_dir, self.repo, "api"))
         self.assertEqual(info["orchestrator"], {"name": "orch", "command": "/orch", "shareSteps": None})
         self.assertEqual(info["me"], "ann")
         self.assertEqual(info["people"], {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}})
@@ -147,6 +148,46 @@ class Info(Server):
             with self.subTest(steps=steps):
                 self.serve(extension=f"SHARE_STEPS = {steps}\n")
                 self.assertIsNone(self.call("GET", "/info")[1]["orchestrator"]["shareSteps"])
+
+
+class Open(Server):
+    def test_a_synced_run_is_named_by_its_sync_ref_slug(self):
+        self.serve({**DATA, "sync": {"enabled": True, "ref": "refs/heads/podium-run/Shared Plan"}})
+        self.assertEqual(self.call("GET", "/info")[1]["run"], "shared-plan")
+
+    def test_its_own_run_redirects_to_the_page_keeping_no_path_of_the_link(self):
+        self.serve()
+        r, _ = self.response("GET", "/open?run=api")
+        self.assertEqual((r.status, r.getheader("Location")), (302, "/"))
+
+    def test_a_run_not_open_here_answers_a_page_with_the_command_to_start_it(self):
+        self.serve()
+        r, body = self.response("GET", "/open?run=other")
+        self.assertEqual(r.status, 404)
+        self.assertIn("podium server --detach", body)
+        self.assertIn("<b>other</b>", body)
+
+    def test_refuses_a_run_that_is_not_a_slug(self):
+        self.serve()
+        for run in ("", "../x", "A", "a<b>", "a" * 65):
+            self.assertEqual(self.response("GET", "/open?run=" + run)[0].status, 400)
+        self.assertEqual(self.response("GET", "/open")[0].status, 400)
+
+    def test_another_run_redirects_to_the_port_of_the_server_that_serves_it(self):
+        self.serve()
+        mine = self.port
+        other = os.path.join(self.tmp, "web", ".deep-plan")
+        os.makedirs(os.path.join(other, "podium"))
+        with open(os.path.join(other, "podium", "podium.json"), "w") as f:
+            json.dump(DATA, f)
+        httpd = server.ThreadingHTTPServer(("127.0.0.1", free_port()), server.make_handler(other))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        self.port = httpd.server_address[1]
+        with unittest.mock.patch.object(server, "PORT", mine), unittest.mock.patch.object(server, "PORTS", 1):
+            r, _ = self.response("GET", "/open?run=api")
+        self.assertEqual((r.status, r.getheader("Location")), (302, f"http://127.0.0.1:{mine}/"))
 
 
 class Hardening(Server):
