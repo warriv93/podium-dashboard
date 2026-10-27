@@ -38,7 +38,7 @@ from podium_dashboard.merge import rebase
 from podium_dashboard.state import person_of, watcher_running
 
 ALWAYS_MAJOR = {"finding", "finding-resolved"}
-MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner", "moved", *ALWAYS_MAJOR}
+MAJOR = {"status", "grilled", "failed", "landed", "settled", "owner", "moved", "decision", "decision-closed", *ALWAYS_MAJOR}
 MAJOR_PHASES = {"spec", "architecture", "build"}
 REMOTE = "origin"
 MACHINE = ("enabled", "remote", "ref", "include", "exclude")
@@ -653,7 +653,7 @@ def autosave(p):
 
 
 def describe(event):
-    where = "/".join(str(x) for x in (event.get("milestone"), event.get("story")) if x)
+    where = "/".join(str(x) for x in (event.get("milestone"), event.get("story"), event.get("decision")) if x)
     what = event.get("phase") or event.get("status") or ("wave" if event.get("wave") else "")
     return " ".join(str(x) for x in (where, event.get("type"), what) if x)
 

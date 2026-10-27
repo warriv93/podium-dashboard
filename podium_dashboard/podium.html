@@ -294,6 +294,14 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms.moved .title { color: var(--text-3); }
 .fms .fincl { font-size: 11px; color: var(--text-3); }
 .infra { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--gray-soft); color: var(--text-3); cursor: help; }
+.fdecs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+.fdecs .dhead { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.fdec { display: flex; flex-direction: column; gap: 3px; background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.fdec.frontier { border-color: var(--accent); }
+.fdec .title { font-size: 12.5px; font-weight: 600; }
+.fdec .dtype { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--gray-soft); color: var(--text-2); }
+.fdec .dmeta { font-size: 11px; color: var(--text-3); }
+.fdec .dmeta a[data-drill] { color: var(--accent); cursor: pointer; }
 .fnext { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 2px; position: relative; z-index: 1; }
 .fnext::after { content: ""; flex: 1; border-top: 1.5px dashed var(--accent); opacity: .5; }
 .fwaves { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
@@ -1128,6 +1136,17 @@ const fullStatus = (x, map) => (x.status !== "todo" ? x.status : !depsLeft(x, ma
 const movedPill = (m, all) => (m.movedTo == null ? "" : ((to) => `<span class="badge moved"${all[to] ? ` data-drill="${esc(to)}"` : ""}>Moved to ${esc(to)}</span>`)(String(m.movedTo)));
 const includesLine = (m) => (Array.isArray(m.includes) && m.includes.length ? `<div class="fincl">includes ${esc(m.includes.join(", "))}</div>` : "");
 const infraTag = (m) => (m.cut?.valuable === false && m.cut.kept ? `<span class="infra" title="${esc(m.cut.kept)}">infra</span>` : "");
+const decisionOwner = (d) => (d.owner ? `<span class="owner ${isMe(d.owner) ? "me" : ""}" title="${esc(isMe(d.owner) ? `Yours (${d.owner}): you are settling it` : `${d.owner} is settling it`)}">👤 ${personName(d.owner)}</span>` : "");
+const affectsLine = (d, all) => (Array.isArray(d.affects) && d.affects.length ? `<span class="dmeta">affects ${d.affects.map((a) => (typeof a === "string" && all[a] ? `<a data-drill="${esc(a)}">${esc(a)}</a>` : esc(a))).join(", ")}</span>` : "");
+function decisionStrip(E, decs, all) {
+  const mine = Object.values(decs).filter((d) => d.epic === E.id);
+  if (!mine.length) return "";
+  const blockers = (d) => (Array.isArray(d.blockedBy) ? d.blockedBy : []).filter((b) => typeof b === "string" && decs[b]?.status === "open");
+  const front = (d) => !d.owner && !blockers(d).length;
+  const open = mine.filter((d) => d.status === "open"), closed = mine.length - open.length;
+  const cards = [...open.filter(front), ...open.filter((d) => !front(d))].map((d) => `<div class="fdec${front(d) ? " frontier" : ""}" data-decision="${esc(d.id)}"><div class="ftop"><span class="sid">${esc(d.id)}</span><span class="dtype">${esc(d.type)}</span>${decisionOwner(d)}</div><span class="title">${esc(d.question)}</span>${blockers(d).length ? `<span class="dmeta">blocked by ${esc(blockers(d).join(", "))}</span>` : ""}${d.missing ? `<span class="dmeta">missing: ${esc(d.missing)}</span>` : ""}${affectsLine(d, all)}</div>`).join("");
+  return `<div class="fdecs"><span class="dhead">Decisions · ${open.length} open${closed ? ` · ${closed} closed` : ""}</span>${cards}</div>`;
+}
 const planBtns = (m) => (orch() ? `<span class="fplan"><button class="btn" data-act="plan" data-id="${esc(m.id)}">Plan</button>${copyBtn("plan", m.id)}</span>` : "");
 function fullMs(m, all) {
   const st = fullStatus(m, all), stories = m.stories || [];
@@ -1182,10 +1201,13 @@ function renderFull() {
   const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
+  const decs = dict((Array.isArray(P.decisions) ? P.decisions : []).filter((d) => d && typeof d === "object" && typeof d.id === "string").map((d) => [d.id, d]));
+  const strips = P.epics.map((E) => decisionStrip(E, decs, all));
+  const drow = strips.some(Boolean) ? `<div class="ford" title="Decisions">D</div>${strips.map((x) => `<div>${x}</div>`).join("")}` : "";
   const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hides(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
   const rows = order.map((x, i) => hides(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
   const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
-  m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${rrow}${rows}</div>`;
+  m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
   requestAnimationFrame(drawQueue);
   applyFilter();
 }

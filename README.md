@@ -46,6 +46,7 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 | `log [<milestone>/<story>] <STAGE> <note>` | append a progress line for a story |
 | `assume`, `assumptions`, `settle` | record, list and settle assumptions made while you were away |
 | `claim <milestone>`, `release <milestone>`, `whoami [name]` | ownership in a shared run |
+| `decision add\|claim\|resolve\|outscope\|invalidate\|unresolved`, `decisions [--epic ID] [--json]` | epic-wide questions settled before the milestone cut, with the frontier to work next |
 | `sync on\|off\|save\|pull\|status` | share the run through git |
 | `finding add\|resolve\|wontfix`, `findings [--all] [--open] [--recur]` | record what went wrong or cost too much under a key reused when it recurs, and list the keys across runs, see Findings |
 | `tokens [--since 7d] [--cwd <path>]... [--top N] [--json]` | where Claude Code's tokens went in the last week, and the recurring tool calls worth fixing, see Findings |
@@ -59,6 +60,8 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 A milestone may wait for another without being held back: its `waitsFor` puts a "Waiting for M10" pill and a banner on the dashboard, whose Go ahead queues a `proceed` request, and `status` appends ` · waiting for M10` (see `docs/SCHEMA.md`).
 
 `podium move M10 --to M11 [--pattern <slug>]` folds a milestone into another: M10 turns `moved`, M11 `includes` it, and a wait on M10 becomes "waiting for M11 (was M10)".
+
+Questions that touch two or more milestones of an epic are settled first, as decisions: `podium decision add "Which auth?" --type discussion --affects "M1,M2"` prints `DECISION D1 open` (at most 6 open per epic without `--force`), `decision claim D1` makes it yours, and `resolve`, `outscope` or `invalidate` close it with the outcome (`unresolved` keeps it open with what is missing); on a decision someone else claimed, these need `--force`. `podium decisions` lists them and ends with `FRONTIER D1,D4` (open, unclaimed, every blocker closed) and `STATE ACTIVE|WAITING|BLOCKED|CLEAR`; cut the epic once it is `CLEAR`.
 
 `podium --help` has the full reference. Targets are `.` (the project), `me`, `epic:<id>`, `milestone:<id>`, `<story>` of the active milestone, or `<milestone>/<story>`.
 

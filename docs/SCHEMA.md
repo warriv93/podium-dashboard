@@ -49,6 +49,7 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | `active` | `{epic, milestone}`: the milestone `milestone:` and a bare story id refer to |
 | `needsYou` | `{reason, story?}` or null: what is waiting for the user |
 | `assumptions` | answers an agent assumed while the user was away, see below |
+| `decisions` | epic-wide questions settled before an epic's milestone cut, see below |
 | `people` | per-person state, see Collaboration |
 | `orchestrator` | the extension block, see below |
 | `sync` | git sync, see below |
@@ -111,6 +112,12 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
 
 `{at, milestone, story?, question, choice, why, short?, status}` with `status` `open`, `confirmed` or `reversed`. `podium assume` appends, `podium settle <n> <confirmed|reversed>` settles. Numbers are list indexes: `<n>` for your own, `t<n>` for the top-level ones of a run from before `people`.
 
+### Decisions
+
+`{id, epic, question, type, affects, blockedBy, status, owner?, outcome?, missing?, at}`: a question touching two or more milestones of an epic, settled with the user before the epic's milestone cut; a milestone's brief names the ones it rests on as `D<n>`. `id` is `D<n>`, numbered across the run; `type` is `discussion` (a grill with the user), `research`, `prototype` or `unblock` (access, setup or evidence, never product code); `affects` lists free-text areas or milestone ids; `blockedBy` lists decision ids. `status` is `open`, `resolved`, `out-of-scope` or `invalidated`; `outcome` is the resolution, or why it was ruled out or invalidated. `owner` is the claim, a person's `me` as on a milestone (`podium decision claim`, refused while someone else holds it unless `--force`). `missing` is what `podium decision unresolved` found lacking: the decision stays open and keeps its owner; closing it clears `missing`. `podium decision add` refuses a 7th open decision on one epic unless `--force`.
+
+The frontier is the open decisions nobody claimed whose `blockedBy` are all closed (an unknown id counts as closed). An epic's state is `ACTIVE` with a frontier, else `WAITING` while one is claimed, else `BLOCKED` while one is open, else `CLEAR`. The Podium shows a strip above each epic's milestones with its open decisions, frontier first, each with its type, owner, "blocked by" its open blockers, `missing` and the milestones it affects, and the count of closed ones; an epic with none has no strip.
+
 ### orchestrator
 
 ```json
@@ -141,11 +148,11 @@ Setting a story to `failed` sets every story that depends on it, directly or thr
 
 One JSON object per line, appended in time order: `{"at": "<ISO time>", "type": "<type>", "milestone": "M2", "story": "S4", ...}`. `milestone` and `story` are present when the event concerns one. `by` holds `me` and is added in runs with per-person state.
 
-`podium set <target> ... --event TYPE key=value` appends one, filling `at`, `milestone` and `story` from the target. Core commands write `assumed`, `settled`, `owner` (`owner` is null on release), `handover` (`from`, `to`), `moved` (`to`, `pattern`) and `asana` (`text`, the line the command printed: written on `asana link` and for each change an `asana refresh` reports). The rest are the orchestrator's vocabulary; the Podium draws a timeline from these:
+`podium set <target> ... --event TYPE key=value` appends one, filling `at`, `milestone` and `story` from the target. Core commands write `assumed`, `settled`, `owner` (`owner` is null on release), `handover` (`from`, `to`), `moved` (`to`, `pattern`), `decision` (`decision`, `epic`, `kind`, `question`), `decision-claimed` (`decision`, `owner`, `from` on a takeover), `decision-closed` (`decision`, `status`, `outcome`), `decision-unresolved` (`decision`, `missing`) and `asana` (`text`, the line the command printed: written on `asana link` and for each change an `asana refresh` reports). The rest are the orchestrator's vocabulary; the Podium draws a timeline from these:
 
 `planned`, `grilled`, `phase` (`phase`), `status` (`text`), `dispatched` (`backend`, `model`), `commit` (`sha`, `subject`), `merged` (`into`, `wave`), `conflict`, `retry` (`attempt`, `reason`), `failed` (`reason`), `approval` (`tool`), `landed` (`sha`, `repo`, `subject`).
 
-An event is major, and saves the run when sync is on, if its type is `status`, `grilled`, `failed`, `landed`, `settled`, `owner` or `moved`, a `phase` of `spec`, `architecture` or `build`, or a `merged` with `wave: true`. An extension can replace this rule with `SYNC_MAJOR`.
+An event is major, and saves the run when sync is on, if its type is `status`, `grilled`, `failed`, `landed`, `settled`, `owner`, `moved`, `decision` or `decision-closed`, a `phase` of `spec`, `architecture` or `build`, or a `merged` with `wave: true`. An extension can replace this rule with `SYNC_MAJOR`.
 
 ## Progress files
 

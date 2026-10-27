@@ -34,8 +34,8 @@ def split_flags(args, flags, usage):
     return values, rest
 
 
-def refuse(milestone_id, owner):
-    sys.exit(f"podium: milestone {milestone_id} is owned by {owner}")
+def refuse(item_id, owner, kind="milestone"):
+    sys.exit(f"podium: {kind} {item_id} is owned by {owner}")
 
 
 def move_chain(by_id, mid):
@@ -333,20 +333,28 @@ def require_owner(p, milestone_id, force=False, claim=True):
         print(f"claimed {claim_milestone(p, m['id'])}")
 
 
-def claim_milestone(p, milestone_id, force=False):
-    """Make the milestone this person's: pull when the run syncs, exit 1 while someone else owns it (unless `force`,
-    a `handover`), set the owner, push, and record an `owner` event. Returns the milestone's id."""
+def take(p, item_id, find, kind="milestone", force=False):
+    """Make the item `find(item_id)` returns this person's: pull when the run syncs, exit 1 while someone else owns it
+    (unless `force`), set the owner and push. Returns (its id, the owner before)."""
     if p.synced():
         sync.pull(p)
-    m = p.milestone(milestone_id)
-    mid, owner = m["id"], m.get("owner")
+    item = find(item_id)
+    item_id, owner = item["id"], item.get("owner")
     if owner and owner != p.me and not force:
-        refuse(mid, owner)
+        refuse(item_id, owner, kind)
     if owner != p.me:
-        m["owner"] = p.me
+        item["owner"] = p.me
         p.save()
         if p.synced():
-            claimed_first(p, mid)
+            claimed_first(p, item_id, find, kind)
+    return item_id, owner
+
+
+def claim_milestone(p, milestone_id, force=False):
+    """Make the milestone this person's through `take` (`force` a `handover`) and record an `owner` event. Returns the
+    milestone's id."""
+    mid, owner = take(p, milestone_id, p.milestone, force=force)
+    if owner != p.me:
         if owner:
             p.event("handover", mid, **{"from": owner, "to": p.me})
         p.event("owner", mid, owner=p.me)
@@ -360,17 +368,17 @@ def cmd_claim(p, args):
     print(f"claimed {claim_milestone(p, rest[0], force)}")
 
 
-def claimed_first(p, mid):
+def claimed_first(p, item_id, find, kind):
     """Push this claim; when another one reached the remote first, the sync merge keeps theirs and this exits 1."""
-    out = sync.save(p, f"{mid} claimed by {p.me}")
+    out = sync.save(p, f"{item_id} claimed by {p.me}")
     if out == "BEHIND":
         sync.pull(p)
-        out = sync.save(p, f"{mid} claimed by {p.me}")
+        out = sync.save(p, f"{item_id} claimed by {p.me}")
     if not out.startswith(("SAVED", "UNCHANGED")) or "(not pushed" in out:
         print(out)
-    owner = p.milestone(mid).get("owner")
+    owner = find(item_id).get("owner")
     if owner != p.me:
-        refuse(mid, owner)
+        refuse(item_id, owner, kind)
 
 
 def cmd_release(p, args):

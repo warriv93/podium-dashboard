@@ -624,6 +624,70 @@ class HostileRun(unittest.TestCase):
             self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
             self.assertIn(X, "".join(scan.text) + "".join(v for _, _, v in scan.attrs))
 
+    def strips(self, decisions):
+        """The full map's decision strip html per epic column (None for an empty cell), or None when it
+        rendered no decision row, for a run of epics e1 (M10, M11) and e2 (M20)."""
+        epics = [{"id": "e1", "title": "E", "milestones": [{"id": "M10", "title": "Login", "status": "todo"},
+                                                           {"id": "M11", "title": "Auth", "status": "todo"}]},
+                 {"id": "e2", "title": "F", "milestones": [{"id": "M20", "title": "Upload", "status": "todo"}]}]
+        self.rendered({**CYCLIC_RUN, "epics": epics, "decisions": decisions}, [], PROGRESS, (), info={"me": "ann"})
+        full = [h for h in self.html if 'class="full"' in h][-1]
+        if '<div class="ford" title="Decisions">D</div>' not in full:
+            return None
+        row = re.split(r'<div class="(?:ford|fnext)"', full.split('<div class="ford" title="Decisions">D</div>', 1)[1])[0]
+        cells = re.findall(r'<div></div>|<div><div class="fdecs">.*?(?=<div></div>|<div><div class="fdecs">|$)', row, re.S)
+        self.assertEqual(len(cells), len(epics))
+        return [None if c == "<div></div>" else c for c in cells]
+
+    def test_an_epic_without_decisions_has_no_strip_and_a_run_without_any_no_row(self):
+        self.assertIsNone(self.strips([]))
+        self.assertIsNone(self.strips("D1"))
+        cells = self.strips([{"id": "D1", "epic": "e2", "question": "Q", "type": "research", "status": "open"}])
+        self.assertIsNone(cells[0])
+        self.assertIn("Q", cells[1])
+
+    def test_the_strip_lists_open_decisions_frontier_first_with_type_owner_blockers_and_missing(self):
+        [strip, _] = self.strips([
+            {"id": "D1", "epic": "e1", "question": "Which auth?", "type": "discussion", "status": "open", "owner": "bo"},
+            {"id": "D2", "epic": "e1", "question": "Where do files live?", "type": "research", "status": "open",
+             "blockedBy": ["D1", "D4"], "missing": "a price list"},
+            {"id": "D3", "epic": "e1", "question": "Get keys", "type": "unblock", "status": "open", "blockedBy": ["D4"]},
+            {"id": "D4", "epic": "e1", "question": "Old", "type": "prototype", "status": "resolved", "outcome": "x"},
+            {"id": "D5", "epic": "e1", "question": "Gone", "type": "discussion", "status": "invalidated"},
+            {"id": "D6", "epic": "e2", "question": "Elsewhere", "type": "discussion", "status": "open"}])
+        self.assertIn('<span class="dhead">Decisions · 3 open · 2 closed</span>', strip)
+        self.assertEqual(re.findall(r'data-decision="([^"]*)"', strip), ["D3", "D1", "D2"])
+        self.assertEqual(re.findall(r'<div class="fdec( frontier)?" data-decision', strip), [" frontier", "", ""])
+        self.assertIn('<span class="sid">D3</span><span class="dtype">unblock</span></div><span class="title">Get keys</span>', strip)
+        self.assertIn('<span class="owner " title="bo is settling it">👤 bo</span>', strip)
+        self.assertIn('<span class="dmeta">blocked by D1</span><span class="dmeta">missing: a price list</span>', strip)
+        for closed in ("Old", "Gone", "Elsewhere"):
+            self.assertNotIn(closed, strip)
+
+    def test_the_strip_marks_your_own_claim_and_drills_into_affected_milestones(self):
+        [strip, _] = self.strips([{"id": "D1", "epic": "e1", "question": "Q", "type": "discussion", "status": "open",
+                                   "owner": "ann", "affects": ["M11", "billing", "M99"]}])
+        self.assertIn('<span class="owner me" title="Yours (ann): you are settling it">👤 you</span>', strip)
+        self.assertIn('<span class="dmeta">affects <a data-drill="M11">M11</a>, billing, M99</span>', strip)
+
+    def test_a_strip_of_closed_decisions_only_shows_the_count(self):
+        [strip, _] = self.strips([{"id": "D1", "epic": "e1", "question": "Q", "type": "discussion", "status": "resolved"}])
+        self.assertIn('<span class="dhead">Decisions · 0 open · 1 closed</span>', strip)
+        self.assertNotIn('class="fdec', strip.replace('class="fdecs"', ""))
+
+    def test_hostile_decision_fields_are_text(self):
+        [strip, _] = self.strips([{"id": X, "epic": "e1", "question": X, "type": X, "status": "open", "owner": X, "missing": X,
+                                   "affects": [X, 1, {}], "blockedBy": [X, {}]},
+                                  {"id": "__proto__", "epic": "e1", "question": "p", "type": "t", "status": "open", "blockedBy": ["toString"]},
+                                  {"epic": "e1", "question": "no id", "status": "open"}, None, "D9"])
+        scan = Scan()
+        scan.feed(strip)
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+        self.assertIn(X, "".join(scan.text))
+        self.assertNotIn("no id", strip)
+        self.assertIn('data-decision="__proto__"', strip)
+
 STICKY_HARNESS = r"""
 const src = require("fs").readFileSync(process.argv[2], "utf8");
 const fn = src.slice(src.indexOf("function trackStickyBar()"), src.indexOf("trackStickyBar();\n"));

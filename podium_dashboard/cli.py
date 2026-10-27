@@ -88,6 +88,30 @@ COMMANDS
         itself, or a target already moved into it. A wait on a moved milestone
         follows movedTo to where it ends: ` · waiting for M11 (was M10)`. Prints
         `MOVED <milestone> → <target>`.
+    decision add "<question>" --type <type> [--epic <id>] [--affects "a,b"] [--blocked-by D1,D2] [--force]
+    decision claim <D<n>> [--force]
+    decision resolve|outscope|invalidate <D<n>> "<outcome or why>" [--force]
+    decision unresolved <D<n>> "<missing>" [--force]
+        An epic decision: a question touching two or more milestones of an epic,
+        settled before its milestone cut, in podium.json's top-level decisions.
+        type is discussion (a grill with the user), research, prototype or unblock
+        (access, setup, evidence; never product code). add numbers it D<n> on the
+        active epic (or --epic), open, and prints `DECISION D<n> open`; a 7th open
+        decision on one epic is refused (`CAP 6 open decisions on <epic>: ...`)
+        unless --force. claim makes it yours as `claim` does a milestone, open ones
+        only: `CLAIMED D<n>`. resolve, outscope and invalidate close it with its
+        outcome (`RESOLVED`, `OUT-OF-SCOPE`, `INVALIDATED D<n>`); unresolved keeps it
+        open and its owner, with what is missing: `OPEN D<n> missing: <missing>`.
+        These four are refused (exit 1) on a decision someone else claimed, unless
+        --force; an unclaimed one anyone may change.
+        Events: decision, decision-claimed, decision-closed, decision-unresolved.
+    decisions [--epic <id>] [--json]
+        One line per decision, then the frontier (the open ones nobody claimed
+        whose blockers are all closed) and the state:
+          DECISION <id> <status> <type> <owner|-> blocked=<open blocker ids|-> — <question>
+          FRONTIER D1,D4 | FRONTIER none
+          STATE ACTIVE (a frontier) | WAITING (one claimed) | BLOCKED (open ones) | CLEAR
+        --json prints {decisions, frontier, state}. Read-only.
     log [<milestone>/<story>] <STAGE> <note>
         Append `<ISO time> <STAGE> <note>` to the story's progress file. STAGE is
         one of STARTED RED GREEN REFACTOR FIX CONTRACT COMMITTED FAILED, or a key
@@ -199,7 +223,7 @@ import importlib
 import os
 import sys
 
-from podium_dashboard import __version__, extension, findings, sync, tokens, update
+from podium_dashboard import __version__, decisions, extension, findings, sync, tokens, update
 from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
                                        cmd_init, cmd_log, cmd_ls, cmd_move, cmd_ready, cmd_release, cmd_requests, cmd_set,
                                        cmd_settle, cmd_status, cmd_whoami)
@@ -211,7 +235,8 @@ COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_b
             "settle": cmd_settle, "move": cmd_move, "log": cmd_log, "requests": cmd_requests, "init": cmd_init,
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
             "asana": asana.cmd_asana, "self-update": update.cmd_self_update, "tokens": tokens.cmd_tokens,
-            "finding": findings.cmd_finding, "findings": findings.cmd_findings}
+            "finding": findings.cmd_finding, "findings": findings.cmd_findings, "decision": decisions.cmd_decision,
+            "decisions": decisions.cmd_decisions}
 SUBCOMMANDS = ("server", "watch")
 NO_PODIUM = {"hours", "human", "whoami", "self-update", "tokens"}
 
