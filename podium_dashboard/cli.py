@@ -26,8 +26,9 @@ COMMANDS
     set <target> [key=value ...] [--event TYPE [key=value ...]]
         value is JSON when it parses strictly (no NaN or Infinity), else a
         string; an id-like key (sha, ...Sha, id, ...Id, branch, base, ref,
-        commit, story, milestone) always keeps its text, so a SHA like 7e59758
-        stays one; `now` is the current ISO time, `@file` reads JSON from a file. Dotted keys reach into objects
+        commit, story, milestone), a key under a sha one (landedSha.api), and
+        such a key inside a JSON value always keep their numbers as text, so a
+        SHA like 7e59758 stays one; `now` is the current ISO time, `@file` reads JSON from a file. Dotted keys reach into objects
         (agent.id=x, repos.api.pr=@pr.json), and a number into a list
         (assumptions.0.status=x). key+=value appends to a list or adds to a
         number.

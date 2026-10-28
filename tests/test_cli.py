@@ -350,3 +350,15 @@ class SetValues(Cli):
         with open(os.path.join(run, "podium", "events.jsonl")) as f:
             e = json.loads(f.read().splitlines()[-1], parse_constant=refuse)
         self.assertEqual((e["sha"], e["number"]), ("7355178", 4))
+
+    def test_a_sha_inside_a_json_value_or_under_a_sha_key_stays_text(self):
+        run = self.run_at(os.path.join(self.tmp, "run"))
+        self.podium("--dir", run, "set", "milestone:M1", "landedSha.api=1234567e10",
+                    'commits=[{"sha": 2673459e10, "plus": 3}]', 'landed={"sha": 7355178}', "size=1e999")
+        refuse = lambda name: self.fail(f"{name} in the run's JSON")
+        with open(os.path.join(run, "podium", "podium.json")) as f:
+            m = json.load(f, parse_constant=refuse)["epics"][0]["milestones"][0]
+        self.assertEqual(m["landedSha"], {"api": "1234567e10"})
+        self.assertEqual(m["commits"], [{"sha": "2673459e10", "plus": 3}])
+        self.assertEqual(m["landed"], {"sha": "7355178"})
+        self.assertEqual(m["size"], "1e999")

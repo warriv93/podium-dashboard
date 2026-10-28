@@ -284,37 +284,65 @@ def building(m):
     return m.get("status") == "working" and m.get("phase") == "build"
 
 
-TEXT_KEY = re.compile(r"(^|_)(sha|id|branch|base|ref|commit|story|milestone)$|[a-z](Sha|Id)$")
+TEXT_KEY = re.compile(r"(^|_)(sha|shas|id|branch|base|ref|commit|story|milestone)$|[a-z](Sha|Shas|Id)$")
+SHA_KEY = re.compile(r"(^|_)shas?$|[a-z]Shas?$")
 
 
-def strict_json(raw):
-    """`raw` as JSON, refusing what a browser's JSON.parse refuses: NaN, Infinity and numbers too big for a float."""
-    def finite(text):
-        value = float(text)
-        if not math.isfinite(value):
-            raise ValueError(text)
+class Number:
+    __slots__ = ("text",)
+
+    def __init__(self, text):
+        self.text = text
+
+
+def settle(value, text):
+    """`value` with each Number as its text when `text`, else as a JSON number; a number a browser can't read
+    (Infinity) raises ValueError."""
+    if isinstance(value, dict):
+        return {k: settle(v, text) for k, v in value.items()}
+    if isinstance(value, list):
+        return [settle(v, text) for v in value]
+    if not isinstance(value, Number):
         return value
+    if text:
+        return value.text
+    if re.fullmatch(r"-?[0-9]+", value.text):
+        return int(value.text)
+    number = float(value.text)
+    if not math.isfinite(number):
+        raise ValueError(value.text)
+    return number
 
+
+def strict_json(raw, text=False):
+    """`raw` as JSON, refusing what a browser's JSON.parse refuses: NaN, Infinity and numbers too big for a float.
+    Numbers under an id-like key, or every number when `text`, keep their text."""
     def refuse(name):
         raise ValueError(name)
-    return json.loads(raw, parse_float=finite, parse_constant=refuse)
+
+    def pairs(items):
+        return {k: settle(v, True) if TEXT_KEY.search(k) else v for k, v in items}
+    value = json.loads(raw, parse_int=Number, parse_float=Number, parse_constant=refuse, object_pairs_hook=pairs)
+    return settle(value, text)
 
 
-def parse_value(raw, key=""):
+def parse_value(raw, path=("",)):
     """A `key=value` argument's value: now, @file, else JSON when it parses strictly, else the text. An id-like key
-    (sha, a ...Sha, id, a ...Id, branch, base, ref, commit, story, milestone) keeps its text, so a SHA like 7e59758
+    (sha, a ...Sha, id, a ...Id, branch, base, ref, commit, story, milestone), or any key under a sha one
+    (landedSha.api), keeps its text: its numbers, in an object or list too, stay as written, so a SHA like 7e59758
     or 7355178 never turns into a number."""
+    path = [path] if isinstance(path, str) else list(path)
+    text = bool(TEXT_KEY.search(path[-1]) or any(SHA_KEY.search(k) for k in path[:-1]))
     if raw == "now":
         return NOW()
     if raw.startswith("@"):
         with open(raw[1:]) as f:
-            return json.load(f)
-    if TEXT_KEY.search(key):
-        return raw
+            return strict_json(f.read(), text)
     try:
-        return strict_json(raw)
+        value = strict_json(raw, text)
     except ValueError:
         return raw
+    return raw if text and isinstance(value, bool) else value
 
 
 def assign(obj, item):
@@ -333,7 +361,7 @@ def assign(obj, item):
         obj = obj[k]
     if isinstance(obj, list):
         sys.exit(f"{key}: set a field of the item (key.<n>.field=value)")
-    value = parse_value(raw, last)
+    value = parse_value(raw, [*path, last])
     if op == "+=":
         cur = obj.get(last)
         if isinstance(cur, list) or cur is None and not isinstance(value, (int, float)):
