@@ -146,6 +146,12 @@ class Lines(Watcher):
         self.human("unavailable")
         self.assertEqual(self.lines(self.start()), ["LAPSE unavailable, nothing building"])
 
+    def test_a_restart_after_the_user_became_available_keeps_watching_though_nothing_is_building(self):
+        self.run_at(self.run_dir, {**DATA, "epics": []})
+        with open(self.pod("watcher.json"), "w") as f:
+            json.dump({"at": time.time(), "offsets": {}, "mode": "unavailable"}, f)
+        self.assertEqual(self.lines(self.start()), ["HUMAN available"])
+
     def test_follows_the_paseo_agents_of_every_milestone(self):
         data = json.loads(json.dumps(DATA))
         data["epics"][0]["milestones"][1]["stories"][0].update(status="working", agent={"backend": "paseo", "id": "agent-t1"})

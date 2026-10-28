@@ -258,8 +258,8 @@ def main(argv=None):
         mode, waiting, idle, warned = human(), set(), set(), set()
         since = dict(offsets)
 
-    def needed():
-        return mode == "available" or any(s.get("status") == "working" for m in load_run(root)[0] for s in m.get("stories", []))
+    def needed(now_mode):
+        return now_mode == "available" or any(s.get("status") == "working" for m in load_run(root)[0] for s in m.get("stories", []))
 
     def save():
         os.makedirs(os.path.dirname(beat), exist_ok=True)
@@ -284,9 +284,10 @@ def main(argv=None):
             save()
         if time.time() - last_need > 60:
             last_need = time.time()
-            if not needed():
+            now_mode = human()
+            if not needed(now_mode):
                 save()
-                emit(f"LAPSE {mode}, nothing building")
+                emit(f"LAPSE {now_mode}, nothing building")
                 return
 
         for path in watched(podium_dir(root)):
