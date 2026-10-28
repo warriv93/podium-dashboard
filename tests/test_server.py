@@ -302,6 +302,20 @@ class Hardening(Server):
             for path in ("/repos/x/leak.txt", "/repos/x/leak.txt?x=1", "/repos/x/up/secret.txt", "/repos/x/", "/repos/x/up/"):
                 self.assertEqual(self.response(method, path)[0].status, 404, (method, path))
 
+    def test_a_folder_serves_its_index_html_and_never_one_a_symlink_leads_outside(self):
+        self.write("api/.deep-plan/mock/index.html", "run mock")
+        self.write("api/assets/index.html", "repo mock")
+        self.write("api/.deep-plan/empty/x.txt", "x")
+        self.write("api/.deep-plan/leaky/x.txt", "x")
+        os.symlink(self.write("index.html", "secret"), os.path.join(self.run_dir, "leaky", "index.html"))
+        self.serve()
+        for path, body in (("/mock/", "run mock"), ("/mock/?x=1", "run mock"), ("/repo/assets/", "repo mock")):
+            self.assertEqual(self.call("GET", path), (200, body), path)
+        self.assertEqual(self.response("GET", "/mock")[0].getheader("Location"), "/mock/")
+        self.assertEqual(self.response("GET", "/repo/assets")[0].getheader("Location"), "/repo/assets/")
+        for path in ("/empty/", "/leaky/", "/repo/.deep-plan/leaky/", "/repo/.deep-plan/empty/"):
+            self.assertEqual(self.call("GET", path)[0], 404, path)
+
     def test_a_run_at_its_repos_root_serves_nothing_beside_the_repo(self):
         self.at(self.repo)
         self.write("api/mock.html", "mock")

@@ -88,8 +88,8 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes; a checkout path inside the run dir but outside `repos/` and `worktrees/` is skipped |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
-| `GET /repo/<path>` | a file under the run's repo: the git toplevel of the run dir, else the run dir itself; the path is resolved and anything outside answers 404 |
-| `GET /podium/...`, any other path | a file of the run dir, by its real path: a folder, or a file a symlink leads outside the run dir, answers 404 |
+| `GET /repo/<path>` | a file under the run's repo: the git toplevel of the run dir, else the run dir itself; the path is resolved and anything outside answers 404; a folder serves its `index.html` (without the trailing slash, a 302 to it first), and one without answers 404 |
+| `GET /podium/...`, any other path | a file of the run dir, by its real path; a folder serves its `index.html` (without the trailing slash, a 301 to it first); a folder without one, or a file a symlink leads outside the run dir, answers 404 |
 | `POST /<action>/<id>` | queue a request line, 202 `{"queued": {...}}`; `<action>` is a core action or one of `ACTIONS`; `confirm` and `reverse` take an assumption number or `all`, and `?note=` |
 | `POST /build-all/<milestone>`, `POST /stop/<milestone>` | the same, per milestone |
 | `POST /proceed/<milestone>` | the same: the banner's Go ahead asks to go ahead without the milestones `waitsFor` names; the watcher prints `REQUEST proceed <milestone>`, `podium requests` `LIST proceed <milestone>`, and the orchestrator sets `waitsForAck=true` and carries on, mocking what is missing; an unknown milestone answers 404 |

@@ -9,7 +9,8 @@ It answers only requests whose Host is 127.0.0.1:<port> or localhost:<port>, and
 Origin, if any, is that same server: a page elsewhere can't reach it through DNS rebinding or a cross-site form. Only
 a POST, a DELETE or a visible tab's poll from its own page counts as use (below); a HEAD or an OPTIONS never does.
 GET /repo/<path> serves a file of the run dir's git toplevel, else of the run dir, never one outside it; any other
-path a file of the run dir, never a folder, nor one whose real path (past any symlink) is outside it. Everything
+path a file of the run dir, never one whose real path (past any symlink) is outside it. A folder, either way, serves
+its index.html (a path without the trailing slash first redirects to it), never a listing. Everything
 it serves but the page itself comes sandboxed (Content-Security-Policy): a synced HTML file runs in an origin of its
 own, whose POSTs say `Origin: null` and are refused. The page's own policy lets it load and fetch only from this
 server.
@@ -332,6 +333,15 @@ def contains(base, path):
     return os.path.commonpath([base, path]) == base
 
 
+def served(base, path):
+    """The real path of the file `path` names below `base`, a folder's index.html, or None: never a folder, nor a file
+    a symlink leads outside `base`."""
+    full = os.path.realpath(path)
+    if os.path.isdir(full):
+        full = os.path.realpath(os.path.join(full, "index.html"))
+    return full if contains(base, full) and os.path.isfile(full) else None
+
+
 def make_handler(root):
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
@@ -446,9 +456,9 @@ def make_handler(root):
             super().do_GET()
 
         def send_head(self):
-            """A file of the run dir, by its real path: never a folder, nor one a symlink leads outside the run dir."""
-            full = os.path.realpath(self.translate_path(self.path))
-            if not contains(os.path.realpath(root), full) or not os.path.isfile(full):
+            """A file of the run dir, by its real path, a folder its index.html: never a listing, nor a file a symlink
+            leads outside the run dir."""
+            if not served(os.path.realpath(root), self.translate_path(self.path)):
                 self.send_error(404)
                 return None
             return super().send_head()
@@ -479,9 +489,12 @@ def make_handler(root):
         def repo_file(self, rel):
             """A file of the repo the run dir sits in, read-only: a mock kept outside the run dir."""
             base = os.path.realpath(repo_dir(root))
-            full = os.path.realpath(os.path.join(base, urllib.parse.unquote(rel)))
-            if not contains(base, full) or not os.path.isfile(full):
+            asked = os.path.join(base, urllib.parse.unquote(rel))
+            full = served(base, asked)
+            if not full:
                 return self.send_error(404)
+            if os.path.isdir(asked) and not rel.endswith("/"):
+                return self.redirect(f"/repo/{rel}/")
             with open(full, "rb") as f:
                 self.send(200, mimetypes.guess_type(full)[0] or "application/octet-stream", f.read())
 
