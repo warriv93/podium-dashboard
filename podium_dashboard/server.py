@@ -19,8 +19,10 @@ server.
 a second line, `lan http://<LAN IP>:<port>/?key=<key>`, with a random key made at start (kept across a restart). A
 request whose Host is that IP or the machine's `.local` name, with the port, must hold the key: `?key=` on a GET sets
 it as an HttpOnly, SameSite=Strict cookie and redirects to the same URL without it; any other answers 403 unless it
-carries that cookie, and a POST's LAN Origin passes only with it. Loopback requests are answered as without --lan,
-but for /info's `lan`, the LAN URL without the key, which the page and the orchestrator use for the links they show.
+carries that cookie, and a POST's LAN Origin passes only with it. A GET or HEAD without the cookie from an address
+that has held the key reads files of the run dir and /repo/ only, so a sandboxed mock's images load. Loopback
+requests are answered as without --lan, but for /info's `lan`, the LAN URL without the key, which the page and the
+orchestrator use for the links they show.
 
 A story in a path is `<story>`, of the active milestone, or `<milestone>/<story>`, of any: two milestones can build
 at once.
@@ -344,6 +346,8 @@ def served(base, path):
 
 def make_handler(root):
     class Handler(SimpleHTTPRequestHandler):
+        reader_only = False
+
         def __init__(self, *a, **kw):
             super().__init__(*a, directory=root, **kw)
 
@@ -394,11 +398,14 @@ def make_handler(root):
         def keyed(self):
             """A LAN request may go on when it carries the key's cookie. A GET or HEAD with the right `?key=` gets the
             cookie and a redirect to its URL without the key, which so stays out of history and referrers; any other
-            gets 403 with a page saying where the key is."""
+            gets 403 with a page saying where the key is. A GET or HEAD without either, from an address that has
+            held the key, may read a file and nothing else: a sandboxed file's own requests (a mock's images) carry no
+            cookie, its origin being opaque, and a SameSite=None cookie needs HTTPS."""
             url = urlparse(self.path)
             query = parse_qsl(url.query, keep_blank_values=True)
             given = [v for k, v in query if k == "key"]
             if given and self.command in ("GET", "HEAD") and self.holds_key(given[-1]):
+                LAN["readers"].add(self.client_address[0])
                 rest = urlencode([(k, v) for k, v in query if k != "key"])
                 self.send_response(302)
                 self.send_header("Set-Cookie", f"{LAN['cookie']}={LAN['key']}; Path=/; HttpOnly; SameSite=Strict")
@@ -407,6 +414,10 @@ def make_handler(root):
                 self.end_headers()
                 return False
             if not given and self.holds_key(self.cookie()):
+                LAN["readers"].add(self.client_address[0])
+                return True
+            if not given and self.command in ("GET", "HEAD") and self.client_address[0] in LAN["readers"]:
+                self.reader_only = True
                 return True
             page = "<!doctype html><meta charset=utf-8><title>Podium</title><body style=\"font:16px system-ui;max-width:40em;margin:4em auto\"><h1>This Podium needs its key</h1><p>Open the <code>lan</code> URL that <code>podium server --lan</code> printed, key included.</p>"
             self.send(403, "text/html; charset=utf-8", page.encode())
@@ -435,6 +446,8 @@ def make_handler(root):
             super().end_headers()
 
         def do_GET(self):
+            if self.reader_only:
+                return self.read_file()
             if self.path == "/info":
                 return self.reply(200, {**info(root), "lan": LAN["url"]} if LAN else info(root))
             if self.path.split("?")[0] == "/open":
@@ -448,11 +461,14 @@ def make_handler(root):
                 return self.reply(200, availability())
             if os.path.basename(self.path.split("?")[0]) in EMPTY_WHEN_MISSING and not os.path.exists(self.translate_path(self.path)):
                 return self.empty(EMPTY_WHEN_MISSING[os.path.basename(self.path.split("?")[0])])
-            if self.path.startswith("/repo/"):
-                return self.repo_file(self.path[len("/repo/"):].split("?")[0])
             if self.path.split("?")[0] in PAGE_PATHS:
                 with open(PAGE, "rb") as f:
                     return self.send(200, "text/html; charset=utf-8", f.read())
+            self.read_file()
+
+        def read_file(self):
+            if self.path.startswith("/repo/"):
+                return self.repo_file(self.path[len("/repo/"):].split("?")[0])
             super().do_GET()
 
         def send_head(self):
@@ -732,7 +748,8 @@ def serve_lan(port):
     name = socket.gethostname().split(".")[0].lower()
     hosts = {f"{h}:{port}" for h in (ip, name and f"{name}.local") if h}
     LAN.update(key=os.environ.pop(LAN_KEY, None) or secrets.token_urlsafe(32), hosts=hosts,
-               origins={f"http://{h}" for h in hosts}, url=ip and f"http://{ip}:{port}/", cookie=f"podium-{port}")
+               origins={f"http://{h}" for h in hosts}, url=ip and f"http://{ip}:{port}/", cookie=f"podium-{port}",
+               readers=set())
     if LAN["url"]:
         print(f"lan {LAN['url']}?key={LAN['key']}", flush=True)
     else:

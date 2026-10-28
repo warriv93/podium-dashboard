@@ -382,6 +382,21 @@ class Lan(Server):
         self.assertEqual(self.call("POST", "/plan/M1", {**origin, "Cookie": self.cookie["Cookie"]})[0], 403)
         self.assertEqual(self.requests(), [("plan", "M1")])
 
+    def test_an_address_that_held_the_key_reads_files_without_the_cookie_and_nothing_else(self):
+        self.write("api/assets/a.png", "png")
+        self.write("api/.deep-plan/mock/index.html", "mock")
+        self.lan_serve()
+        self.watched()
+        self.assertEqual(self.call("GET", "/repo/assets/a.png", self.host)[0], 403)
+        self.assertEqual(self.call("GET", "/mock/", self.cookie)[0], 200)
+        for path in ("/repo/assets/a.png", "/mock/index.html"):
+            self.assertEqual(self.call("GET", path, self.host)[0], 200, path)
+        self.assertEqual(self.response("HEAD", "/mock/index.html", self.host)[0].status, 200)
+        for path in ("/info", "/git", "/human", "/prompt/plan/M1", "/open?run=api", "/"):
+            self.assertNotEqual(self.call("GET", path, self.host)[0], 200, path)
+        self.assertEqual(self.call("POST", "/plan/M1", {**self.host, "Origin": f"http://{self.ip}:{self.port}"})[0], 403)
+        self.assertEqual(self.requests(), [])
+
     def test_loopback_answers_as_without_lan_but_names_the_lan_url_and_any_other_host_is_refused(self):
         self.lan_serve()
         self.watched()
