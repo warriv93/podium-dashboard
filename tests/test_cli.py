@@ -336,3 +336,17 @@ class StatusWaiting(Cli):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SetValues(Cli):
+    def test_a_sha_that_reads_as_a_number_stays_text_and_the_run_stays_strict_json(self):
+        run = self.run_at(os.path.join(self.tmp, "run"))
+        self.podium("--dir", run, "set", "milestone:M1", "landedSha=7e59758", "note=7e59758", "count=12",
+                    "--event", "landed", "sha=7355178", "number=4")
+        refuse = lambda name: self.fail(f"{name} in the run's JSON")
+        with open(os.path.join(run, "podium", "podium.json")) as f:
+            m = json.load(f, parse_constant=refuse)["epics"][0]["milestones"][0]
+        self.assertEqual((m["landedSha"], m["note"], m["count"]), ("7e59758", "7e59758", 12))
+        with open(os.path.join(run, "podium", "events.jsonl")) as f:
+            e = json.loads(f.read().splitlines()[-1], parse_constant=refuse)
+        self.assertEqual((e["sha"], e["number"]), ("7355178", 4))

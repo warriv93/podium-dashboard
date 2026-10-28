@@ -13,6 +13,7 @@ import contextlib
 import copy
 import fcntl
 import json
+import math
 import os
 import re
 import sys
@@ -283,14 +284,35 @@ def building(m):
     return m.get("status") == "working" and m.get("phase") == "build"
 
 
-def parse_value(raw):
+TEXT_KEY = re.compile(r"(^|_)(sha|id|branch|base|ref|commit|story|milestone)$|[a-z](Sha|Id)$")
+
+
+def strict_json(raw):
+    """`raw` as JSON, refusing what a browser's JSON.parse refuses: NaN, Infinity and numbers too big for a float."""
+    def finite(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError(text)
+        return value
+
+    def refuse(name):
+        raise ValueError(name)
+    return json.loads(raw, parse_float=finite, parse_constant=refuse)
+
+
+def parse_value(raw, key=""):
+    """A `key=value` argument's value: now, @file, else JSON when it parses strictly, else the text. An id-like key
+    (sha, a ...Sha, id, a ...Id, branch, base, ref, commit, story, milestone) keeps its text, so a SHA like 7e59758
+    or 7355178 never turns into a number."""
     if raw == "now":
         return NOW()
     if raw.startswith("@"):
         with open(raw[1:]) as f:
             return json.load(f)
+    if TEXT_KEY.search(key):
+        return raw
     try:
-        return json.loads(raw)
+        return strict_json(raw)
     except ValueError:
         return raw
 
@@ -311,7 +333,7 @@ def assign(obj, item):
         obj = obj[k]
     if isinstance(obj, list):
         sys.exit(f"{key}: set a field of the item (key.<n>.field=value)")
-    value = parse_value(raw)
+    value = parse_value(raw, last)
     if op == "+=":
         cur = obj.get(last)
         if isinstance(cur, list) or cur is None and not isinstance(value, (int, float)):

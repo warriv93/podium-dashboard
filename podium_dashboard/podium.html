@@ -2068,7 +2068,8 @@ const briefSec = (path, title = "Brief", base = "runDir", key = path) => {
 };
 const fileLink = (p, base = "runDir") => (vsc(p, base) ? `<a class="file mono" data-doc="${esc(p)}" data-base="${esc(base)}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
 function shaLink(sha, repo = null) {
-  if (!sha || typeof sha !== "string") return "—";
+  if (sha == null || sha === "") return "—";
+  sha = String(sha);
   const url = safeUrl(repoUrl(repo));
   return url ? `<a class="mono" href="${esc(url)}/commit/${esc(sha)}" target="_blank" rel="noopener">${esc(sha.slice(0, 7))}</a>` : `<span class="mono">${esc(sha.slice(0, 7))}</span>`;
 }
@@ -2077,7 +2078,7 @@ function landedLinks(landed) {
   const pairs = Object.entries(landed).filter(([, sha]) => sha);
   return pairs.length ? pairs.map(([repo, sha]) => `<span class="repo">${esc(repo)}</span> ${shaLink(sha, repo)}`).join(" · ") : "—";
 }
-const shortSha = (sha) => (typeof sha === "string" ? sha.slice(0, 7) : "");
+const shortSha = (sha) => (sha == null ? "" : String(sha).slice(0, 7));
 
 const isHtml = (path) => /\.html?$/i.test(path || "");
 function htmlPreview(path, key = path) {
