@@ -131,6 +131,8 @@ What a pull never does: run code. The extension is a `.py` file each machine set
 
 What it accepts: a repo path in `podium.json` may point at any repo on disk, and git runs there (always with `safe.bareRepository=explicit`). The dashboard sets no frame policy, so another site may frame it, and a click inside that frame is a click on the dashboard.
 
+What `podium server --lan` exposes: the dashboard on your network, for a browser on another machine. Anyone holding its printed `lan` URL can read the run and press every button, as you can at 127.0.0.1. The key is in that URL and, once opened, in the browser's cookie for it; it is new each time the server starts (a restart keeps it). Without the key a LAN request gets 403, and the network sees the key in clear, as it is plain HTTP: use it on a network you trust.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

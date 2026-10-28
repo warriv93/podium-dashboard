@@ -72,7 +72,9 @@ Every verb that changes a milestone should call it and accept `--force`.
 
 ## HTTP API
 
-`podium server [--dir D] [--port 8765] [--idle 60] [--detach] [--git-every 5]` serves the page and the run on `127.0.0.1`, on the first free port from `--port`. It stops after `--idle` minutes without use (0 never).
+`podium server [--dir D] [--port 8765] [--idle 60] [--detach] [--git-every 5] [--lan]` serves the page and the run on `127.0.0.1`, on the first free port from `--port`. It stops after `--idle` minutes without use (0 never).
+
+`--lan` also listens on every interface (`0.0.0.0`), for a browser on another machine, and prints a second line after the URL, `lan http://<LAN IP>:<port>/?key=<key>`; with no network address it prints no such line and says so on stderr. The key is random per server (`secrets.token_urlsafe(32)`) and a restart keeps it. A request whose `Host` is the LAN IP or the machine's `<hostname>.local`, with the port, must hold the key: a GET or HEAD with the right `?key=` answers 302 to the same URL without `key`, setting `podium-<port>=<key>; Path=/; HttpOnly; SameSite=Strict`; any other answers 403 with a short page unless it carries that cookie. Its `Origin` may then be `http://<LAN host>:<port>` as well. Loopback requests are answered the same with or without `--lan`.
 
 Every request must carry a `Host` of `127.0.0.1:<port>` or `localhost:<port>`; any other answers 403 (DNS rebinding). Any request but a GET or HEAD with an `Origin` header must have `http://127.0.0.1:<port>` or `http://localhost:<port>`; any other answers 403 (cross-site forms), `null` included. Without an `Origin` (curl) it passes. Only a POST, a DELETE, or a GET from the page's visible tab with no foreign `Origin` counts as use; a HEAD or an OPTIONS never does.
 
@@ -82,7 +84,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 |---|---|
 | `GET /` | the page |
 | `GET /open?run=<slug>` | Where a shared deep link lands, `http://127.0.0.1:8765/open?run=<slug>#/<route>`: 302 to `/` when this server serves the run `<slug>` (`/info`'s `run`, the last part of the run's sync ref), else to the first server of ports 8765-8784 that does, the browser keeping the `#route`; 404 page with `podium server --detach` when none; 400 for a `run` that isn't a lowercase slug. Selects a localhost port only, writes nothing. The route is read by the page: `#/<milestone>`, `#/<milestone>/<story>`, `#/epic/<id>`, `#/quest`, each optionally followed by `/doc/<path>` (a file of the run dir) or `/repo/<path>` (of its repo), path parts URL-encoded; an unknown id is a toast |
-| `GET /info` | `{runDir, repoDir, run, watching, orchestrator: {name, command, shareSteps}, me, people, paseoServer, lastUse, stale, pull}`; `pull` is the last pull's `{at, result}` (null before the first), the server pulling a synced run every minute; `shareSteps` is the extension's `SHARE_STEPS` with its placeholders, else null; `people` is `{<name>: {active}}` from podium.json, and the header's avatars add everyone named in an event's `by` from `events.jsonl` |
+| `GET /info` | `{runDir, repoDir, run, watching, orchestrator: {name, command, shareSteps}, me, people, paseoServer, lastUse, stale, pull}`, plus `lan`, the LAN URL without the key, on a request that came over the LAN; `pull` is the last pull's `{at, result}` (null before the first), the server pulling a synced run every minute; `shareSteps` is the extension's `SHARE_STEPS` with its placeholders, else null; `people` is `{<name>: {active}}` from podium.json, and the header's avatars add everyone named in an event's `by` from `events.jsonl` |
 | `GET /git` | per repo of the run, how far its branch and default branch are behind origin, refreshed every `--git-every` minutes; a checkout path inside the run dir but outside `repos/` and `worktrees/` is skipped |
 | `GET /human` | the user's availability |
 | `GET /prompt/plan/<milestone>`, `GET /prompt/assign/<milestone>/<story>` | `text/plain` from the extension's `prompt` |
@@ -100,7 +102,7 @@ Everything but the page itself (`/`, `/index.html`, `/podium.html`) carries `Con
 | `POST /human/<available\|mobile\|unavailable\|auto>[?until=HH:MM]` | set the availability toggle; `podium human set <mode> [--until HH:MM]` does the same from a shell, with no server, and prints the new `podium human` line |
 | `POST /restart` | 202; the server starts a fresh process on the same port |
 
-Status codes: 202 queued; 400 a malformed value; 403 Host or Origin refused; 404 an unknown action, id or file; 409 no watcher is running, for every POST except `confirm`, `reverse`, the Asana ones, `/reviewed/`, `/pull` and `/human/`; 500 a `prompt` hook raised; 501 no extension `prompt` for `assign` or `handoff`.
+Status codes: 202 queued; 400 a malformed value; 302 a right `?key=` over the LAN, the cookie set; 403 Host or Origin refused, or a LAN request without the key; 404 an unknown action, id or file; 409 no watcher is running, for every POST except `confirm`, `reverse`, the Asana ones, `/reviewed/`, `/pull` and `/human/`; 500 a `prompt` hook raised; 501 no extension `prompt` for `assign` or `handoff`.
 
 A watcher counts as running while `watcher.json`'s `at` is under 30 seconds old.
 

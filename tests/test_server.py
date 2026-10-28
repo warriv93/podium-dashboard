@@ -76,7 +76,7 @@ class Server(unittest.TestCase):
             f.write(text)
         return path
 
-    def serve(self, data=DATA, extension=None, git_every=0):
+    def serve(self, data=DATA, extension=None, git_every=0, lan=False):
         data = json.loads(json.dumps(data))
         if extension:
             data["orchestrator"]["extension"] = self.write("ext/orch.py", textwrap.dedent(extension))
@@ -84,13 +84,16 @@ class Server(unittest.TestCase):
             json.dump(data, f)
         self.port = free_port()
         proc = subprocess.Popen([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "server",
-                                 "--port", str(self.port), "--idle", "0", "--git-every", str(git_every)],
+                                 "--port", str(self.port), "--idle", "0", "--git-every", str(git_every),
+                                 *(["--lan"] if lan else [])],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env, cwd=self.tmp)
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
         self.addCleanup(proc.stdout.close)
         self.addCleanup(proc.stderr.close)
         self.assertEqual(proc.stdout.readline().strip(), f"http://127.0.0.1:{self.port}/")
+        if lan:
+            self.lan = proc.stdout.readline().strip()
         for _ in range(100):
             with socket.socket() as s:
                 if s.connect_ex(("127.0.0.1", self.port)) == 0:
@@ -319,6 +322,81 @@ class Hardening(Server):
         self.assertEqual(self.call("GET", "/repo/own.txt"), (200, "own"))
         for path in ("/repo/notes.txt", "/repo/../notes.txt", "/repo/myrun/own.txt"):
             self.assertEqual(self.call("GET", path)[0], 404, path)
+
+
+@unittest.skipUnless(server.lan_address(), "no network address")
+class Lan(Server):
+    def lan_serve(self):
+        self.serve(lan=True)
+        self.ip = server.lan_address()
+        self.assertRegex(self.lan, rf"^lan http://{self.ip}:{self.port}/\?key=[\w-]{{43}}$")
+        self.key = self.lan.split("=", 1)[1]
+        self.host = {"Host": f"{self.ip}:{self.port}"}
+        self.cookie = {**self.host, "Cookie": f"other=1; podium-{self.port}={self.key}"}
+
+    def test_a_lan_host_needs_the_key_and_the_right_one_sets_a_strict_cookie_and_leaves_the_url(self):
+        self.lan_serve()
+        r, page = self.response("GET", "/", self.host)
+        self.assertEqual(r.status, 403)
+        self.assertIn("podium server --lan", page)
+        self.assertEqual(self.call("GET", f"/?key={self.key}x", self.host)[0], 403)
+        self.assertEqual(self.call("GET", "/?key=", self.host)[0], 403)
+        r, _ = self.response("GET", f"/?run=api&key={self.key}", self.host)
+        self.assertEqual((r.status, r.getheader("Location")), (302, "/?run=api"))
+        self.assertEqual(r.getheader("Set-Cookie"), f"podium-{self.port}={self.key}; Path=/; HttpOnly; SameSite=Strict")
+        r, _ = self.response("GET", f"/podium/podium.json?key={self.key}", self.host)
+        self.assertEqual(r.getheader("Location"), "/podium/podium.json")
+        r, _ = self.response("GET", f"//evil.example/?key={self.key}", self.host)
+        self.assertEqual(r.getheader("Location"), "/evil.example/")
+        self.assertEqual(self.call("POST", f"/confirm/0?key={self.key}", self.host)[0], 403)
+        self.assertEqual(self.requests(), [])
+
+    def test_its_cookie_opens_the_page_and_its_buttons_from_the_lan_origin_only(self):
+        self.lan_serve()
+        self.watched()
+        origin = {"Origin": f"http://{self.ip}:{self.port}"}
+        self.assertEqual(self.call("GET", "/", self.cookie)[0], 200)
+        code, info = self.call("GET", "/info", self.cookie)
+        self.assertEqual((code, info["lan"]), (200, f"http://{self.ip}:{self.port}/"))
+        self.assertNotIn(self.key, json.dumps(info))
+        self.assertEqual(self.call("POST", "/plan/M1", {**self.cookie, **origin})[0], 202)
+        self.assertEqual(self.call("POST", "/plan/M1", {**self.host, **origin})[0], 403)
+        self.assertEqual(self.call("POST", "/plan/M1", {**self.host, **origin, "Cookie": f"podium-{self.port}=x"})[0], 403)
+        self.assertEqual(self.call("POST", "/plan/M1", {**self.host, **origin, "Cookie": f"podium-1={self.key}"})[0], 403)
+        self.assertEqual(self.call("POST", "/plan/M1", {**self.cookie, "Origin": "null"})[0], 403)
+        self.assertEqual(self.call("POST", "/plan/M1", {**self.cookie, "Origin": "http://evil.example"})[0], 403)
+        self.assertEqual(self.call("POST", "/plan/M1", {**origin, "Cookie": self.cookie["Cookie"]})[0], 403)
+        self.assertEqual(self.requests(), [("plan", "M1")])
+
+    def test_loopback_answers_as_without_lan_and_any_other_host_is_refused(self):
+        self.lan_serve()
+        self.watched()
+        code, info = self.call("GET", "/info")
+        self.assertEqual((code, "lan" in info), (200, False))
+        self.assertEqual(self.call("POST", "/plan/M1", {"Origin": f"http://localhost:{self.port}"})[0], 202)
+        for host in (f"evil.example:{self.port}", f"{self.ip}:1"):
+            self.assertEqual(self.call("GET", "/info", {"Host": host, "Cookie": self.cookie["Cookie"]})[0], 403, host)
+        with socket.socket() as s:
+            self.assertEqual(s.connect_ex((self.ip, self.port)), 0)
+
+    def test_a_restart_keeps_the_key(self):
+        self.lan_serve()
+        self.assertEqual(self.call("POST", "/restart")[0], 202)
+        time.sleep(0.5)
+        for _ in range(100):
+            try:
+                self.assertEqual(self.call("GET", "/info", self.cookie)[0], 200)
+                return
+            except OSError:
+                time.sleep(0.05)
+        self.fail("the server never answered")
+
+    def test_without_lan_it_listens_on_loopback_only_and_refuses_a_lan_host(self):
+        self.serve()
+        ip = server.lan_address()
+        self.assertEqual(self.call("GET", "/info", {"Host": f"{ip}:{self.port}"})[0], 403)
+        with socket.socket() as s:
+            self.assertNotEqual(s.connect_ex((ip, self.port)), 0)
 
 
 class Checkouts(Server):

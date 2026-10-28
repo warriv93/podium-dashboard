@@ -24,8 +24,10 @@ COMMANDS
     get <target>
         The target as compact JSON (a milestone without its stories).
     set <target> [key=value ...] [--event TYPE [key=value ...]]
-        value is JSON when it parses, else a string; `now` is the current ISO
-        time, `@file` reads JSON from a file. Dotted keys reach into objects
+        value is JSON when it parses strictly (no NaN or Infinity), else a
+        string; an id-like key (sha, ...Sha, id, ...Id, branch, base, ref,
+        commit, story, milestone) always keeps its text, so a SHA like 7e59758
+        stays one; `now` is the current ISO time, `@file` reads JSON from a file. Dotted keys reach into objects
         (agent.id=x, repos.api.pr=@pr.json), and a number into a list
         (assumptions.0.status=x). key+=value appends to a list or adds to a
         number.
@@ -220,7 +222,8 @@ COMMANDS
         Name the run's orchestrator and its extension module in podium.json's
         `orchestrator` block, creating podium/podium.json when absent.
     server ... | watch ...
-        Serve the Podium for the run, or watch it.
+        Serve the Podium for the run, or watch it. `server --lan` serves it to another
+        machine too, behind the key in the `lan` URL it prints.
 """
 import importlib
 import os

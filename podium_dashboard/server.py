@@ -1,4 +1,4 @@
-"""The Podium server: `podium server [--dir <run dir>] [--port 8765] [--idle 60] [--detach] [--git-every 5]`.
+"""The Podium server: `podium server [--dir <run dir>] [--port 8765] [--idle 60] [--detach] [--git-every 5] [--lan]`.
 
 Serves `podium.html` (next to this file) plus the run directory (by default the run `podium` finds from the cwd,
 whose `podium/` folder holds the run's files) on 127.0.0.1, and turns the Podium's buttons into lines in
@@ -13,6 +13,12 @@ path a file of the run dir, never a folder, nor one whose real path (past any sy
 it serves but the page itself comes sandboxed (Content-Security-Policy): a synced HTML file runs in an origin of its
 own, whose POSTs say `Origin: null` and are refused. The page's own policy lets it load and fetch only from this
 server.
+
+--lan also listens on the machine's network, for a browser on another machine (Paseo's, driving this one), and prints
+a second line, `lan http://<LAN IP>:<port>/?key=<key>`, with a random key made at start (kept across a restart). A
+request whose Host is that IP or the machine's `.local` name, with the port, must hold the key: `?key=` on a GET sets
+it as an HttpOnly, SameSite=Strict cookie and redirects to the same URL without it; any other answers 403 unless it
+carries that cookie, and a POST's LAN Origin passes only with it. Loopback requests are answered as without --lan.
 
 A story in a path is `<story>`, of the active milestone, or `<milestone>/<story>`, of any: two milestones can build
 at once.
@@ -73,10 +79,12 @@ pulls now, watcher or not: 200 {result, at}, or {"result": "OFF"} when the run d
 """
 import argparse
 import glob
+import hmac
 import json
 import mimetypes
 import os
 import re
+import secrets
 import socket
 import subprocess
 import sys
@@ -85,7 +93,7 @@ import time
 import urllib.parse
 from datetime import datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
 from podium_dashboard import extension, sync
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
@@ -104,6 +112,8 @@ RUN_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 STARTED = time.time()
 PACKAGE = os.path.dirname(os.path.abspath(__file__))
 ARGV = []
+LAN = {}
+LAN_KEY = "PODIUM_LAN_KEY"
 
 
 def stale():
@@ -116,7 +126,8 @@ def restart():
     starts in the folder holding this package, as `python -m` imports from the cwd first: never a run dir's code."""
     time.sleep(0.3)  # let the reply go out
     os.chdir(os.path.dirname(PACKAGE))
-    os.execv(sys.executable, [sys.executable, "-m", "podium_dashboard.server", *ARGV])
+    env = {**os.environ, LAN_KEY: LAN["key"]} if LAN else os.environ
+    os.execve(sys.executable, [sys.executable, "-m", "podium_dashboard.server", *ARGV], env)
 
 
 ASANA_URL = re.compile(r"^https://app\.asana\.com/[\w/?=&.-]{1,300}$")
@@ -329,6 +340,8 @@ def make_handler(root):
             ok = super().parse_request()
             if not ok:
                 return False
+            if self.over_lan() and not self.keyed():
+                return False
             if not self.trusted():
                 self.send_error(403)
                 return False
@@ -343,19 +356,54 @@ def make_handler(root):
             """The Host names this server (no DNS rebinding), and any request but a GET or HEAD comes from its own
             page."""
             port = self.server.server_address[1]
-            if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}"):
+            if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}") and not self.over_lan():
                 return False
             return self.command in ("GET", "HEAD") or self.same_origin()
 
         def same_origin(self):
-            """No Origin (not a browser), or this server's own; never `null`, a sandboxed file's."""
+            """No Origin (not a browser), or this server's own; never `null`, a sandboxed file's. Its LAN origin only
+            from a LAN request holding the key's cookie."""
             port = self.server.server_address[1]
             origin = self.headers.get("Origin")
-            return origin is None or origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}")
+            if origin is None or origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}"):
+                return True
+            return self.over_lan() and origin in LAN["origins"] and self.holds_key(self.cookie())
+
+        def over_lan(self):
+            """With --lan, the Host names this server on the machine's network: its LAN IP or `.local` name."""
+            return bool(LAN) and (self.headers.get("Host") or "").lower() in LAN["hosts"]
+
+        def holds_key(self, given):
+            return given is not None and hmac.compare_digest(given.encode(), LAN["key"].encode())
+
+        def cookie(self):
+            pairs = (c.strip().partition("=") for c in (self.headers.get("Cookie") or "").split(";"))
+            return next((value for name, _, value in pairs if name == LAN["cookie"]), None)
+
+        def keyed(self):
+            """A LAN request may go on when it carries the key's cookie. A GET or HEAD with the right `?key=` gets the
+            cookie and a redirect to its URL without the key, which so stays out of history and referrers; any other
+            gets 403 with a page saying where the key is."""
+            url = urlparse(self.path)
+            query = parse_qsl(url.query, keep_blank_values=True)
+            given = [v for k, v in query if k == "key"]
+            if given and self.command in ("GET", "HEAD") and self.holds_key(given[-1]):
+                rest = urlencode([(k, v) for k, v in query if k != "key"])
+                self.send_response(302)
+                self.send_header("Set-Cookie", f"{LAN['cookie']}={LAN['key']}; Path=/; HttpOnly; SameSite=Strict")
+                self.send_header("Location", "/" + url.path.lstrip("/") + (f"?{rest}" if rest else ""))
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return False
+            if not given and self.holds_key(self.cookie()):
+                return True
+            page = "<!doctype html><meta charset=utf-8><title>Podium</title><body style=\"font:16px system-ui;max-width:40em;margin:4em auto\"><h1>This Podium needs its key</h1><p>Open the <code>lan</code> URL that <code>podium server --lan</code> printed, key included.</p>"
+            self.send(403, "text/html; charset=utf-8", page.encode())
+            return False
 
         def at_desk(self):
-            """Someone using a Podium tab is at a computer (the server answers 127.0.0.1 only), so Mobile
-            turns to Available, once Mobile has held 15 minutes: setting it from the desk on the way out
+            """Someone using a Podium tab is at a computer (the server answers 127.0.0.1, or a LAN key's holder), so
+            Mobile turns to Available, once Mobile has held 15 minutes: setting it from the desk on the way out
             outlasts the tab's last 10 minutes of use."""
             try:
                 since = datetime.fromisoformat(human_state().get("at") or "")
@@ -377,7 +425,7 @@ def make_handler(root):
 
         def do_GET(self):
             if self.path == "/info":
-                return self.reply(200, info(root))
+                return self.reply(200, {**info(root), "lan": LAN["url"]} if self.over_lan() else info(root))
             if self.path.split("?")[0] == "/open":
                 return self.open_run(parse_qs(urlparse(self.path).query).get("run", [""])[0])
             if self.path == "/git":
@@ -652,6 +700,32 @@ def free_port(start):
     sys.exit(f"no free port in {start}-{start + PORTS - 1}")
 
 
+def lan_address():
+    """The machine's IPv4 address on its network, the one a route out leaves from (a UDP connect sends nothing); None
+    with no network."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.connect(("10.254.254.254", 1))
+            ip = s.getsockname()[0]
+        except OSError:
+            return None
+    return None if ip.startswith("127.") or ip == "0.0.0.0" else ip
+
+
+def serve_lan(port):
+    """Answer the machine's LAN IP and `.local` name as well, behind a key: a restart's, else a new one."""
+    ip = lan_address()
+    name = socket.gethostname().split(".")[0].lower()
+    hosts = {f"{h}:{port}" for h in (ip, name and f"{name}.local") if h}
+    LAN.update(key=os.environ.pop(LAN_KEY, None) or secrets.token_urlsafe(32), hosts=hosts,
+               origins={f"http://{h}" for h in hosts}, url=ip and f"http://{ip}:{port}/", cookie=f"podium-{port}")
+    if LAN["url"]:
+        print(f"lan {LAN['url']}?key={LAN['key']}", flush=True)
+    else:
+        print("podium server: --lan found no network address; only this machine can open the Podium", file=sys.stderr,
+              flush=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     ap = argparse.ArgumentParser(prog="podium server")
@@ -660,13 +734,16 @@ def main(argv=None):
     ap.add_argument("--idle", type=float, default=60, help="minutes without activity before stopping; 0 = never")
     ap.add_argument("--detach", action="store_true", help="print the URL, then keep serving in the background")
     ap.add_argument("--git-every", type=float, default=5, help="minutes between fetches for GET /git; 0 = never")
+    ap.add_argument("--lan", action="store_true", help="also serve the LAN, to whoever holds the printed lan URL's key")
     args = ap.parse_args(argv)
     root = run_dir(args.dir)
     exclude_run_files(root)
     port = free_port(args.port)
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(root))
+    server = ThreadingHTTPServer(("0.0.0.0" if args.lan else "127.0.0.1", port), make_handler(root))
     ARGV[:] = [a for a in argv if a != "--detach"] + ["--dir", root, "--port", str(port)]
     print(f"http://127.0.0.1:{port}/", flush=True)
+    if args.lan:
+        serve_lan(port)
     if args.detach:
         if os.fork():
             os._exit(0)
