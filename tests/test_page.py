@@ -122,7 +122,7 @@ function element() {
 const node = (key) => (els[key] ||= element());
 const FILES = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
 Object.assign(globalThis, {
-  window: globalThis, location: { href: "http://127.0.0.1:8765/", port: "8765", hash: "" }, innerWidth: 1400, scrollY: 0,
+  window: globalThis, location: { href: "http://127.0.0.1:8765/", hostname: "127.0.0.1", port: "8765", hash: "", ...FILES.location }, innerWidth: 1400, scrollY: 0,
   document: { getElementById: node, querySelector: (s) => node("query " + s), querySelectorAll: () => [], documentElement: element(),
               addEventListener() {}, visibilityState: "visible", hidden: false, title: "", createElement: element },
   localStorage: { getItem: (k) => (FILES.localStorage || {})[k] ?? null, setItem() {}, removeItem() {} },
@@ -288,6 +288,19 @@ class HostileRun(unittest.TestCase):
         avatars = Avatars()
         avatars.feed(crews[-1])
         return avatars.found
+
+    def test_over_the_lan_a_loopback_link_names_the_host_the_page_came_from(self):
+        run = json.loads(json.dumps(RUN))
+        run["project"]["quest"]["links"] = [{"url": "http://localhost:5173/app", "label": "app"},
+                                            {"url": "https://localhost.example/x", "label": "elsewhere"}]
+        run["epics"][0]["milestones"][1]["mock"] = {"url": "http://127.0.0.1:8766/mock/"}
+        for host, app, mock in (("192.168.1.5", "http://192.168.1.5:5173/app", "http://192.168.1.5:8766/mock/"),
+                                ("127.0.0.1", "http://localhost:5173/app", "http://127.0.0.1:8766/mock/")):
+            scan = self.rendered(run, location={"href": f"http://{host}:8765/", "hostname": host})
+            links = {v for _, k, v in scan.attrs if k == "href"}
+            self.assertLessEqual({app, mock, "https://localhost.example/x"}, links, host)
+            if host != "127.0.0.1":
+                self.assertEqual([v for v in links if re.match(r"https?://(127\.|localhost[:/])", v)], [])
 
     def test_renders_every_string_of_the_run_as_text_and_links_only_http(self):
         scan = self.rendered()

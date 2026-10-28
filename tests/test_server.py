@@ -368,11 +368,12 @@ class Lan(Server):
         self.assertEqual(self.call("POST", "/plan/M1", {**origin, "Cookie": self.cookie["Cookie"]})[0], 403)
         self.assertEqual(self.requests(), [("plan", "M1")])
 
-    def test_loopback_answers_as_without_lan_and_any_other_host_is_refused(self):
+    def test_loopback_answers_as_without_lan_but_names_the_lan_url_and_any_other_host_is_refused(self):
         self.lan_serve()
         self.watched()
         code, info = self.call("GET", "/info")
-        self.assertEqual((code, "lan" in info), (200, False))
+        self.assertEqual((code, info["lan"]), (200, f"http://{self.ip}:{self.port}/"))
+        self.assertNotIn(self.key, json.dumps(info))
         self.assertEqual(self.call("POST", "/plan/M1", {"Origin": f"http://localhost:{self.port}"})[0], 202)
         for host in (f"evil.example:{self.port}", f"{self.ip}:1"):
             self.assertEqual(self.call("GET", "/info", {"Host": host, "Cookie": self.cookie["Cookie"]})[0], 403, host)
@@ -394,6 +395,7 @@ class Lan(Server):
     def test_without_lan_it_listens_on_loopback_only_and_refuses_a_lan_host(self):
         self.serve()
         ip = server.lan_address()
+        self.assertNotIn("lan", self.call("GET", "/info")[1])
         self.assertEqual(self.call("GET", "/info", {"Host": f"{ip}:{self.port}"})[0], 403)
         with socket.socket() as s:
             self.assertNotEqual(s.connect_ex((ip, self.port)), 0)

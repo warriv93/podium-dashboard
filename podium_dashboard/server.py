@@ -18,7 +18,8 @@ server.
 a second line, `lan http://<LAN IP>:<port>/?key=<key>`, with a random key made at start (kept across a restart). A
 request whose Host is that IP or the machine's `.local` name, with the port, must hold the key: `?key=` on a GET sets
 it as an HttpOnly, SameSite=Strict cookie and redirects to the same URL without it; any other answers 403 unless it
-carries that cookie, and a POST's LAN Origin passes only with it. Loopback requests are answered as without --lan.
+carries that cookie, and a POST's LAN Origin passes only with it. Loopback requests are answered as without --lan,
+but for /info's `lan`, the LAN URL without the key, which the page and the orchestrator use for the links they show.
 
 A story in a path is `<story>`, of the active milestone, or `<milestone>/<story>`, of any: two milestones can build
 at once.
@@ -425,7 +426,7 @@ def make_handler(root):
 
         def do_GET(self):
             if self.path == "/info":
-                return self.reply(200, {**info(root), "lan": LAN["url"]} if self.over_lan() else info(root))
+                return self.reply(200, {**info(root), "lan": LAN["url"]} if LAN else info(root))
             if self.path.split("?")[0] == "/open":
                 return self.open_run(parse_qs(urlparse(self.path).query).get("run", [""])[0])
             if self.path == "/git":
