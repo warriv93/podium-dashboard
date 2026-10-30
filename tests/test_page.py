@@ -157,6 +157,7 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
     S.ds = { id: E.id, tab: 0 };
     renderDs();
   }
+  if (FILES.doc) await openDoc(...JSON.parse(FILES.doc));
   const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
   if (gained.length) throw new Error(`Object.prototype gained ${gained}`);
   OUT.push(`TITLE ${esc(document.title)}`);
@@ -426,6 +427,15 @@ class HostileRun(unittest.TestCase):
         self.assertIn("Not synced from bob's machine yet", text)
         self.assertNotIn("m1.md not readable from the Podium", text)
         self.assertIn("m2.md not readable from the Podium", text)
+
+    def test_a_milestone_spec_missing_from_the_repo_opens_from_the_run_dir(self):
+        run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
+            {"id": "M1", "title": "M", "status": "working", "spec": "spec/m1/spec.md"}]}]}
+        self.rendered(run, [], PROGRESS, (), doc=json.dumps(["spec/m1/spec.md", "repoDir"]),
+                      **{"spec/m1/spec.md": "The spec of M1"})
+        text = "".join(self.html)
+        self.assertIn("The spec of M1", text)
+        self.assertNotIn("spec/m1/spec.md not readable", text)
 
     def test_fetch_shows_only_while_the_run_syncs(self):
         self.assertIsNone(self.fetch_button({**CYCLIC_RUN, "sync": {"enabled": False}}))

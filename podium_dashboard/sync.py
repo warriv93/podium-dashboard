@@ -309,13 +309,20 @@ def toplevel(p):
 
 def named(p, path, base, top=None):
     """The run dir paths a document reference may name, those the Podium tries: a `run` one as given and under
-    podium/, a `repo` one from `top` (default the run dir's git toplevel); [] when it lands outside the run dir."""
-    if base == "repo" or path.startswith(("~", "/")):
-        full = os.path.join(top or toplevel(p), os.path.expanduser(path)) if base == "repo" else os.path.expanduser(path)
-        rel = os.path.relpath(os.path.realpath(full), os.path.realpath(p.root)).replace(os.sep, "/")
-        return [] if rel in (".", "..") or rel.startswith("../") else [rel]
+    podium/, a `repo` one from `top` (default the run dir's git toplevel), then as a `run` one, as `/repo/` falls back
+    to the run dir; [] when it lands outside the run dir."""
+    if path.startswith(("~", "/")):
+        return inside(p, os.path.expanduser(path))
+    if base == "repo":
+        return inside(p, os.path.join(top or toplevel(p), path)) + named(p, path, "run")
     rel = posixpath.normpath(path)
     return [] if rel in (".", "..") or rel.startswith("../") else [rel, posixpath.join("podium", rel)]
+
+
+def inside(p, full):
+    """`full` as a run dir path, in a list; [] when it lands outside the run dir."""
+    rel = os.path.relpath(os.path.realpath(full), os.path.realpath(p.root)).replace(os.sep, "/")
+    return [] if rel in (".", "..") or rel.startswith("../") else [rel]
 
 
 def podium_data(raw):

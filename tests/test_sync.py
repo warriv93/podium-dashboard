@@ -914,6 +914,14 @@ class Documents(SyncCase):
             ("M1", "tool.py", "never syncs (Python code, a native module or this machine's own file)"),
             ("M1", "x.secret.html", "excluded by the sync lists")])
 
+    def test_a_milestone_spec_written_from_the_run_dir_resolves_there_when_the_toplevel_lacks_it(self):
+        a = self.as_("ann", self.run_in(self.clone("a")))
+        self.write(os.path.join(a.root, "spec", "m1", "spec.md"), "spec\n")
+        self.refer(a, owner="ann", spec="spec/m1/spec.md")
+        self.assertEqual(sync.unsynced(a), [])
+        self.assertRegex(sync.save(a), r"^SAVED ")
+        self.assertIn("spec/m1/spec.md", self.remote_files())
+
     def test_unsaved_documents_notices_a_referenced_documents_change_until_the_next_save(self):
         a = self.machine("a")
         self.assertFalse(sync.unsaved_documents(a))

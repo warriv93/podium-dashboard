@@ -2100,7 +2100,7 @@ async function openDoc(path, base) {
   renderSheet();
   if (S.briefs[key] === undefined) {
     S.docUrl ||= dict();
-    for (const at of base === "repoDir" ? [key] : [path, `podium/${path}`]) {
+    for (const at of [...(base === "repoDir" ? [key] : []), path, `podium/${path}`]) {
       try { S.briefs[key] = await getText(at); S.docUrl[key] = at; break; } catch { S.briefs[key] = null; }
     }
     if (S.doc?.key === key) renderSheet();
