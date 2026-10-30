@@ -631,7 +631,15 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
   .feed { position: fixed; top: 12px; right: 12px; bottom: 12px; width: min(380px, calc(100vw - 24px)); max-height: none; z-index: 45; transform: translateX(calc(100% + 24px)); transition: transform .3s cubic-bezier(.2,.8,.2,1); }
   .feed.on { transform: none; }
 }
-@media (min-width: 1101px) { .feed .close-x { display: none; } }
+.feed-fold { display: none; }
+@media (min-width: 1101px) {
+  .feed .close-x { display: none; }
+  .feed .feed-fold { display: inline-grid; place-items: center; }
+  .controls #feed-toggle { display: inline-block; }
+  #feed-toggle[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--card); }
+  .page.feed-folded { grid-template-columns: minmax(0,1fr); }
+  .feed.folded { display: none; }
+}
 @media (max-width: 900px) {
 }
 @media (max-width: 600px) {
@@ -716,7 +724,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
     </details>
   </main>
   <aside class="card feed" id="feed">
-    <h2>Activity <button class="close-x" id="feed-close" aria-label="Close">✕</button></h2>
+    <h2>Activity <button class="close-x feed-fold" id="feed-fold" aria-label="Hide activity" title="Hide activity"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="close-x" id="feed-close" aria-label="Close">✕</button></h2>
     <div class="feed-filter" id="feed-filter"></div>
     <ol id="events"></ol>
   </aside>
@@ -2584,8 +2592,23 @@ $("sheet-link").innerHTML = LINK_ICON;
 $("sheet-link").addEventListener("click", copyLink);
 S.route = parseRoute();
 window.addEventListener("hashchange", () => { S.route = parseRoute(); followLink(); });
-$("feed-toggle").addEventListener("click", () => $("feed").classList.toggle("on"));
 $("feed-close").addEventListener("click", () => $("feed").classList.remove("on"));
+const FEED_OPEN_KEY = "podium-feed-open";
+const foldFeed = (folded) => {
+  $("feed").classList.toggle("folded", folded);
+  document.querySelector(".page").classList.toggle("feed-folded", folded);
+  $("feed-toggle").setAttribute("aria-pressed", String(!folded));
+};
+const setFeedFolded = (folded) => {
+  foldFeed(folded);
+  try { localStorage.setItem(FEED_OPEN_KEY, folded ? "0" : "1"); } catch { /* private mode */ }
+};
+foldFeed((() => { try { return localStorage.getItem(FEED_OPEN_KEY) !== "1"; } catch { return true; } })());
+$("feed-fold").addEventListener("click", () => setFeedFolded(true));
+$("feed-toggle").addEventListener("click", () => {
+  if (window.matchMedia("(max-width: 1100px)").matches) $("feed").classList.toggle("on");
+  else setFeedFolded(!$("feed").classList.contains("folded"));
+});
 $("bell").addEventListener("click", async () => {
   if (localStorage.getItem(NOTIFY_KEY) === "1") { localStorage.removeItem(NOTIFY_KEY); toast("Notifications off"); }
   else if (!("Notification" in window)) toast("This browser can't show notifications");

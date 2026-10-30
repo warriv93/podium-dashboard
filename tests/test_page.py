@@ -112,7 +112,9 @@ function element() {
     insertAdjacentHTML(_, v) { OUT.push(v); },
     textContent: "", hidden: false, style: { setProperty() {} }, dataset: {}, title: "", value: "", href: "", placeholder: "", open: false,
     outerHTML: "<svg></svg>", clientWidth: 1200, scrollWidth: 1200, scrollHeight: 800, offsetHeight: 50, offsetLeft: 0,
-    classList: { toggle() {}, add() {}, remove() {}, contains() { return false; } },
+    classes: new Set(),
+    classList: { toggle(c, force) { const on = force ?? !e.classes.has(c); if (on) e.classes.add(c); else e.classes.delete(c); return on; },
+                 add(c) { e.classes.add(c); }, remove(c) { e.classes.delete(c); }, contains: (c) => e.classes.has(c) },
     setAttribute() {}, removeAttribute() {}, addEventListener() {}, querySelector() { return null; }, querySelectorAll() { return []; },
     getBoundingClientRect() { return { top: 0, left: 0, width: 0, height: 0 }; },
   };
@@ -161,6 +163,7 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
   const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
   if (gained.length) throw new Error(`Object.prototype gained ${gained}`);
   OUT.push(`TITLE ${esc(document.title)}`);
+  OUT.push(`FEED ${[...node("feed").classes].join(" ")}`);
   process.stdout.write(JSON.stringify(OUT));
 })().catch((e) => { console.error(e.stack); process.exit(1); });
 """
@@ -414,6 +417,20 @@ class HostileRun(unittest.TestCase):
         self.assertIn("Show all · 1 hidden", self.hide_finished_buttons(FINISHED_RUN, full, "map"))
         self.assertIn("Show all · 2 hidden", self.hide_finished_buttons(FINISHED_RUN, stories, "stories"))
         self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, stories, "map")), {"Hide finished"})
+
+    def feed_classes(self, stored=None):
+        self.rendered(localStorage=stored or {})
+        return [h for h in self.html if h.startswith("FEED")][-1].split()[1:]
+
+    def test_the_activity_feed_starts_folded(self):
+        self.assertIn("folded", self.feed_classes())
+
+    def test_the_activity_feed_opens_when_podium_feed_open_is_stored(self):
+        self.assertIn('"podium-feed-open"', open(PAGE).read())
+        self.assertNotIn("folded", self.feed_classes({"podium-feed-open": "1"}))
+
+    def test_the_activity_feed_stays_folded_for_any_other_stored_value(self):
+        self.assertIn("folded", self.feed_classes({"podium-feed-open": "0"}))
 
     def test_hide_finished_is_off_for_any_other_stored_value(self):
         self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "0"})), {"Hide finished"})
