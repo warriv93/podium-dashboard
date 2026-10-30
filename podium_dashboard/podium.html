@@ -425,7 +425,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .banner.digest .dv { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
 .banner.digest .dv .wchip { box-shadow: none; padding: 3px 10px; }
 .banner.digest .dv .pr { font-size: 12.5px; padding: 3px 10px; }
-.banner.digest .dline { flex-basis: 100%; color: var(--text-2); }
 .banner.digest .dwhy { color: var(--red); font-size: 12px; margin-right: 6px; }
 .bell { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--text-3); display: grid; place-items: center; cursor: pointer; }
 .bell:hover { color: var(--text); }
@@ -1759,14 +1758,12 @@ function digestBanner() {
   const story = (e) => `<span class="wchip" data-open="${esc(e.story)}" data-ms="${esc(e.milestone || "")}"><b>${multiMs() && e.milestone ? `${esc(e.milestone)} · ` : ""}${esc(e.story)}</b></span>`;
   const ended = new Set(of("merged", "failed").map(id));
   const moves = [...new Map(of("planned", "phase", "landed").map((e) => [e.milestone, e])).values()];
-  const shown = ["merged", "failed", "dispatched", "planned", "phase", "landed", "pr"];
   const rows = [
     ["Merged", uniq(of("merged")).map(story).join("")],
     ["Failed", uniq(of("failed")).map((e) => `${story(e)}<span class="dwhy">${esc(e.reason || "")}</span>`).join("")],
     ["Started", uniq(of("dispatched")).filter((e) => !ended.has(id(e))).map(story).join("")],
     ["Milestones", moves.map((e) => `<span class="wchip" data-drill="${esc(e.milestone || "")}"><b>${esc(e.milestone || "")}</b> ${e.type === "phase" ? `→ ${esc(phaseLabel(e.phase))}` : e.type === "landed" ? "landed" : "planning started"}</span>`).join("")],
     ["PRs", [...new Map(of("pr").map((e) => [`${e.milestone}:${e.repo || ""}:${e.number}`, e])).values()].map((e) => prPill(e, e.milestone)).join("")],
-    ["Other", ev.filter((e) => !shown.includes(e.type)).map((e) => `<div class="dline">${(EV[e.type] || [0, 0, () => esc(e.text || e.type)])[2](e)}</div>`).join("")],
   ].filter(([, html]) => html);
   if (!rows.length) return "";
   return `<div class="banner digest"><span class="label">While you were away</span><span class="sub">since ${esc(when(new Date(S.digestSince).toISOString()))}</span><button class="btn ghost" data-digest-done>Got it</button><div class="drows">${rows.map(([k, html]) => `<div class="drow"><span class="k">${k}</span><div class="dv">${html}</div></div>`).join("")}</div></div>`;

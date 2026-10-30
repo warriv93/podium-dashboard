@@ -437,6 +437,15 @@ class HostileRun(unittest.TestCase):
         self.assertIn("The spec of M1", text)
         self.assertNotIn("spec/m1/spec.md not readable", text)
 
+    def test_the_away_digest_lists_stories_milestones_and_prs_but_no_other_events(self):
+        events = [{"type": "grilled", "text": "R6 grill round 1", "by": "bob", "at": ago(minutes=5)},
+                  {"type": "phase", "milestone": "M1", "phase": "verify", "at": ago(minutes=4)}]
+        self.rendered(CYCLIC_RUN, events, PROGRESS, ())
+        digest = next(h for h in self.html if "While you were away" in h)
+        self.assertIn('<span class="k">Milestones</span>', digest)
+        self.assertNotIn('<span class="k">Other</span>', digest)
+        self.assertNotIn("R6 grill round 1", digest)
+
     def test_fetch_shows_only_while_the_run_syncs(self):
         self.assertIsNone(self.fetch_button({**CYCLIC_RUN, "sync": {"enabled": False}}))
         self.assertIsNone(self.fetch_button(CYCLIC_RUN))
