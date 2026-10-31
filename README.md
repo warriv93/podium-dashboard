@@ -4,6 +4,8 @@ Podium is a live localhost dashboard and a run-state CLI for feature work that a
 
 ![The Podium dashboard](docs/podium.png)
 
+[`docs/podium-deck.pptx`](docs/podium-deck.pptx) is a 16-slide talk on Podium and the [deep-skills](https://github.com/warriv93/deep-skills) suite that drives it: many agents building in parallel from one plan, the suite as a layer cake, the ideas it borrows, the loop caps and model routing that keep them cheap, the quality gates, and what it has shipped so far. [`docs/podium-deck.js`](docs/podium-deck.js) builds it with pptxgenjs.
+
 ## Install
 
 ```
