@@ -503,6 +503,13 @@ class HostileRun(unittest.TestCase):
         self.assertIn("M1: 1 story is ready to assign", banners)
         self.assertNotIn("2 stories are ready", banners)
 
+    def test_the_done_banner_of_an_epic_with_one_milestone_says_the_epic_completed(self):
+        run = {**TWIN_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
+            {"id": "M1", "title": "only", "status": "done", "stories": [{"id": "S1", "title": "a", "status": "done"}]}]}]}
+        self.rendered(run, [], PROGRESS, ())
+        banner = [h for h in self.html if "banner done" in h][-1]
+        self.assertIn('<span class="label">✓ Epic completed</span><span class="sub">1 milestone landed</span>', banner)
+
     def test_share_says_what_it_will_do_while_the_run_does_not_sync(self):
         label, tip = self.share_button({**CYCLIC_RUN, "sync": {"enabled": False, "ref": "refs/heads/podium-run/acme"}})
         self.assertEqual(label, "Share")
@@ -740,6 +747,11 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(len(dots), 1)
         self.assertNotIn("pwn", dots[0])
 
+    def test_a_dot_takes_the_status_its_story_card_shows(self):
+        maps, _ = self.maps(**{"podium/handoffs.json": json.dumps({"M3/S6": {"at": DONE}})})
+        card = next(c for c in re.split(r'(?=<div class="fms )', maps[-1]) if 'data-id="M3"' in c.split(">")[0])
+        self.assertRegex(card, r'<i class="elsewhere" data-ms="M3" data-story="S6"')
+
     def maps(self, run=OPEN_RUN, **kw):
         """Every full map the page rendered, in order, and the state the first load left: {open, sel}."""
         self.rendered(run, [], PROGRESS, (), **kw)
@@ -816,6 +828,69 @@ class HostileRun(unittest.TestCase):
         self.assertIsNone(self.probe())
         self.assertEqual(self.open_cards(maps[-1]), [])
 
+    def test_a_poll_that_drops_the_open_milestone_collapses_it(self):
+        maps, _ = self.maps(probe='(async () => { expand("M3"); const run = JSON.parse(FILES["podium/podium.json"]);'
+                                  ' run.epics[1].milestones[1].status = "dropped"; FILES["podium/podium.json"] = JSON.stringify(run); await poll(); return S.open; })()')
+        self.assertIsNone(self.probe())
+        self.assertEqual(self.open_cards(maps[-1]), [])
+
+    def test_a_dropped_milestone_revealed_from_the_epic_sheet_opens_its_sheet_and_nothing_on_the_map(self):
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["epics"][1]["milestones"][1]["status"] = "dropped"
+        self.maps(run, probe='(async () => { collapse(); await openSheet({ epic: "e2" }); const sheet = $("sheet-body").innerHTML;'
+                             ' await reveal("M3"); const out = [S.open, S.sel]; await openSheet({ ms: "M3", story: "S6" }); expand("M3");'
+                             ' return [sheet.includes(\'<a data-reveal="M3">third</a>\'), ...out, S.open, S.sel]; })()')
+        self.assertEqual(self.probe(), [True, None, {"ms": "M3"}, None, {"ms": "M3"}])
+
+    def test_a_milestone_with_no_stories_or_artifacts_opens_its_sheet_from_its_card_and_from_reveal(self):
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["epics"][1]["milestones"].append({"id": "M4", "title": "fourth", "status": "todo"})
+        maps, _ = self.maps(run, probe='(async () => { expand("M2"); await reveal("M4"); return [S.open, S.sel]; })()')
+        self.assertEqual(self.probe(), ["M2", {"ms": "M4"}])
+        card = re.search(r'<div class="fms [^"]*"[^>]*data-id="M4"[^>]*>', maps[0]).group(0)
+        self.assertIn('data-open="M4"', card)
+        self.assertNotIn("data-expand-ms", card)
+
+    def test_reveal_scrolls_to_the_card_and_flashes_it(self):
+        self.maps(probe='(() => { const scrolls = []; requestAnimationFrame = (f) => (f(), 0); scrollTo = (o) => scrolls.push(o.behavior);'
+                        ' collapse(); reveal("M3"); return [S.open, scrolls, [...document.querySelector(\'#map .fms[data-id="M3"]\').classes]]; })()')
+        self.assertEqual(self.probe(), ["M3", ["smooth"], ["flash"]])
+
+    def test_a_shared_run_first_opens_the_milestone_this_person_is_building(self):
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["epics"][1]["milestones"][1].update({"status": "working", "phase": "spec"})
+        run["people"] = {"ann": {"active": {"epic": "e2", "milestone": "M3"}}}
+        self.maps(run, probe='(() => { const info = S.info, out = [];'
+                             ' for (const touch of [() => {}, () => expand("M2")]) {'
+                             ' S.info = null; S.open = undefined; loadProject(); touch(); const first = S.open; setInfo(info); out.push([first, S.open]); }'
+                             ' return out; })()')
+        self.assertEqual(self.probe(), [["M2", "M3"], ["M2", "M2"]])
+
+    def test_the_open_card_keeps_what_the_closed_cards_foot_shows(self):
+        run = json.loads(json.dumps(OPEN_RUN))
+        e2 = run["epics"][1]["milestones"]
+        e2[0].update({"pr": {"number": 7, "url": "https://github.com/o/r/pull/7", "state": "draft"}, "includes": ["M0"],
+                      "waitsFor": [{"milestone": "M3", "reason": "r"}]})
+        run["epics"][0]["milestones"][0].update({"shippedAt": DONE})
+        run["epics"][0]["milestones"].append({"id": "M9", "title": "moved", "status": "moved", "movedTo": "M3",
+                                              "stories": [{"id": "S9", "title": "nine", "status": "done"}]})
+        cards = {}
+        for name, before in (("building", ""), ("waiting", 'msOf("M2").stories[0].status = "done";'), ("landed", ""), ("moved", "")):
+            ms = {"landed": "M1", "moved": "M9"}.get(name, "M2")
+            self.maps(run, probe=f'(() => {{ {before} expand("{ms}"); return $("map").innerHTML; }})()')
+            cards[name] = self.open_card(self.probe()).split('<div class="mtree"')[0]
+        for card in cards.values():
+            self.assertEqual(card.count('<div class="foot">'), 1)
+        self.assertIn('href="https://github.com/o/r/pull/7"', cards["building"])
+        self.assertIn("#7 Draft", cards["building"])
+        self.assertIn('<span class="badge waitfor" title="r">Waiting for M3</span>', cards["building"])
+        self.assertIn('<div class="fincl">includes M0</div>', cards["building"])
+        self.assertEqual(cards["building"].count("Working on"), 1)
+        self.assertIn('<span class="badge needs">Waiting on you</span>', cards["waiting"])
+        self.assertIn("#7 Draft", cards["waiting"])
+        self.assertIn('<span class="badge done">Landed 2026-10-20</span>', cards["landed"])
+        self.assertIn('<span class="badge moved" data-reveal="M3">Moved to M3</span>', cards["moved"])
+
     def test_a_link_to_a_milestone_opens_it_in_place_without_a_sheet_from_the_first_render(self):
         maps, loaded = self.maps(location={"hash": "#/M3"})
         self.assertEqual(self.open_cards(maps[0]), ["M3"])
@@ -865,10 +940,14 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(self.filter_counts([h for h in self.html if 'data-filter="all"' in h][-1])["all"], ("All", 6))
 
     def test_a_filter_dims_the_stories_dots_and_milestones_that_miss_it_and_removes_none(self):
-        maps, _ = self.maps(probe='(() => { const out = []; for (const [f, q] of [["working", ""], ["all", "six"], ["all", "second"], ["done", "one"]]) {'
-                                  ' S.filter = f; S.query = q; render();'
-                                  ' out.push([msList().flatMap((m) => (m.stories || []).filter((s) => storyMatches(m, s)).map((s) => `${m.id}/${s.id}`)),'
-                                  ' msList().filter((m) => msMatches(m, m.title)).map((m) => m.id)]); } return out; })()')
+        maps, _ = self.maps(probe='(() => { const cards = msList().map((m) => Object.assign(element(), { dataset: { id: m.id }, textContent: m.title,'
+                                  ' kids: (m.stories || []).map((s) => Object.assign(element(), { dataset: { story: s.id } })) }));'
+                                  ' cards.forEach((c) => (c.querySelectorAll = () => c.kids));'
+                                  ' const out = []; for (const [f, q] of [["working", ""], ["all", "six"], ["all", "second"], ["done", "one"]]) {'
+                                  ' S.filter = f; S.query = q; render(); document.querySelectorAll = (sel) => (sel === "#map .fms[data-id]" ? cards : []); applyFilter();'
+                                  ' document.querySelectorAll = () => [];'
+                                  ' out.push([cards.flatMap((c) => c.kids.filter((k) => !k.classes.has("dim")).map((k) => `${c.dataset.id}/${k.dataset.story}`)),'
+                                  ' cards.filter((c) => !c.classes.has("dim")).map((c) => c.dataset.id)]); } return out; })()')
         self.assertEqual(self.probe(), [[["M2/S2"], ["M2"]], [["M3/S6"], ["M3"]], [[], ["M2"]], [["M1/S1"], ["M1"]]])
         for ms, story in (("M1", "S1"), ("M2", "S2"), ("M2", "S3"), ("M2", "S4"), ("M2", "S5"), ("M3", "S6")):
             self.assertEqual(len(re.findall(f'data-(?:open|ms)="{ms}" data-story="{story}"', maps[-1])), 1, story)
@@ -955,12 +1034,22 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(self.tree_text(self.open_card(maps[0])), (["Wave 3"], ["S3"], []))
         self.assertNotIn("Fold merged waves", self.open_card(maps[0]))
 
+    def test_with_hide_finished_on_an_open_milestone_whose_stories_all_finished_says_so_with_a_show_button(self):
+        run = json.loads(json.dumps(FINISHED_RUN))
+        run["epics"][0]["milestones"][0]["stories"] = [{"id": "S1", "title": "a", "status": "done"}, {"id": "S2", "title": "b", "status": "dropped"}]
+        row = '<div class="mfold"><span class="mfl">All 2 stories finished</span><button class="ocollapse" data-hide-finished>Show</button></div>'
+        for stored, shown in (({"podium-hide-finished": "1"}, True), ({}, False)):
+            self.maps(run, localStorage=stored, probe='(reveal("M1"), $("map").innerHTML)')
+            card = self.open_card(self.probe())
+            self.assertEqual(row in card, shown)
+            self.assertEqual("node compact" in card, not shown)
+
     def test_cards_in_a_wave_sit_under_the_stories_they_depend_on(self):
         self.maps(TREE_RUN, probe='treeRows(msOf("M2")).map((w) => w.map((s) => s.id))')
         self.assertEqual(self.probe(), [["A1", "A2", "A3"], ["B2", "B3", "B1"], ["C2", "C1"]])
 
     def tree_edges(self, run, ms, stored=None, before=""):
-        self.maps(run, localStorage=stored or {}, probe=f'(() => {{ {before} const m = msOf("{ms}"); return treeEdges(m, treeView(m).shown); }})()')
+        self.maps(run, localStorage=stored or {}, probe=f'(() => {{ {before} const m = msOf("{ms}"); return treeEdges(m, treeView(m).foldedIds); }})()')
         return sorted((e["from"], e["to"], e["kind"], e["fromFold"]) for e in self.probe())
 
     def test_tree_lines_start_at_a_folded_storys_chip_and_skip_edges_between_two_folded_stories(self):
@@ -979,8 +1068,16 @@ class HostileRun(unittest.TestCase):
 
     def test_tree_lines_survive_cycles_and_prototype_named_stories(self):
         for run, edges in ((CYCLIC_RUN, 4), (PROTO_RUN, 6)):
-            self.maps(run, probe='(() => { const m = msOf("M1"); return [treeRows(m).flat().length, treeEdges(m, treeView(m).shown).length]; })()')
+            self.maps(run, probe='(() => { const m = msOf("M1"); return [treeRows(m).flat().length, treeEdges(m, treeView(m).foldedIds).length]; })()')
             self.assertEqual(self.probe(), [4, edges])
+
+    def test_stories_whose_deps_are_not_a_list_render_as_stories_without_dependencies(self):
+        run = json.loads(json.dumps(TREE_RUN))
+        run["epics"][0]["milestones"][0]["stories"] = [{"id": "S1", "title": "a", "status": "todo", "deps": {}, "overlapAfter": 5},
+                                                       {"id": "S2", "title": "b", "status": "todo", "deps": 5, "overlapAfter": {}}]
+        maps, _ = self.maps(run, probe='treeRows(msOf("M1")).map((w) => w.map((s) => s.id))')
+        self.assertEqual(self.probe(), [["S1", "S2"]])
+        self.assertEqual(re.findall(r'<div class="node compact ready" data-open="M1" data-story="(S\d)"', self.open_card(maps[0])), ["S1", "S2"])
 
     def test_the_tree_draws_its_lines_behind_opaque_cards_without_removing_the_queue_lines(self):
         page = open(PAGE).read()

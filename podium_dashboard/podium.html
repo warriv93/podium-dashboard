@@ -858,8 +858,8 @@ function personal(d) {
 }
 function loadProject() {
   S.project = personal(normalizeProject(JSON.parse(S.raw)));
-  if (S.open === undefined) S.open = defaultOpen();
-  else if (S.open && !openMs()) S.open = null;
+  if (S.open === undefined || S.openGuessed) { S.open = defaultOpen(); S.openGuessed = !S.info; }
+  if (S.open && !canExpand(openMs())) S.open = null;
 }
 const epicOfMs = (ms) => S.project.epics.find((E) => (E.milestones || []).some((m) => m.id === ms))?.id;
 async function poll() {
@@ -947,10 +947,15 @@ function bar3(n) { return `<span class="bar3" aria-label="step ${n} of 3">${[1, 
 const msById = () => dict(S.epic.milestones.map((m) => [m.id, m]));
 const activeMs = () => msById()[S.epic.active] || null;
 const storyIndex = (m) => dict((m.stories || []).map((s) => [s.id, s]));
+const isMerged = (s) => s.status === "done";
+const depsOf = (s) => (Array.isArray(s.deps) ? s.deps : []);
+const upstream = (s) => [...depsOf(s), ...(Array.isArray(s.overlapAfter) ? s.overlapAfter : [])];
 const isBuilding = (m) => !!m && m.status === "working" && (m.id === S.project.active?.milestone || m.phase === "build");
 const buildingMs = () => S.project.epics.flatMap((E) => E.milestones || []).filter(isBuilding);
 const msOf = (id) => msList().find((m) => m.id === id) || null;
 const openMs = () => msOf(S.open);
+const canExpand = (m) => !!m && !isResearch(m) && m.status !== "dropped";
+const hasBody = (m) => !!((m.stories || []).length || (m.artifacts || []).length);
 function defaultOpen() {
   const plain = msList().filter((m) => !isResearch(m)), active = plain.find((m) => m.id === S.project.active?.milestone);
   return (isBuilding(active) ? active : plain.find(isBuilding) || (plain.length === 1 ? plain[0] : null))?.id ?? null;
@@ -961,7 +966,7 @@ const phaseLabel = (p) => phases().find(([k]) => k === p)?.[1] || p || "";
 function viewStatus(s, map, ms) {
   if (s.status !== "todo") return s.status;
   if (ms !== undefined && S.handoffs[key(ms, s.id)]) return "elsewhere";
-  return (s.deps || []).every((d) => !map[d] || ["done", "dropped"].includes(map[d].status)) ? "ready" : "waiting";
+  return depsOf(s).every((d) => !map[d] || ["done", "dropped"].includes(map[d].status)) ? "ready" : "waiting";
 }
 function filterKey(st) {
   return { __proto__: null, ready: "todo", waiting: "todo", todo: "todo", draft: "todo", parked: "todo", later: "todo", approval: "working", elsewhere: "working", blocked: "failed" }[st] || st;
@@ -1091,7 +1096,7 @@ function wavesOf(list) {
     if (rank[s.id]) return rank[s.id];
     if (seen.has(s.id)) return 1;
     seen.add(s.id);
-    return (rank[s.id] = 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => by[d]).map((d) => r(by[d], seen))));
+    return (rank[s.id] = 1 + Math.max(0, ...upstream(s).filter((d) => by[d]).map((d) => r(by[d], seen))));
   };
   const rows = [];
   list.forEach((s) => (rows[r(s) - 1] ||= []).push(s));
@@ -1117,7 +1122,7 @@ function decisionStrip(E, decs, all) {
 const planBtns = (m) => (orch() ? `<span class="fplan"><button class="btn" data-act="plan" data-id="${esc(m.id)}">Plan</button>${copyBtn("plan", m.id)}</span>` : "");
 function fullMs(m, all) {
   const st = fullStatus(m, all), stories = m.stories || [];
-  const merged = stories.filter((s) => s.status === "done").length;
+  const merged = stories.filter(isMerged).length;
   const left = depsLeft(m, all);
   let foot;
   if (isResearch(m)) foot = st === "done" ? `<span class="badge done">Answered</span>` : `<span class="badge research">Research</span><span>${esc(m.asana?.assignee || "")}</span>`;
@@ -1130,29 +1135,35 @@ function fullMs(m, all) {
   else if (left.length) foot = `<span class="badge waiting">Needs ${esc(waitIds(left))}</span>`;
   else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ __proto__: null, draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
   const cls = `${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}`;
-  if (S.open === m.id && !isResearch(m)) return `<div class="fms open ${cls}" data-id="${esc(m.id)}">${openHead(m)}${msBody(m, foot)}</div>`;
-  const map = dict(stories.map((s) => [s.id, s]));
-  const dots = stories.length ? `<span class="fdots">${wavesOf(stories).flat().map((s) => `<i class="${esc(fullStatus(s, map))}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"></i>`).join("")}</span>` : "";
-  const go = !isResearch(m) && (stories.length || (m.artifacts || []).length) ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
+  if (S.open === m.id && canExpand(m)) return `<div class="fms open ${cls}" data-id="${esc(m.id)}">${openHead(m, st === "working" && !msWaits(m) && stories.length ? msPrPills(m) : foot)}${msBody(m)}</div>`;
+  const map = storyIndex(m);
+  const dots = stories.length ? `<span class="fdots">${wavesOf(stories).flat().map((s) => `<i class="${esc(viewStatus(s, map, m.id))}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"></i>`).join("")}</span>` : "";
+  const go = canExpand(m) && hasBody(m) ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
   return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
 }
-function openHead(m) {
-  const stories = m.stories || [], merged = stories.filter((s) => s.status === "done").length;
+function openHead(m, foot) {
+  const stories = m.stories || [], merged = stories.filter(isMerged).length, waits = waitPills(m);
   const working = stories.filter((s) => ["working", "approval"].includes(s.status)).map((s) => s.id);
   const E = S.project.epics.find((x) => (x.milestones || []).includes(m));
-  const build = !orch() || !isBuilding(m) || stories.every((s) => s.status === "done") ? ""
+  const build = !orch() || !isBuilding(m) || stories.every(isMerged) ? ""
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}<button class="ocollapse" data-collapse>▾ Collapse</button></span></div>`;
+  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}<button class="ocollapse" data-collapse>▾ Collapse</button></span></div>`;
 }
-const hidesStory = (m, s) => S.hideFinished && ["done", "dropped"].includes(s.status) && !isSel(m.id, s.id) && !(S.project.needsYou && needsMs() === m.id && String(S.project.needsYou.story || "").split("/").pop() === String(s.id));
+function keeps(ms, story) {
+  const n = needsTarget();
+  if (story !== undefined) return isSel(ms, story) || (n.ms === ms && n.story === String(story));
+  return S.sel?.ms === ms || S.open === ms || n.ms === ms || waitersOf(ms).length > 0;
+}
+const hidesMs = (x) => S.hideFinished && ["done", "moved"].includes(x.status) && !keeps(x.id);
+const hidesStory = (m, s) => S.hideFinished && ["done", "dropped"].includes(s.status) && !keeps(m.id, s.id);
 function treeRows(m) {
   const rows = wavesOf(m.stories || []), col = dict();
   rows.forEach((row, i) => {
     if (i) {
       const bary = (s) => {
-        const ups = [...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => col[d] !== undefined);
+        const ups = upstream(s).filter((d) => col[d] !== undefined);
         return ups.length ? ups.reduce((a, d) => a + col[d], 0) / ups.length : 0;
       };
       row.sort((a, b) => bary(a) - bary(b) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
@@ -1161,21 +1172,21 @@ function treeRows(m) {
   });
   return rows;
 }
-const foldWaves = (rows) => ((n) => (n < 0 ? rows.length : n))(rows.findIndex(([, w]) => w.some((s) => s.status !== "done")));
+const foldWaves = (rows) => ((n) => (n < 0 ? rows.length : n))(rows.findIndex(([, w]) => !w.every(isMerged)));
 function treeView(m) {
   const rows = treeRows(m).map((w, i) => [i, w.filter((s) => !hidesStory(m, s))]).filter(([, w]) => w.length);
   const n = S.hideFinished ? 0 : foldWaves(rows), folded = n > 0 && !S.unfold[m.id];
-  return { rows, n, folded, shown: dict(rows.flatMap(([, w], k) => w.map((s) => [s.id, folded && k < n]))) };
+  return { rows, n, folded, foldedIds: dict(rows.flatMap(([, w], k) => w.map((s) => [s.id, folded && k < n]))) };
 }
-function treeEdges(m, shown) {
+function treeEdges(m, foldedIds) {
   const seen = new Set(), out = [];
   for (const s of m.stories || []) {
-    if (!Object.hasOwn(shown, s.id)) continue;
+    if (!Object.hasOwn(foldedIds, s.id)) continue;
     const link = (ids, kind) => (Array.isArray(ids) ? ids : []).forEach((d) => {
       const k = JSON.stringify([d, s.id]);
-      if (d === s.id || !Object.hasOwn(shown, d) || (shown[d] && shown[s.id]) || seen.has(k)) return;
+      if (d === s.id || !Object.hasOwn(foldedIds, d) || (foldedIds[d] && foldedIds[s.id]) || seen.has(k)) return;
       seen.add(k);
-      out.push({ from: d, to: s.id, kind, fromFold: shown[d] });
+      out.push({ from: d, to: s.id, kind, fromFold: foldedIds[d] });
     });
     link(s.deps, "dep");
     link(s.overlapAfter, "overlap");
@@ -1183,7 +1194,8 @@ function treeEdges(m, shown) {
   return out;
 }
 function msTree(m, map) {
-  const { rows, n, folded } = treeView(m), id = esc(m.id), merged = rows.slice(0, n).flatMap(([, w]) => w);
+  const { rows, n, folded } = treeView(m), id = esc(m.id), merged = rows.slice(0, n).flatMap(([, w]) => w), total = (m.stories || []).length;
+  if (!rows.length) return `<div class="mtree" data-ms="${id}"><div class="mfold"><span class="mfl">All ${total} ${total === 1 ? "story" : "stories"} finished</span><button class="ocollapse" data-hide-finished>Show</button></div></div>`;
   const wave = ([i, w]) => `<div class="mwave"><span class="mwl">Wave ${i + 1}${w.length > 1 ? ` · ${w.length} in parallel` : ""}</span><div class="mrow">${w.map((s) => storyCard(m, s, map)).join("")}</div></div>`;
   const chip = (s) => `<span class="fchip${isSel(m.id, s.id) ? " sel" : ""}" data-open="${id}" data-story="${esc(s.id)}" tabindex="0"><b>${esc(s.id)}</b> ${esc(s.title)}</span>`;
   const fold = !n ? "" : folded
@@ -1196,14 +1208,13 @@ function toggleFold(id) {
   else S.unfold[id] = true;
   render();
 }
-function msBody(m, foot) {
-  const stories = m.stories || [], arts = m.artifacts || [], map = storyIndex(m);
-  if (stories.length) return msTree(m, map);
-  if (arts.length) return `<div class="mrow">${arts.map((a, i) => `<div class="node compact artifact" data-open="${esc(m.id)}" data-story="A${i + 1}" tabindex="0"><div class="top"><span class="sid">${esc(a.phase || "doc")}</span></div><span class="title">${esc(a.name)}</span></div>`).join("")}</div>`;
-  return `<div class="foot">${foot}${waitPills(m)}</div>`;
+function msBody(m) {
+  const stories = m.stories || [], arts = m.artifacts || [];
+  if (stories.length) return msTree(m, storyIndex(m));
+  return arts.length ? `<div class="mrow">${arts.map((a, i) => `<div class="node compact artifact" data-open="${esc(m.id)}" data-story="A${i + 1}" tabindex="0"><div class="top"><span class="sid">${esc(a.phase || "doc")}</span></div><span class="title">${esc(a.name)}</span></div>`).join("")}</div>` : "";
 }
 function storyBadge(m, s, st, map) {
-  const wait = esc((s.deps || []).filter((d) => map[d]?.status !== "done").join(", "));
+  const wait = esc(depsOf(s).filter((d) => map[d]?.status !== "done").join(", "));
   return { __proto__: null,
     done: `<span class="badge ${doneCls(m)}">${storyDone(m)}</span>`,
     working: `<span class="pulse"></span><span class="badge working">Working on</span>`,
@@ -1239,18 +1250,16 @@ function renderFull() {
     const now = ms.find((x) => x.status === "working");
     return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
-  const needsId = P.needsYou ? needsMs() : null;
-  const hides = (x) => S.hideFinished && ["done", "moved"].includes(x.status) && x.id !== S.sel?.ms && x.id !== S.open && x.id !== needsId && !waitersOf(x.id).length;
   const om = openMs();
-  renderHideFinished(listed.filter(hides).length + (om && !isResearch(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
+  renderHideFinished(listed.filter(hidesMs).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
   const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
   const decs = dict((Array.isArray(P.decisions) ? P.decisions : []).filter((d) => d && typeof d === "object" && typeof d.id === "string").map((d) => [d.id, d]));
   const strips = P.epics.map((E) => decisionStrip(E, decs, all));
   const drow = strips.some(Boolean) ? `<div class="ford" title="Decisions">D</div>${strips.map((x) => `<div>${x}</div>`).join("")}` : "";
-  const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hides(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
-  const rows = order.map((x, i) => hides(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
+  const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hidesMs(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
+  const rows = order.map((x, i) => hidesMs(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
   const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
   m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
   requestAnimationFrame(drawLines);
@@ -1273,7 +1282,7 @@ function drawTree() {
   const tr = t.getBoundingClientRect(), at = dict([...t.querySelectorAll("[data-story]")].map((el) => [el.dataset.story, el]));
   const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.left - tr.left, y: r.top - tr.top, w: r.width, h: r.height }; };
   const hi = (e) => isSel(m.id, e.from) || isSel(m.id, e.to);
-  const edges = treeEdges(m, treeView(m).shown).filter((e) => at[e.from] && at[e.to]);
+  const edges = treeEdges(m, treeView(m).foldedIds).filter((e) => at[e.from] && at[e.to]);
   const paths = edges.map((e) => `<path class="edge${e.kind === "overlap" ? " overlap" : ""}${hi(e) ? " hi" : ""}" d="${curve(box(at[e.from]), box(at[e.to]))}"/>`).join("");
   t.classList.toggle("focus", edges.some(hi));
   t.querySelector("svg.links")?.remove();
@@ -1298,13 +1307,19 @@ function grilledWaits(m) {
   const after = [...new Set([S.project.active?.milestone, ...depsLeft(m, all).map((w) => waitIds([w]))].filter(Boolean))];
   return after.length ? `next after ${after.join(", ")}` : "ready to plan";
 }
+const msPrPills = (m) => msPrs(m).filter((pr) => !pr.repo && pr.state !== "closed").map((pr) => prPill(pr)).join(" ");
 function msDoing(m) {
-  const prs = msPrs(m).filter((pr) => !pr.repo && pr.state !== "closed");
-  if (prs.length) return prs.map((pr) => prPill(pr)).join(" ");
+  const prs = msPrPills(m);
+  if (prs) return prs;
   const w = (m.stories || []).filter((s) => ["working", "approval"].includes(s.status)).map((s) => s.id);
   return w.length ? `Building ${esc(w.join(", "))}` : esc(phaseLabel(m.phase));
 }
-const needsMs = () => (String(S.project.needsYou?.story || "").includes("/") ? S.project.needsYou.story.split("/")[0] : S.project.active?.milestone);
+function needsTarget() {
+  const n = S.project.needsYou, path = String(n?.story || "");
+  if (!n) return { ms: null, story: null };
+  return { ms: path.includes("/") ? path.split("/")[0] : S.project.active?.milestone, story: path ? path.split("/").pop() : null };
+}
+const needsMs = () => needsTarget().ms;
 function msWaits(m) {
   if (m.status !== "working" || (m.stories || []).some((s) => ["working", "approval"].includes(s.status))) return false;
   const pr = msPrs(m).some((p) => ["draft", "open"].includes(p.state));
@@ -1372,7 +1387,8 @@ function renderBanner() {
   } else if (working.length) {
     html = workingBanner(working);
   } else if (allDone) {
-    html = `<div class="banner done"><span class="label">✓ ${e.single ? "Completed" : "Epic completed"}</span><span class="sub">${ms.filter((m) => m.status === "done").length} ${e.single ? "" : "milestones "}landed</span></div>`;
+    const landed = ms.filter((m) => m.status === "done").length;
+    html = `<div class="banner done"><span class="label">✓ Epic completed</span><span class="sub">${landed} ${landed === 1 ? "milestone" : "milestones"} landed</span></div>`;
   } else if (am && am.status === "working") {
     const map = dict(stories.map((s) => [s.id, s]));
     const ready = stories.filter((s) => viewStatus(s, map, am.id) === "ready").length;
@@ -1413,7 +1429,7 @@ async function markLooked(pr) {
 function needsBanner() {
   const prs = prsToReview(), n = S.project.needsYou;
   if (!prs.length && !n) return "";
-  const nms = n ? needsMs() : null, nid = n?.story ? String(n.story).split("/").pop() : null;
+  const { ms: nms, story: nid } = needsTarget();
   const ids = [...new Set([...prs.map((pr) => pr.ms), ...(nms ? [nms] : [])])];
   const story = nid && nms ? `<span class="wchip" data-open="${esc(nms)}" data-story="${esc(nid)}"><b>${esc(nid)}</b> open story ›</span>` : "";
   const looked = (pr) => ((who) => (who.length ? ` <span class="cycle">· ${who.map(personName).join(", ")} looked at it</span>` : ""))(lookedBy(pr));
@@ -1750,7 +1766,7 @@ function waveTimes(m) {
     if (depth[s.id]) return depth[s.id];
     if (seen.has(s.id)) return 0;
     seen.add(s.id);
-    return (depth[s.id] = 1 + Math.max(0, ...[...(s.deps || []), ...(s.overlapAfter || [])].filter((x) => by[x]).map((x) => d(by[x], seen))));
+    return (depth[s.id] = 1 + Math.max(0, ...upstream(s).filter((x) => by[x]).map((x) => d(by[x], seen))));
   };
   const waves = [];
   st.forEach((s) => {
@@ -1931,15 +1947,16 @@ async function linkAsana(epic) {
 
 function expand(id) {
   const m = msOf(id);
-  if (!m || isResearch(m)) return;
-  S.open = m.id;
+  if (!m) return;
+  if (!canExpand(m)) return openSheet({ ms: m.id });
+  S.open = m.id; S.openGuessed = false;
   render();
 }
-function collapse() { S.open = null; render(); }
+function collapse() { S.open = null; S.openGuessed = false; render(); }
 function reveal(id) {
   if (window.matchMedia("(max-width: 1100px)").matches) $("feed").classList.remove("on");
   const m = msOf(id);
-  if (!m || isResearch(m)) return openSheet({ ms: id });
+  if (!canExpand(m) || !hasBody(m)) return openSheet({ ms: id });
   S.ds = null;
   if (S.sel) closeSheet();
   expand(m.id);
@@ -1973,7 +1990,7 @@ const selName = (sel) => (sel.quest ? "quest" : sel.epic !== undefined ? `epic $
 async function openSheet(sel) {
   const r = resolveSel(sel);
   if (!r) return toast(`This run has no ${selName(sel)}`);
-  if (r.m && r.kind !== "ms" && !isResearch(r.m)) S.open = r.m.id;
+  if (r.m && r.kind !== "ms" && canExpand(r.m)) { S.open = r.m.id; S.openGuessed = false; }
   S.sel = sel; S.doc = null; S.back = [];
   $("sheet").classList.add("on"); $("scrim").classList.add("on");
   $("sheet").setAttribute("aria-hidden", "false");
@@ -2082,7 +2099,7 @@ function renderSheet() {
   const { ctx: e, m: vm, s } = r, id = s.id, map = storyIndex(vm);
   const live = isBuilding(vm), sk = key(vm.id, id);
   const st = viewStatus(s, map, vm.id);
-  const blocks = vm.stories.filter((x) => (x.deps || []).includes(id));
+  const blocks = vm.stories.filter((x) => depsOf(x).includes(id));
   const label = { __proto__: null, done: storyDone(vm), working: "Working on", elsewhere: "In another session", approval: "Waiting for approval", failed: "Failed", blocked: "Blocked", ready: "Ready", waiting: "Waiting on dependencies", dropped: "Dropped" }[st];
   const action = st === "ready" && live && orch() ? `<button class="btn big" data-act="assign" data-id="${esc(sk)}">Assign subagent</button>${copyBtn("assign", sk)}`
     : st === "elsewhere" ? `<button class="btn big ghost" data-release="${esc(sk)}">✕ Take it back</button>${copyBtn("assign", sk)}` : "";
@@ -2095,7 +2112,7 @@ function renderSheet() {
     ${s.failure ? `<div class="sec"><div class="failbox"><b>Failure</b> — ${esc(s.failure)}</div></div>` : ""}
     ${s.note ? `<div class="sec"><div class="muted">${esc(s.note)}</div></div>` : ""}
     ${s.brief ? briefSec(s.brief) : ""}
-    <div class="sec"><h3>Dependencies</h3><dl class="kv"><dt>Blocked by</dt><dd>${depChips(s.deps || [], map, "Nothing — starts from the milestone", "merged", vm.id)}</dd><dt>Blocks</dt><dd>${depChips(blocks.map((x) => x.id), map, "Nothing", undefined, vm.id)}</dd>${(s.overlapAfter || []).length ? `<dt>After (files)</dt><dd>${depChips(s.overlapAfter, map, "", "merged", vm.id)}</dd>` : ""}</dl></div>
+    <div class="sec"><h3>Dependencies</h3><dl class="kv"><dt>Blocked by</dt><dd>${depChips(depsOf(s), map, "Nothing — starts from the milestone", "merged", vm.id)}</dd><dt>Blocks</dt><dd>${depChips(blocks.map((x) => x.id), map, "Nothing", undefined, vm.id)}</dd>${(s.overlapAfter || []).length ? `<dt>After (files)</dt><dd>${depChips(s.overlapAfter, map, "", "merged", vm.id)}</dd>` : ""}</dl></div>
     ${(s.repos || []).length ? `<div class="sec"><h3>Repos</h3><div class="links">${s.repos.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div></div>` : ""}
     ${(s.files || []).length ? `<div class="sec"><h3>Files in scope</h3>${s.files.map((f) => fileLink(f, "repoDir")).join("")}</div>` : ""}
     ${(s.tasks || []).length ? `<div class="sec"><h3>Tasks</h3><div class="links">${s.tasks.map((t) => `<span class="link-chip mono">${esc(t)}</span>`).join("")}</div></div>` : ""}
