@@ -110,6 +110,20 @@ FINISHED_RUN = {
         {"id": "M2", "title": "second", "status": "working", "phase": "build", "deps": ["M1"],
          "stories": [{"id": "S1", "title": "a", "status": "done"}, {"id": "S2", "title": "b", "status": "done", "deps": ["S1"]},
                      {"id": "S3", "title": "c", "status": "todo", "deps": ["S2"]}]}]}]}
+TREE_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M1"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "tree", "status": "working", "phase": "build", "stories": [
+            {"id": "S1", "title": "a", "status": "done"}, {"id": "S2", "title": "b", "status": "todo"},
+            {"id": "S3", "title": "c", "status": "todo", "deps": ["S2", "S2"]},
+            {"id": "S4", "title": "d", "status": "todo", "deps": ["S1"], "overlapAfter": ["S3"]},
+            {"id": "S5", "title": "e", "status": "todo", "deps": ["S6", "S9"]}, {"id": "S6", "title": "f", "status": "todo", "deps": ["S5"]},
+            {"id": "__proto__", "title": "p", "status": "todo", "deps": ["constructor", "S2", "__proto__"], "overlapAfter": ["S2"]}]},
+        {"id": "M2", "title": "order", "status": "todo", "stories": [
+            {"id": "A1", "title": "a", "status": "todo"}, {"id": "A2", "title": "b", "status": "todo"}, {"id": "A3", "title": "c", "status": "todo"},
+            {"id": "B1", "title": "d", "status": "todo", "deps": ["A3"]}, {"id": "B2", "title": "e", "status": "todo", "deps": ["A1"]},
+            {"id": "B3", "title": "f", "status": "todo", "deps": ["A2"]},
+            {"id": "C1", "title": "g", "status": "todo", "deps": ["B1"]}, {"id": "C2", "title": "h", "status": "todo", "deps": ["B2"]}]}]}]}
 TWIN_RUN = {
     "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M1"},
     "epics": [{"id": "e1", "title": "E", "milestones": [
@@ -902,6 +916,82 @@ class HostileRun(unittest.TestCase):
         self.assertRegex(open(PAGE).read(), r"\.mrow \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)")
         sheet = next(h for h in self.html if "<dt>Model</dt>" in h and "opus-model" in h)
         self.assertIn('<dt>Step</dt><dd class="doing">Making them pass', sheet)
+
+    @staticmethod
+    def tree_text(card):
+        """The open card's wave labels, fold line, chips and fold controls as text, and the story ids shown as cards and as chips."""
+        parts = re.findall(r'<span class="(?:mwl|mfl)">(.*?)</span>|<span class="fchip[^"]*"[^>]*>(.*?)</span>|<button class="ocollapse" data-unfold[^>]*>([^<]*)</button>', card)
+        lines = [re.sub(r"<[^>]+>", "", "".join(p)) for p in parts]
+        cards = re.findall(r'<div class="node compact [^"]*" data-open="M2" data-story="([^"]*)"', card)
+        chips = re.findall(r'<span class="fchip[^"]*" data-open="M2" data-story="([^"]*)"', card)
+        return lines, cards, chips
+
+    def test_merged_leading_waves_fold_into_one_line_of_chips_and_the_wave_count_goes_on(self):
+        maps, _ = self.maps(FINISHED_RUN)
+        lines, cards, chips = self.tree_text(self.open_card(maps[0]))
+        self.assertEqual(lines, ["Waves 1–2 · 2 merged", "S1 a", "S2 b", "Show ▸", "Wave 3"])
+        self.assertEqual(cards, ["S3"])
+        self.assertEqual(chips, ["S1", "S2"])
+        self.assertIn('<button class="ocollapse" data-unfold="M2">Show ▸</button>', self.open_card(maps[0]))
+
+    def test_show_unfolds_the_merged_waves_as_cards_in_place_and_fold_merged_waves_folds_them_back(self):
+        maps, _ = self.maps(FINISHED_RUN, probe='(() => { expand("M2"); const out = [S.unfold.M2 === true]; toggleFold("M2"); out.push(S.unfold.M2 === true); return out; })()')
+        self.assertEqual(self.probe(), [False, True])
+        lines, cards, chips = self.tree_text(self.open_card(maps[-1]))
+        self.assertEqual(lines, ["Fold merged waves ▴", "Wave 1", "Wave 2", "Wave 3"])
+        self.assertEqual((cards, chips), (["S1", "S2", "S3"], []))
+        maps, _ = self.maps(FINISHED_RUN, probe='(expand("M2"), toggleFold("M2"), toggleFold("M2"), Object.keys(S.unfold))')
+        self.assertEqual(self.probe(), [])
+        self.assertEqual(self.tree_text(self.open_card(maps[-1]))[2], ["S1", "S2"])
+
+    def test_a_fold_chip_opens_its_story_sheet(self):
+        maps, _ = self.maps(FINISHED_RUN, probe='(openSheet({ ms: "M2", story: "S1" }), S.sel)')
+        self.assertEqual(self.probe(), {"ms": "M2", "story": "S1"})
+        self.assertRegex(self.open_card(maps[-1]), r'<span class="fchip sel" data-open="M2" data-story="S1" tabindex="0"><b>S1</b> a</span>')
+        self.assertIn(".fchip", re.search(r'ev\.target\.matches\("([^"]*)"\)\) ev\.target\.click', open(PAGE).read()).group(1))
+
+    def test_with_hide_finished_on_merged_waves_are_hidden_with_no_fold_line(self):
+        maps, _ = self.maps(FINISHED_RUN, localStorage={"podium-hide-finished": "1"})
+        self.assertEqual(self.tree_text(self.open_card(maps[0])), (["Wave 3"], ["S3"], []))
+        self.assertNotIn("Fold merged waves", self.open_card(maps[0]))
+
+    def test_cards_in_a_wave_sit_under_the_stories_they_depend_on(self):
+        self.maps(TREE_RUN, probe='treeRows(msOf("M2")).map((w) => w.map((s) => s.id))')
+        self.assertEqual(self.probe(), [["A1", "A2", "A3"], ["B2", "B3", "B1"], ["C2", "C1"]])
+
+    def tree_edges(self, run, ms, stored=None, before=""):
+        self.maps(run, localStorage=stored or {}, probe=f'(() => {{ {before} const m = msOf("{ms}"); return treeEdges(m, treeView(m).shown); }})()')
+        return sorted((e["from"], e["to"], e["kind"], e["fromFold"]) for e in self.probe())
+
+    def test_tree_lines_start_at_a_folded_storys_chip_and_skip_edges_between_two_folded_stories(self):
+        self.assertEqual(self.tree_edges(FINISHED_RUN, "M2"), [("S2", "S3", "dep", True)])
+        self.assertEqual(self.tree_edges(FINISHED_RUN, "M2", before='toggleFold("M2");'), [("S1", "S2", "dep", False), ("S2", "S3", "dep", False)])
+
+    def test_tree_lines_are_solid_for_deps_and_dashed_for_shared_files_and_skip_missing_and_self_edges(self):
+        self.assertEqual(self.tree_edges(TREE_RUN, "M1"), [
+            ("S1", "S4", "dep", False), ("S2", "S3", "dep", False), ("S2", "__proto__", "dep", False),
+            ("S3", "S4", "overlap", False), ("S5", "S6", "dep", False), ("S6", "S5", "dep", False)])
+
+    def test_tree_lines_into_stories_hide_finished_hides_are_dropped(self):
+        edges = self.tree_edges(TREE_RUN, "M1", {"podium-hide-finished": "1"})
+        self.assertNotIn("S1", [e[0] for e in edges])
+        self.assertIn(("S3", "S4", "overlap", False), edges)
+
+    def test_tree_lines_survive_cycles_and_prototype_named_stories(self):
+        for run, edges in ((CYCLIC_RUN, 4), (PROTO_RUN, 6)):
+            self.maps(run, probe='(() => { const m = msOf("M1"); return [treeRows(m).flat().length, treeEdges(m, treeView(m).shown).length]; })()')
+            self.assertEqual(self.probe(), [4, edges])
+
+    def test_the_tree_draws_its_lines_behind_opaque_cards_without_removing_the_queue_lines(self):
+        page = open(PAGE).read()
+        self.assertIn('t.insertAdjacentHTML("afterbegin", `<svg class="links"', page)
+        self.assertIn('t.querySelector("svg.links")?.remove()', page)
+        self.assertRegex(page, r"\.mtree \{[^}]*position: relative")
+        self.assertRegex(page, r"\.mtree > svg\.links \{[^}]*z-index: 0")
+        self.assertRegex(page, r"\.mtree \.node\.dim[^{]*\{ opacity: 1; \}")
+        self.assertIn("function drawLines() { drawQueue(); drawTree(); }", page)
+        self.assertIn("requestAnimationFrame(drawLines)", page)
+        self.assertIn('window.addEventListener("resize", () => { if (S.project) drawLines(); });', page)
 
     def test_a_milestone_card_without_known_repos_has_no_chip_row(self):
         cards = self.card_repos([{"id": "M1", "title": "a", "status": "parked"},

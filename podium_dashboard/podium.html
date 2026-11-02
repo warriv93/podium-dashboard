@@ -322,6 +322,25 @@ a.wchip { color: inherit; text-decoration: none; }
 .mwave { display: flex; flex-direction: column; gap: 7px; }
 .mwl { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .mrow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mtree { position: relative; display: flex; flex-direction: column; gap: 12px; background: inherit; }
+.mtree > svg.links { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: visible; }
+.mtree .mwave { background: inherit; }
+.mtree .mwl { position: relative; z-index: 1; align-self: flex-start; padding-right: 6px; background: inherit; }
+.mtree .node { z-index: 1; }
+.mtree .node.dim, .mtree .node.blocked, .mtree .node.dropped { opacity: 1; }
+.mtree .node.blocked > * { opacity: .62; }
+.mtree .node.dropped > * { opacity: .45; }
+.mtree .node.dim { background: var(--card-2); border-color: var(--line); box-shadow: none; }
+.mtree .node.dim > * { opacity: .28; }
+.mtree.focus .edge:not(.hi) { opacity: .35; }
+.mfold { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.mfl { font-size: 12px; color: var(--text-3); }
+.mfl b { color: var(--text); font-weight: 650; }
+.fchips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 0; min-width: 0; }
+.fchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 6px; background: var(--purple-soft); color: var(--purple); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.fchip.sel { box-shadow: 0 0 0 2px var(--accent); }
+.fchip.dim { opacity: .28; }
+.mrefold { display: flex; justify-content: flex-end; }
 .node.compact { position: relative; min-height: 88px; padding: 7px 9px; gap: 4px; border-radius: 11px; }
 .node.compact .title { font-size: 12.5px; }
 .node.compact .foot { min-height: 22px; gap: 4px 6px; font-size: 11px; flex-wrap: wrap; }
@@ -750,7 +769,7 @@ let lastPoll = 0;
 
 /* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
 const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
-const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: undefined, query: "", filter: "all", online: true };
+const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: undefined, unfold: dict(), query: "", filter: "all", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -1128,9 +1147,58 @@ function openHead(m) {
   return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}<button class="ocollapse" data-collapse>▾ Collapse</button></span></div>`;
 }
 const hidesStory = (m, s) => S.hideFinished && ["done", "dropped"].includes(s.status) && !isSel(m.id, s.id) && !(S.project.needsYou && needsMs() === m.id && String(S.project.needsYou.story || "").split("/").pop() === String(s.id));
+function treeRows(m) {
+  const rows = wavesOf(m.stories || []), col = dict();
+  rows.forEach((row, i) => {
+    if (i) {
+      const bary = (s) => {
+        const ups = [...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => col[d] !== undefined);
+        return ups.length ? ups.reduce((a, d) => a + col[d], 0) / ups.length : 0;
+      };
+      row.sort((a, b) => bary(a) - bary(b) || String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+    }
+    row.forEach((s, j) => (col[s.id] = j % 3));
+  });
+  return rows;
+}
+const foldWaves = (rows) => ((n) => (n < 0 ? rows.length : n))(rows.findIndex(([, w]) => w.some((s) => s.status !== "done")));
+function treeView(m) {
+  const rows = treeRows(m).map((w, i) => [i, w.filter((s) => !hidesStory(m, s))]).filter(([, w]) => w.length);
+  const n = S.hideFinished ? 0 : foldWaves(rows), folded = n > 0 && !S.unfold[m.id];
+  return { rows, n, folded, shown: dict(rows.flatMap(([, w], k) => w.map((s) => [s.id, folded && k < n]))) };
+}
+function treeEdges(m, shown) {
+  const seen = new Set(), out = [];
+  for (const s of m.stories || []) {
+    if (!Object.hasOwn(shown, s.id)) continue;
+    const link = (ids, kind) => (Array.isArray(ids) ? ids : []).forEach((d) => {
+      const k = JSON.stringify([d, s.id]);
+      if (d === s.id || !Object.hasOwn(shown, d) || (shown[d] && shown[s.id]) || seen.has(k)) return;
+      seen.add(k);
+      out.push({ from: d, to: s.id, kind, fromFold: shown[d] });
+    });
+    link(s.deps, "dep");
+    link(s.overlapAfter, "overlap");
+  }
+  return out;
+}
+function msTree(m, map) {
+  const { rows, n, folded } = treeView(m), id = esc(m.id), merged = rows.slice(0, n).flatMap(([, w]) => w);
+  const wave = ([i, w]) => `<div class="mwave"><span class="mwl">Wave ${i + 1}${w.length > 1 ? ` · ${w.length} in parallel` : ""}</span><div class="mrow">${w.map((s) => storyCard(m, s, map)).join("")}</div></div>`;
+  const chip = (s) => `<span class="fchip${isSel(m.id, s.id) ? " sel" : ""}" data-open="${id}" data-story="${esc(s.id)}" tabindex="0"><b>${esc(s.id)}</b> ${esc(s.title)}</span>`;
+  const fold = !n ? "" : folded
+    ? `<div class="mfold"><span class="mfl"><b>${n > 1 ? `Waves 1–${n}` : "Wave 1"}</b> · ${merged.length} merged</span><span class="fchips">${merged.map(chip).join("")}</span><button class="ocollapse" data-unfold="${id}">Show ▸</button></div>`
+    : `<div class="mrefold"><button class="ocollapse" data-unfold="${id}">Fold merged waves ▴</button></div>`;
+  return `<div class="mtree" data-ms="${id}">${fold}${(folded ? rows.slice(n) : rows).map(wave).join("")}</div>`;
+}
+function toggleFold(id) {
+  if (S.unfold[id]) delete S.unfold[id];
+  else S.unfold[id] = true;
+  render();
+}
 function msBody(m, foot) {
   const stories = m.stories || [], arts = m.artifacts || [], map = storyIndex(m);
-  if (stories.length) return wavesOf(stories).map((w, i) => [i, w.filter((s) => !hidesStory(m, s))]).filter(([, w]) => w.length).map(([i, w]) => `<div class="mwave"><span class="mwl">Wave ${i + 1}${w.length > 1 ? ` · ${w.length} in parallel` : ""}</span><div class="mrow">${w.map((s) => storyCard(m, s, map)).join("")}</div></div>`).join("");
+  if (stories.length) return msTree(m, map);
   if (arts.length) return `<div class="mrow">${arts.map((a, i) => `<div class="node compact artifact" data-open="${esc(m.id)}" data-story="A${i + 1}" tabindex="0"><div class="top"><span class="sid">${esc(a.phase || "doc")}</span></div><span class="title">${esc(a.name)}</span></div>`).join("")}</div>`;
   return `<div class="foot">${foot}${waitPills(m)}</div>`;
 }
@@ -1185,9 +1253,10 @@ function renderFull() {
   const rows = order.map((x, i) => hides(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
   const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
   m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
-  requestAnimationFrame(drawQueue);
+  requestAnimationFrame(drawLines);
   applyFilter();
 }
+function drawLines() { drawQueue(); drawTree(); }
 function drawQueue() {
   const g = document.querySelector("#map .full");
   if (!g) return;
@@ -1197,6 +1266,18 @@ function drawQueue() {
   const paths = cards.slice(1).map((c, i) => `<path class="edge ${c.matches(".done, .working, .waits") ? "" : "overlap"}" d="${curve(box(cards[i]), box(c))}"/>`).join("");
   g.querySelector("svg.edges")?.remove();
   g.insertAdjacentHTML("afterbegin", `<svg class="edges" width="${g.scrollWidth}" height="${g.scrollHeight}">${paths}</svg>`);
+}
+function drawTree() {
+  const t = document.querySelector("#map .mtree"), m = t && msOf(t.dataset.ms);
+  if (!m) return;
+  const tr = t.getBoundingClientRect(), at = dict([...t.querySelectorAll("[data-story]")].map((el) => [el.dataset.story, el]));
+  const box = (el) => { const r = el.getBoundingClientRect(); return { x: r.left - tr.left, y: r.top - tr.top, w: r.width, h: r.height }; };
+  const hi = (e) => isSel(m.id, e.from) || isSel(m.id, e.to);
+  const edges = treeEdges(m, treeView(m).shown).filter((e) => at[e.from] && at[e.to]);
+  const paths = edges.map((e) => `<path class="edge${e.kind === "overlap" ? " overlap" : ""}${hi(e) ? " hi" : ""}" d="${curve(box(at[e.from]), box(at[e.to]))}"/>`).join("");
+  t.classList.toggle("focus", edges.some(hi));
+  t.querySelector("svg.links")?.remove();
+  t.insertAdjacentHTML("afterbegin", `<svg class="links" width="${t.scrollWidth}" height="${t.scrollHeight}">${paths}</svg>`);
 }
 
 function day(v) {
@@ -2395,6 +2476,8 @@ document.addEventListener("click", (ev) => {
   const rv = ev.target.closest("[data-reveal]");
   if (rv) { reveal(rv.dataset.reveal); return; }
   if (ev.target.closest("[data-collapse]")) { collapse(); return; }
+  const uf = ev.target.closest("[data-unfold]");
+  if (uf) { toggleFold(uf.dataset.unfold); return; }
   const xm = ev.target.closest("[data-expand-ms]");
   if (xm) { expand(xm.dataset.expandMs); return; }
   if (ev.target.closest("[data-back]")) return sheetBack();
@@ -2409,7 +2492,7 @@ document.addEventListener("click", (ev) => {
 document.addEventListener("keydown", (ev) => {
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); $("q").focus(); $("q").select(); }
   else if (ev.key === "Escape") onEscape();
-  else if (ev.key === "Enter" && ev.target.matches(".node, .fms, .otitle, .fepic, .quest")) ev.target.click();
+  else if (ev.key === "Enter" && ev.target.matches(".node, .fchip, .fms, .otitle, .fepic, .quest")) ev.target.click();
 });
 function onEscape() {
   if (S.sel) closeSheet();
@@ -2479,7 +2562,7 @@ function trackStickyBar() {
   }
 }
 trackStickyBar();
-window.addEventListener("resize", () => { if (S.project) drawQueue(); });
+window.addEventListener("resize", () => { if (S.project) drawLines(); });
 $("quality").addEventListener("toggle", () => (S.qualityTouched = true), { once: true });
 
 setFavicon("");
