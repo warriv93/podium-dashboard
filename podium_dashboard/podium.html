@@ -765,7 +765,7 @@ const W = 236, H = 140, EPIC_W = 380, EPIC_W_REPOS = 460, EPIC_H = 132, GX = 22,
 
 /* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
 const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
-const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), selected: null, doc: null, back: [], view: undefined, query: "", filter: "all", online: true };
+const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], view: undefined, query: "", filter: "all", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -806,7 +806,7 @@ function setInfo(i) {
   if ((first || meChanged) && S.raw) loadProject();
   if (peopleChanged || meChanged) renderPeople();
   if (S.project) renderFetch();
-  if ((first || meChanged || orchChanged) && S.project) { render(); if (S.selected) renderSheet(); }
+  if ((first || meChanged || orchChanged) && S.project) { render(); if (S.sel) renderSheet(); }
 }
 /* a poll keeps the server alive only while someone is at the tab: in view and touched in the last
    10 minutes, so a tab left open on an unattended screen lets it stop when idle */
@@ -869,7 +869,7 @@ function chooseView() {
 function setEpic(id, view) {
   S.epicView = id; S.epic = id ? epicCtx(id) : null; S.view = view === undefined ? undefined : view;
   chooseView();
-  S.selected = null; S.filter = "all"; S.query = ""; $("q").value = "";
+  S.sel = null; S.filter = "all"; S.query = ""; $("q").value = "";
   $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
   render();
 }
@@ -905,7 +905,7 @@ async function poll() {
       }
     } catch { /* no requests yet */ }
     for (const bm of buildingMs()) {
-      const live = (bm.stories || []).filter((s) => ["working", "approval"].includes(s.status) || S.handoffs[key(bm.id, s.id)] || (S.view === bm.id && s.id === S.selected));
+      const live = (bm.stories || []).filter((s) => ["working", "approval"].includes(s.status) || S.handoffs[key(bm.id, s.id)] || isSel(bm.id, s.id));
       for (const s of live) {
         try {
           const p = await getText(progressPath(bm.id, s.id));
@@ -959,6 +959,7 @@ function bar3(n) { return `<span class="bar3" aria-label="step ${n} of 3">${[1, 
 const msById = () => dict(S.epic.milestones.map((m) => [m.id, m]));
 const activeMs = () => msById()[S.epic.active] || null;
 const viewMs = () => (S.view ? msById()[S.view] : null);
+const storyIndex = (m) => dict((m.stories || []).map((s) => [s.id, s]));
 const isBuilding = (m) => !!m && m.status === "working" && (m.id === S.project.active?.milestone || m.phase === "build");
 const buildingMs = () => S.project.epics.flatMap((E) => E.milestones || []).filter(isBuilding);
 const msBuildAll = (m) => (S.project.buildAll !== undefined && m.id === S.project.active?.milestone ? !!S.project.buildAll : !!m.buildAll);
@@ -966,9 +967,9 @@ const idPath = (id) => String(id).split("/").map(encodeURIComponent).join("/");
 const items = () => viewMs()?.stories || (viewMs() ? [] : S.epic.milestones);
 const byId = () => dict(items().map((s) => [s.id, s]));
 const phaseLabel = (p) => phases().find(([k]) => k === p)?.[1] || p || "";
-function viewStatus(s, map) {
+function viewStatus(s, map, ms) {
   if (s.status !== "todo") return s.status;
-  if (S.handoffs[key(viewMs()?.id, s.id)]) return "elsewhere";
+  if (ms !== undefined && S.handoffs[key(ms, s.id)]) return "elsewhere";
   return (s.deps || []).every((d) => !map[d] || ["done", "dropped"].includes(map[d].status)) ? "ready" : "waiting";
 }
 function filterKey(st) {
@@ -976,7 +977,7 @@ function filterKey(st) {
 }
 function matches(s) {
   const q = S.query.trim().toLowerCase();
-  if (S.filter !== "all" && filterKey(viewStatus(s, byId())) !== S.filter) return false;
+  if (S.filter !== "all" && filterKey(viewStatus(s, byId(), S.view)) !== S.filter) return false;
   if (!q) return true;
   return [s.id, s.title, s.summary, ...(s.files || []), ...(s.covers || []), ...repoNames(s)].join(" ").toLowerCase().includes(q);
 }
@@ -1130,7 +1131,7 @@ function render() {
   renderFilters();
   renderMap();
   renderQuality();
-  if (S.selected) renderSheet();
+  if (S.sel) renderSheet();
 }
 
 function projectChrome() {
@@ -1194,7 +1195,7 @@ function fullMs(m, all) {
   else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ __proto__: null, draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
   const map = dict(stories.map((s) => [s.id, s]));
   const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
-  const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}" data-ms=""`;
+  const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
   return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${waves}</div>`;
 }
 function miniMap(vm) {
@@ -1226,7 +1227,7 @@ function renderFull() {
     return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
   const needsId = P.needsYou ? needsMs() : null;
-  const hides = (x) => S.hideFinished.map && ["done", "moved"].includes(x.status) && x.id !== S.selected && x.id !== needsId && !waitersOf(x.id).length;
+  const hides = (x) => S.hideFinished.map && ["done", "moved"].includes(x.status) && x.id !== S.sel?.ms && x.id !== needsId && !waitersOf(x.id).length;
   renderHideFinished("map", listed.filter(hides).length);
   const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
@@ -1347,12 +1348,12 @@ function renderBanner() {
     html = `<div class="banner done"><span class="label">✓ ${e.single ? "Completed" : "Epic completed"}</span><span class="sub">${ms.filter((m) => m.status === "done").length} ${e.single ? "" : "milestones "}landed</span></div>`;
   } else if (am && am.status === "working") {
     const map = dict(stories.map((s) => [s.id, s]));
-    const ready = stories.filter((s) => viewStatus(s, map) === "ready").length;
+    const ready = stories.filter((s) => viewStatus(s, map, am.id) === "ready").length;
     const sub = stories.length ? `${am.id}: ${ready} ${ready === 1 ? "story is" : "stories are"} ready to assign` : `${am.id}: ${phaseLabel(am.phase)} in progress — stories appear after breakdown`;
     html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${esc(sub)}</span></div>`;
   } else {
     const next = ms.filter((m) => [...UNSTARTED, "todo"].includes(m.status)).sort((a, b) => Number(waitersOf(b.id).length > 0) - Number(waitersOf(a.id).length > 0));
-    html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${ms.filter((m) => m.status === "done").length} milestones landed · next: pick one to plan</span><div class="chips">${next.map((m) => `<span class="wchip" data-open="${esc(m.id)}" data-ms=""><b>${esc(m.id)}</b> ${esc(m.title)} <span class="cycle">· ${esc(m.status)}</span></span>`).join("")}</div></div>`;
+    html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${ms.filter((m) => m.status === "done").length} milestones landed · next: pick one to plan</span><div class="chips">${next.map((m) => `<span class="wchip" data-open="${esc(m.id)}"><b>${esc(m.id)}</b> ${esc(m.title)} <span class="cycle">· ${esc(m.status)}</span></span>`).join("")}</div></div>`;
   }
   $("banner").innerHTML = needsBanner() + waitBanner() + digestBanner() + assumedBanner() + html;
 }
@@ -1387,7 +1388,7 @@ function needsBanner() {
   if (!prs.length && !n) return "";
   const nms = n ? needsMs() : null, nid = n?.story ? String(n.story).split("/").pop() : null;
   const ids = [...new Set([...prs.map((pr) => pr.ms), ...(nms ? [nms] : [])])];
-  const story = nid && nms ? `<span class="wchip" data-open="${esc(nid)}" data-ms="${esc(nms)}"><b>${esc(nid)}</b> open story ›</span>` : "";
+  const story = nid && nms ? `<span class="wchip" data-open="${esc(nms)}" data-story="${esc(nid)}"><b>${esc(nid)}</b> open story ›</span>` : "";
   const looked = (pr) => ((who) => (who.length ? ` <span class="cycle">· ${who.map(personName).join(", ")} looked at it</span>` : ""))(lookedBy(pr));
   const tick = (pr) => (colleaguesPr(pr) ? `<label class="looked" title="Tells ${personName(pr.owner)} and hides it here until the PR changes"><input type="checkbox" data-looked="${esc(prKey(pr.ms, pr.repo, pr.number))}">Looked</label>` : "");
   const chips = prs.map((pr) => ((url, text) => `<span class="wchip pr-chip">${url ? `<a class="pr-link" href="${esc(url)}" target="_blank" rel="noopener">${text} <span class="cycle">· draft ↗</span>${looked(pr)}</a>` : `<span class="pr-link">${text} <span class="cycle">· draft</span>${looked(pr)}</span>`}${tick(pr)}</span>`)(
@@ -1422,7 +1423,7 @@ function assumedBanner() {
     const p = S.settling?.[a.n], on = S.expanded?.has(a.n);
     const act = p ? `<span class="settled ${p}">${word[p]}</span>`
       : `<span class="settle"><button class="btn" data-settle="confirm" data-id="${esc(a.n)}">Confirm</button><button class="btn ghost" data-settle="reverse" data-id="${esc(a.n)}">Reverse…</button></span>`;
-    const more = on ? `<div class="more"><div><span class="k">Question</span>${a.story ? `<a data-open="${esc(a.story)}" data-ms="${esc(a.milestone || "")}">${esc(a.story)}</a> · ` : ""}${esc(a.question)}</div><div><span class="k">Decided</span><b>${esc(a.choice)}</b></div><div><span class="k">Why</span>${esc(a.why)}</div></div>` : "";
+    const more = on ? `<div class="more"><div><span class="k">Question</span>${a.story ? `<a data-open="${esc(a.milestone || S.project.active?.milestone || "")}" data-story="${esc(a.story)}">${esc(a.story)}</a> · ` : ""}${esc(a.question)}</div><div><span class="k">Decided</span><b>${esc(a.choice)}</b></div><div><span class="k">Why</span>${esc(a.why)}</div></div>` : "";
     return `<li class="${on ? "open" : ""}"><div class="row" data-expand="${esc(a.n)}"><span class="q"><b class="aid">${esc(a.label)}</b>${a.shared ? `<span class="ashared" title="Recorded before each person kept their own">shared</span>` : ""}${a.milestone ? `<span class="ams">${esc(a.milestone)}</span>` : ""}${esc(a.short || a.question)}</span>${act}<button class="chev" data-expand="${esc(a.n)}" title="${on ? "Less" : "More"}" aria-expanded="${on}"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>${more}</li>`;
   }).join("");
   const left = open.filter((a) => !S.settling?.[a.n]).length;
@@ -1450,7 +1451,7 @@ function workingBanner(working) {
   const chips = working.map(([m, s]) => {
     const [label, n] = s.status === "approval" ? ["Waiting for approval", 0] : doing(m.id, s.id);
     const dot = s.status === "approval" ? `<span class="pulse amber"></span>` : `<span class="pulse"></span>`;
-    return `<span class="wchip" data-open="${esc(s.id)}" data-ms="${esc(m.id)}">${dot}<b>${esc(s.id)}</b> ${esc(s.title)} <span class="cycle">· ${esc(label)}${n ? bar3(n) : ""}</span></span>`;
+    return `<span class="wchip" data-open="${esc(m.id)}" data-story="${esc(s.id)}">${dot}<b>${esc(s.id)}</b> ${esc(s.title)} <span class="cycle">· ${esc(label)}${n ? bar3(n) : ""}</span></span>`;
   }).join("");
   const ids = [...new Set(working.map(([m]) => m.id))];
   return `<div class="banner working"><span class="label"><span class="pulse"></span>Working on${S.epic.single ? "" : ` · ${esc(ids.join(", "))}`}</span><div class="chips">${chips}</div></div>`;
@@ -1458,7 +1459,7 @@ function workingBanner(working) {
 
 function renderFilters() {
   const map = byId(), counts = { all: 0 };
-  items().forEach((s) => { counts.all++; const k = filterKey(viewStatus(s, map)); counts[k] = (counts[k] || 0) + 1; });
+  items().forEach((s) => { counts.all++; const k = filterKey(viewStatus(s, map, viewMs()?.id)); counts[k] = (counts[k] || 0) + 1; });
   const vm = viewMs(), merged = vm && vm.status !== "done";
   $("filters").innerHTML = FILTERS.map(([k, l]) => [k, k === "done" && merged ? "Merged" : l]).map(([k, l]) => `<button class="${S.filter === k ? "on" : ""}" data-filter="${k}">${l}<span class="n">${counts[k] || 0}</span></button>`).join("");
   $("q").placeholder = viewMs() ? "Search stories, files, ids" : "Search milestones, brief items, ids";
@@ -1533,7 +1534,7 @@ function renderMap() {
   const L = layout(list, sz, cols);
   const map = dict(list.map((s) => [s.id, s]));
   const needsStory = String(S.project.needsYou?.story || "").split("/").pop();
-  const hides = (s) => S.hideFinished.stories && kind === "story" && ["done", "dropped"].includes(s.status) && s.id !== S.selected && s.id !== needsStory;
+  const hides = (s) => S.hideFinished.stories && kind === "story" && ["done", "dropped"].includes(s.status) && !isSel(vm.id, s.id) && s.id !== needsStory;
   const shown = list.filter((s) => !hides(s));
   renderHideFinished(kind === "story" ? "stories" : "map", list.length - shown.length);
   const edges = [];
@@ -1541,19 +1542,19 @@ function renderMap() {
     const deps = (s.deps || []).filter((d) => L.pos[d] && !hides(map[d]));
     const from = deps.length ? deps : (s.overlapAfter || []).filter((d) => L.pos[d] && !hides(map[d])).length ? [] : ["__root"];
     from.forEach((d) => {
-      const hi = S.selected && (d === S.selected || s.id === S.selected);
+      const hi = isSel(vm.id, d) || isSel(vm.id, s.id);
       const done = d !== "__root" && map[d]?.status === "done";
       edges.push(`<path class="edge ${done ? "done" : ""} ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
     });
     (s.overlapAfter || []).filter((d) => L.pos[d] && !hides(map[d])).forEach((d) => {
-      const hi = S.selected && (d === S.selected || s.id === S.selected);
+      const hi = isSel(vm.id, d) || isSel(vm.id, s.id);
       edges.push(`<path class="edge overlap ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
     });
   });
   const m = $("map");
   m.style.width = L.width + "px";
   m.style.height = L.height + "px";
-  m.classList.toggle("focus", !!S.selected && S.selected !== "__root");
+  m.classList.toggle("focus", S.sel?.ms === vm.id && S.sel.story !== undefined);
   const box = m.parentElement;
   const fit = Math.min(1, Math.max(innerWidth <= 1100 ? 0.6 : 0.75, (box.clientWidth - 8) / L.width));
   m.style.zoom = fit;
@@ -1572,8 +1573,8 @@ function ring(frac) {
   const C = 2 * Math.PI * 15;
   return `<svg class="ring" viewBox="0 0 38 38"><circle class="track" cx="19" cy="19" r="15"/><circle class="val" cx="19" cy="19" r="15" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>`;
 }
-function rootBox(p, eyebrow, title, body, repos = "") {
-  return `<div class="node epic" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;min-height:${p.h}px" data-open="__root" tabindex="0">
+function rootBox(p, id, eyebrow, title, body, repos = "") {
+  return `<div class="node epic" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;min-height:${p.h}px" data-open="${esc(id)}" tabindex="0">
     <span class="eyebrow">${eyebrow}</span><span class="title">${esc(title)}</span>${repos}<div class="epic-row">${body}</div></div>`;
 }
 function milestoneRoot(p, m) {
@@ -1588,12 +1589,12 @@ function milestoneRoot(p, m) {
   const stat = stories.length
     ? `<div class="epic-stat"><b>${done}</b> of ${stories.length} stories ${m.status === "done" ? "done" : "merged to branch"}<br>${m.status === "done" ? `Landed${m.shippedAt ? ` ${day(m.shippedAt)}` : ""}` : done === stories.length ? msDoing(m) : msBuildAll(m) ? "Building wave by wave" : "Assign stories or build all"}</div>`
     : `<div class="epic-stat">Breakdown pending<br>${esc(phaseLabel(m.phase))} in progress</div>`;
-  return rootBox(p, `${S.epic.single ? "Epic" : `Milestone · ${esc(m.id)}`}${ownerOrClaim(m)}<span class="ftools">${mockBtn(m) || mockBtn(S.epic.epic)}${dsBtn(m)}${asanaBtn(m, true)}</span>`, S.epic.single ? S.epic.epic.title : m.title, `${ring(stories.length ? done / stories.length : 0)}${stat}${btn}`, repoLines(msRepoRows(m)));
+  return rootBox(p, m.id, `${S.epic.single ? "Epic" : `Milestone · ${esc(m.id)}`}${ownerOrClaim(m)}<span class="ftools">${mockBtn(m) || mockBtn(S.epic.epic)}${dsBtn(m)}${asanaBtn(m, true)}</span>`, S.epic.single ? S.epic.epic.title : m.title, `${ring(stories.length ? done / stories.length : 0)}${stat}${btn}`, repoLines(msRepoRows(m)));
 }
 
 
 function artifactNode(s, p) {
-  return `<div class="node artifact" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(s.id)}" data-path="${esc(s.artifact.path)}" tabindex="0">
+  return `<div class="node artifact" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(viewMs().id)}" data-story="${esc(s.id)}" tabindex="0">
     <div class="top"><span class="sid">${esc(s.artifact.phase || "doc")}</span></div>
     <span class="title">${esc(s.title)}</span>
     <div class="foot"><span class="mono">${esc(s.artifact.path)}</span></div></div>`;
@@ -1611,7 +1612,7 @@ function failReason(ms, s) {
 
 function storyNode(s, p, map) {
   const vm = viewMs(), live = isBuilding(vm), sk = key(vm.id, s.id);
-  const st = viewStatus(s, map);
+  const st = viewStatus(s, map, vm.id);
   let foot = "", top = "";
   const first = commitsOf(s)[0];
   if (st === "done") foot = `<span class="badge ${doneCls(vm)}">${storyDone(vm)}</span>${first ? `<span class="when mono">${esc(shortSha(first.sha))}</span>` : ""}`;
@@ -1629,7 +1630,7 @@ function storyNode(s, p, map) {
     const badge = `<span class="badge waiting" title="Waiting on ${esc(wait.join(", "))}">Waiting on ${esc(wait.join(", "))}</span>`;
     if (live && orch()) { top = badge; foot = `<button class="btn" disabled title="Waiting on ${esc(wait.join(", "))}">Assign subagent</button>`; } else foot = badge;
   }
-  return `<div class="node ${esc(st)} ${S.selected === s.id ? "sel" : ""}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(s.id)}" data-id="${esc(s.id)}" tabindex="0">
+  return `<div class="node ${esc(st)} ${isSel(vm.id, s.id) ? "sel" : ""}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(vm.id)}" data-story="${esc(s.id)}" data-id="${esc(s.id)}" tabindex="0">
     <div class="top"><span class="sid">${esc(s.id)}</span>${top}<span class="model">${esc(s.model || "")}</span></div>
     <span class="title">${esc(s.title)}</span>
     ${repoChips(s.repos || [])}
@@ -1709,7 +1710,7 @@ function findingText(e) {
 function link(e) {
   if (!e.story) return msLink(e.milestone);
   const pre = multiMs() && e.milestone ? `${esc(e.milestone)} · ` : "";
-  return `<a data-open="${esc(e.story)}" data-ms="${esc(e.milestone || S.project?.active?.milestone || "")}">${pre}${esc(e.story)}</a>`;
+  return `<a data-open="${esc(e.milestone || S.project?.active?.milestone || "")}" data-story="${esc(e.story)}">${pre}${esc(e.story)}</a>`;
 }
 const multiMs = () => !!S.project && S.project.epics.reduce((n, E) => n + (E.milestones || [1]).length, 0) > 1;
 function msLink(id) { return id && multiMs() ? `<a data-drill="${esc(id)}">${esc(id)}</a> ` : ""; }
@@ -1763,7 +1764,7 @@ function digestBanner() {
   const of = (...t) => ev.filter((e) => t.includes(e.type));
   const id = (e) => `${e.milestone || ""}/${e.story}`;
   const uniq = (list) => [...new Map(list.filter((e) => e.story).map((e) => [id(e), e])).values()];
-  const story = (e) => `<span class="wchip" data-open="${esc(e.story)}" data-ms="${esc(e.milestone || "")}"><b>${multiMs() && e.milestone ? `${esc(e.milestone)} · ` : ""}${esc(e.story)}</b></span>`;
+  const story = (e) => `<span class="wchip" data-open="${esc(e.milestone || S.project.active?.milestone || "")}" data-story="${esc(e.story)}"><b>${multiMs() && e.milestone ? `${esc(e.milestone)} · ` : ""}${esc(e.story)}</b></span>`;
   const ended = new Set(of("merged", "failed").map(id));
   const moves = [...new Map(of("planned", "phase", "landed").map((e) => [e.milestone, e])).values()];
   const rows = [
@@ -1990,7 +1991,7 @@ async function asanaDone(choice, id) {
     const r = await fetch(`/asana-done/${encodeURIComponent(id)}?choice=${choice}`, { method: "POST" });
     if (!r.ok) throw new Error(r.status);
     S.asanaChoice = { __proto__: null, ...S.asanaChoice, [id]: choice };
-    render(); if (S.selected) renderSheet();
+    render(); if (S.sel) renderSheet();
     toast(choice === "drop" ? `${id}: skipping it` : `${id}: keeping it`);
   } catch { toast(SERVER_DOWN); }
 }
@@ -2021,57 +2022,77 @@ function enterEpicOf(ms) {
 }
 function setView(id) {
   if (S.epic.single) return;
-  S.view = id; S.selected = null; S.filter = "all";
+  S.view = id; S.sel = null; S.filter = "all";
   $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
   render();
 }
 
-async function openSheet(id) {
-  S.selected = id; S.doc = null; S.back = [];
+/* what the sheet shows: {quest: true}, {epic}, {ms} or {ms, story}, where a story id is unique only within its milestone
+   and A<n> names the milestone's nth artifact when it has no stories */
+function resolveSel(sel) {
+  if (!sel || !S.project) return null;
+  if (sel.quest) return questOf() ? { kind: "quest" } : null;
+  const ctx = epicCtx(sel.epic !== undefined ? sel.epic : epicOfMs(sel.ms));
+  if (!ctx) return null;
+  if (sel.epic !== undefined) return { kind: "epic", E: ctx.epic, ctx };
+  const m = ctx.milestones.find((x) => x.id === sel.ms);
+  if (!m) return null;
+  if (sel.story === undefined) return { kind: "ms", E: ctx.epic, ctx, m };
+  const s = storyIndex(m)[sel.story];
+  if (s) return { kind: "story", E: ctx.epic, ctx, m, s };
+  const n = (m.stories || []).length ? null : String(sel.story).match(/^A([1-9]\d*)$/)?.[1];
+  const art = n ? (m.artifacts || [])[n - 1] : null;
+  return art ? { kind: "art", E: ctx.epic, ctx, m, art } : null;
+}
+const isSel = (ms, story) => !!S.sel && S.sel.ms === ms && S.sel.story === story;
+const selName = (sel) => (sel.quest ? "quest" : sel.epic !== undefined ? `epic ${sel.epic}` : sel.story === undefined ? `milestone ${sel.ms}` : `story ${sel.ms}/${sel.story}`);
+async function openSheet(sel) {
+  const r = resolveSel(sel);
+  if (!r) return toast(`This run has no ${selName(sel)}`);
+  if (r.kind === "epic") { S.epicView = r.E.id; S.epic = r.ctx; S.view = null; }
+  else if (r.m) {
+    enterEpicOf(r.m.id);
+    if (r.kind !== "ms" && !S.epic.single && S.view !== r.m.id) { S.view = r.m.id; S.filter = "all"; }
+  }
+  S.sel = sel; S.doc = null; S.back = [];
   $("sheet").classList.add("on"); $("scrim").classList.add("on");
   $("sheet").setAttribute("aria-hidden", "false");
   render();
   renderSheet();
-  if (id === "__quest") {
-    const p = questOf()?.doc;
-    if (p && S.briefs[p] === undefined) { S.briefs[p] = await getText(p).catch(() => null); if (S.selected === id) renderSheet(); }
-    return;
-  }
-  const vm = viewMs();
-  const target = id === "__root" ? (vm || null) : byId()[id];
-  const path = id === "__root" && !vm ? S.epic.epic.spec || (S.epic.epic.quest && questOf()?.doc) : target?.brief || document.querySelector(`[data-open="${CSS.escape(id)}"]`)?.dataset.path;
+  const path = r.kind === "quest" ? questOf().doc : r.kind === "epic" ? r.E.spec || (r.E.quest && questOf()?.doc) : r.kind === "art" ? r.art.path : (r.s || r.m).brief;
   if (path && S.briefs[path] === undefined) {
     S.docUrl ||= dict();
-    for (const at of [path, `podium/${path}`]) {
+    for (const at of r.kind === "quest" ? [path] : [path, `podium/${path}`]) {
       try { S.briefs[path] = await getText(at); S.docUrl[path] = at; break; } catch { S.briefs[path] = null; }
     }
-    if (S.selected === id) renderSheet();
+    if (S.sel === sel) renderSheet();
   }
-  if (vm && target && target !== vm && (isBuilding(vm) || S.progress[key(vm.id, id)] === undefined)) {
-    try { S.progress[key(vm.id, id)] = await getText(progressPath(vm.id, id)); } catch { S.progress[key(vm.id, id)] = ""; }
-    if (S.selected === id) renderSheet();
+  if (r.kind === "story" && (isBuilding(r.m) || S.progress[key(r.m.id, r.s.id)] === undefined)) {
+    try { S.progress[key(r.m.id, r.s.id)] = await getText(progressPath(r.m.id, r.s.id)); } catch { S.progress[key(r.m.id, r.s.id)] = ""; }
+    if (S.sel === sel) renderSheet();
   }
 }
 function closeSheet() {
-  S.selected = null; S.doc = null; S.back = [];
+  S.sel = null; S.doc = null; S.back = [];
   $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
   $("sheet").setAttribute("aria-hidden", "true");
   if (!S.epic || !S.view) renderFull(); else renderMap();
 }
 const CHIP_DOT = { __proto__: null, working: "var(--green-dot)", approval: "var(--amber-dot)", failed: "var(--red)", blocked: "var(--red)" };
 const finished = (x, map) => ["done", "dropped"].includes(map[moveChain(String(x), map).at(-1)]?.status);
-const chip = (x, map) => {
+const chip = (x, map, ms) => {
   const st = map[x]?.status;
   const mark = finished(x, map) ? `<span class="tick">✓</span>` : CHIP_DOT[st] ? `<span class="cdot" style="background:${CHIP_DOT[st]}"></span>` : "";
-  return `<span class="link-chip ${finished(x, map) ? "landed" : ""}" data-open="${esc(x)}">${mark}<b>${esc(x)}</b> ${esc(map[x]?.title || "")}</span>`;
+  const open = ms === undefined ? `data-open="${esc(x)}"` : `data-open="${esc(ms)}" data-story="${esc(x)}"`;
+  return `<span class="link-chip ${finished(x, map) ? "landed" : ""}" ${open}>${mark}<b>${esc(x)}</b> ${esc(map[x]?.title || "")}</span>`;
 };
-function depChips(ids, map, none, doneWord) {
+function depChips(ids, map, none, doneWord, ms) {
   if (!ids.length) return `<span class="muted">${none}</span>`;
   const left = ids.filter((x) => !finished(x, map));
   const sum = doneWord && ids.length > 1 ? `<div class="dep-sum">${left.length ? `<b>${left.length} left</b> · ${ids.length - left.length} ${doneWord}` : `All ${ids.length} ${doneWord}`}</div>` : "";
-  return `${sum}<div class="links">${[...left, ...ids.filter((x) => finished(x, map))].map((x) => chip(x, map)).join("")}</div>`;
+  return `${sum}<div class="links">${[...left, ...ids.filter((x) => finished(x, map))].map((x) => chip(x, map, ms)).join("")}</div>`;
 }
-const sheetOwner = () => S.epic && (viewMs() || msById()[S.selected])?.owner;
+const sheetOwner = () => resolveSel(S.sel)?.m?.owner;
 const unreadable = (path) => (sheetOwner() && !isMe(sheetOwner()) ? `Not synced from ${esc(sheetOwner())}'s machine yet` : `${esc(path)} not readable from the Podium`);
 const briefSec = (path, title = "Brief", base = "runDir", key = path) => {
   const text = S.briefs[key];
@@ -2101,7 +2122,7 @@ function htmlPreview(path, key = path) {
 }
 async function openDoc(path, base) {
   const key = base === "repoDir" ? `/repo/${path}` : path;
-  S.back.push({ id: S.selected, doc: S.doc }); S.doc = { path, base, key };
+  S.back.push({ sel: S.sel, doc: S.doc }); S.doc = { path, base, key };
   renderSheet();
   if (S.briefs[key] === undefined) {
     S.docUrl ||= dict();
@@ -2114,7 +2135,7 @@ async function openDoc(path, base) {
 function sheetBack() {
   const prev = S.back.pop();
   if (!prev) return;
-  S.selected = prev.id; S.doc = prev.doc;
+  S.sel = prev.sel; S.doc = prev.doc;
   renderSheet();
 }
 function docSheet() {
@@ -2124,24 +2145,24 @@ function docSheet() {
   $("sheet").classList.toggle("wide", isHtml(path));
 }
 function renderSheet() {
-  const id = S.selected, e = S.epic, vm = viewMs();
   $("sheet").classList.remove("wide");
   if (S.doc) return docSheet();
-  if (id === "__quest") return questSheet();
-  if (id === "__root" && !vm) return epicSheet();
-  if (id === "__root" || (!vm && msById()[id])) return milestoneSheet(id === "__root" ? vm : msById()[id]);
-  const map = byId(), s = map[id];
-  if (!s) {
-    const el = document.querySelector(`[data-open="${CSS.escape(id)}"]`);
-    const path = el?.dataset.path;
-    $("sheet-head").innerHTML = `<span class="sid">Artifact</span><h2>${esc(el?.querySelector(".title")?.textContent || id)}</h2><div class="muted mono">${esc(path)}</div>`;
+  const r = resolveSel(S.sel);
+  if (!r) return closeSheet();
+  if (r.kind === "quest") return questSheet();
+  if (r.kind === "epic") return epicSheet();
+  if (r.kind === "ms") return milestoneSheet(r.m);
+  if (r.kind === "art") {
+    const path = r.art.path;
+    $("sheet-head").innerHTML = `<span class="sid">Artifact</span><h2>${esc(r.art.name || S.sel.story)}</h2><div class="muted mono">${esc(path)}</div>`;
     $("sheet-body").innerHTML = isHtml(path) ? htmlPreview(path) : briefSec(path, "Document");
     $("sheet").classList.toggle("wide", isHtml(path));
     return;
   }
+  const { ctx: e, m: vm, s } = r, id = s.id, map = storyIndex(vm);
   const live = isBuilding(vm), sk = key(vm.id, id);
-  const st = viewStatus(s, map);
-  const blocks = items().filter((x) => (x.deps || []).includes(id));
+  const st = viewStatus(s, map, vm.id);
+  const blocks = vm.stories.filter((x) => (x.deps || []).includes(id));
   const label = { __proto__: null, done: storyDone(vm), working: "Working on", elsewhere: "In another session", approval: "Waiting for approval", failed: "Failed", blocked: "Blocked", ready: "Ready", waiting: "Waiting on dependencies", dropped: "Dropped" }[st];
   const action = st === "ready" && live && orch() ? `<button class="btn big" data-act="assign" data-id="${esc(sk)}">Assign subagent</button>${copyBtn("assign", sk)}`
     : st === "elsewhere" ? `<button class="btn big ghost" data-release="${esc(sk)}">✕ Take it back</button>${copyBtn("assign", sk)}` : "";
@@ -2153,7 +2174,7 @@ function renderSheet() {
     ${s.failure ? `<div class="sec"><div class="failbox"><b>Failure</b> — ${esc(s.failure)}</div></div>` : ""}
     ${s.note ? `<div class="sec"><div class="muted">${esc(s.note)}</div></div>` : ""}
     ${s.brief ? briefSec(s.brief) : ""}
-    <div class="sec"><h3>Dependencies</h3><dl class="kv"><dt>Blocked by</dt><dd>${depChips(s.deps || [], map, "Nothing — starts from the milestone", "merged")}</dd><dt>Blocks</dt><dd>${depChips(blocks.map((x) => x.id), map, "Nothing")}</dd>${(s.overlapAfter || []).length ? `<dt>After (files)</dt><dd>${depChips(s.overlapAfter, map, "", "merged")}</dd>` : ""}</dl></div>
+    <div class="sec"><h3>Dependencies</h3><dl class="kv"><dt>Blocked by</dt><dd>${depChips(s.deps || [], map, "Nothing — starts from the milestone", "merged", vm.id)}</dd><dt>Blocks</dt><dd>${depChips(blocks.map((x) => x.id), map, "Nothing", undefined, vm.id)}</dd>${(s.overlapAfter || []).length ? `<dt>After (files)</dt><dd>${depChips(s.overlapAfter, map, "", "merged", vm.id)}</dd>` : ""}</dl></div>
     ${(s.repos || []).length ? `<div class="sec"><h3>Repos</h3><div class="links">${s.repos.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div></div>` : ""}
     ${(s.files || []).length ? `<div class="sec"><h3>Files in scope</h3>${s.files.map((f) => fileLink(f, "repoDir")).join("")}</div>` : ""}
     ${(s.tasks || []).length ? `<div class="sec"><h3>Tasks</h3><div class="links">${s.tasks.map((t) => `<span class="link-chip mono">${esc(t)}</span>`).join("")}</div></div>` : ""}
@@ -2290,7 +2311,7 @@ async function asanaSync() {
   try {
     const r = await fetch(`/asana?url=${encodeURIComponent(S.project.project.asana.url)}`, { method: "POST" });
     if (!r.ok) throw new Error(r.status);
-    S.asanaSync = new Date().toISOString(); render(); if (S.selected) renderSheet();
+    S.asanaSync = new Date().toISOString(); render(); if (S.sel) renderSheet();
     toast(S.info?.watching ? "Queued: the orchestrator re-reads the quest's Asana subtasks" : `Queued: picked up the next time ${orchCmd() || "the orchestrator"} runs`);
   } catch { toast(SERVER_DOWN); }
 }
@@ -2429,17 +2450,9 @@ async function act(action, id) {
 }
 const LINK_PORT = 8765;
 function sheetRoute() {
-  const sel = S.doc ? S.back[0]?.id : S.selected, vm = viewMs(), enc = encodeURIComponent;
-  let head = "", label = "", doc = S.doc;
-  if (sel === "__quest") [head, label] = ["/quest", "the quest"];
-  else if (sel === "__root" && !vm) [head, label] = [`/epic/${enc(S.epicView)}`, `epic ${S.epicView}`];
-  else if (sel === "__root") [head, label] = [`/${enc(vm.id)}`, vm.id];
-  else if (!vm && msById()[sel]) [head, label] = [`/${enc(sel)}`, sel];
-  else if (vm && byId()[sel]) [head, label] = [`/${enc(vm.id)}/${enc(sel)}`, `${vm.id}/${sel}`];
-  else if (!doc) {
-    const path = document.querySelector(`[data-open="${CSS.escape(sel)}"]`)?.dataset.path;
-    doc = path ? { path, base: "runDir" } : null;
-  }
+  const sel = S.doc ? S.back[0]?.sel : S.sel, r = resolveSel(sel), doc = S.doc, enc = encodeURIComponent;
+  const [head, label] = !r ? ["", ""] : r.kind === "quest" ? ["/quest", "the quest"] : r.kind === "epic" ? [`/epic/${enc(r.E.id)}`, `epic ${r.E.id}`]
+    : r.kind === "ms" ? [`/${enc(r.m.id)}`, r.m.id] : [`/${enc(r.m.id)}/${enc(sel.story)}`, `${r.m.id}/${sel.story}`];
   if (!head && !doc) return null;
   const tail = doc ? `/${doc.base === "repoDir" ? "repo" : "doc"}/${doc.path.split("/").map(enc).join("/")}` : "";
   return { hash: `#${head}${tail}`, label: doc ? `${head ? `${label}'s document` : "document"} ${doc.path}` : label };
@@ -2471,21 +2484,15 @@ async function goTo(r) {
   const [a, b] = r.head || [];
   const badPath = r.doc && (!r.doc.path || r.doc.path.includes("\\") || r.doc.path.split("/").some((x) => !x || x === "." || x === ".."));
   if (r.bad || r.head.length > 2 || badPath || (!a && !r.doc)) return toast("That link isn't one this Podium understands");
-  if (a === "quest" && !b) { if (!S.epic) return none("quest"); await openSheet("__quest"); }
-  else if (a === "epic" && b) {
-    if (!S.project.epics.some((x) => x.id === b)) return none(`epic ${b}`);
-    S.epicView = b; S.epic = epicCtx(b); S.view = null;
-    await openSheet("__root");
-  } else if (a) {
-    if (!epicOfMs(a)) return none(`milestone ${a}`);
+  const sel = a === "quest" && !b ? { quest: true } : a === "epic" && b ? { epic: b } : a ? (b ? { ms: a, story: b } : { ms: a })
+    : S.view ? { ms: S.view } : S.epic ? { epic: S.epicView } : null;
+  if (!sel) return none("epic to show it in");
+  if (!resolveSel(sel)) return none(selName(sel));
+  if (a && sel.ms === a) {
     enterEpicOf(a);
     if (S.epic.single) render(); else setView(a);
-    if (b && !byId()[b]) return none(`story ${a}/${b}`);
-    await openSheet(b || "__root");
-  } else {
-    if (!S.epic) return none("epic to show it in");
-    await openSheet("__root");
   }
+  await openSheet(sel);
   if (r.doc) await openDoc(r.doc.path, r.doc.base);
 }
 function followLink() {
@@ -2539,16 +2546,16 @@ document.addEventListener("click", (ev) => {
   const f = ev.target.closest("[data-filter]");
   if (f) { S.filter = f.dataset.filter; renderFilters(); applyFilter(); return; }
   const aq = ev.target.closest("[data-asana-ask]");
-  if (aq) { enterEpicOf(aq.dataset.asanaAsk); openSheet(S.view === aq.dataset.asanaAsk ? "__root" : aq.dataset.asanaAsk); return; }
+  if (aq) { openSheet({ ms: aq.dataset.asanaAsk }); return; }
   const ad = ev.target.closest("[data-asana-done]");
   if (ad) { asanaDone(ad.dataset.asanaDone, ad.dataset.id); return; }
   if (ev.target.closest("[data-asana-sync]")) { asanaSync(); return; }
   const la = ev.target.closest("[data-link-asana]");
   if (la) { linkAsana(la.dataset.linkAsana || null); return; }
   if (ev.target.closest("[data-digest-done]")) { S.digestSince = null; render(); return; }
-  if (ev.target.closest("[data-quest]")) { openSheet("__quest"); return; }
+  if (ev.target.closest("[data-quest]")) { openSheet({ quest: true }); return; }
   const es = ev.target.closest("[data-epic-sheet]");
-  if (es) { S.epicView = es.dataset.epicSheet; S.epic = epicCtx(S.epicView); S.view = null; openSheet("__root"); return; }
+  if (es) { openSheet({ epic: es.dataset.epicSheet }); return; }
   const narrow = window.matchMedia("(max-width: 1100px)").matches;
   if (ev.target.closest("[data-out]") && !ev.target.closest("[data-drill]")) { setView(null); return; }
   const d = ev.target.closest("[data-drill]");
@@ -2556,7 +2563,7 @@ document.addEventListener("click", (ev) => {
     if (narrow) $("feed").classList.remove("on");
     enterEpicOf(d.dataset.drill);
     if (S.epic.single) render(); else setView(d.dataset.drill);
-    if (d.dataset.story) openSheet(d.dataset.story);
+    if (d.dataset.story) openSheet({ ms: d.dataset.drill, story: d.dataset.story });
     if (!d.closest(".map-card")) requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" }));
     return;
   }
@@ -2566,17 +2573,13 @@ document.addEventListener("click", (ev) => {
   const o = ev.target.closest("[data-open]");
   if (o) {
     if (narrow) $("feed").classList.remove("on");
-    if (o.dataset.ms !== undefined) {
-      enterEpicOf(o.dataset.ms || o.dataset.open);
-      if (S.epic && !S.epic.single && (o.dataset.ms || null) !== S.view) { S.view = o.dataset.ms || null; S.filter = "all"; }
-    }
-    if (S.epic) openSheet(o.dataset.open);
+    openSheet(o.dataset.story === undefined ? { ms: o.dataset.open } : { ms: o.dataset.open, story: o.dataset.story });
   }
 });
 document.addEventListener("keydown", (ev) => {
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); $("q").focus(); $("q").select(); }
   else if (ev.key === "Escape") {
-    if (S.selected) closeSheet();
+    if (S.sel) closeSheet();
     else if (S.ds) closeDs();
     else if (document.activeElement === $("q")) { $("q").value = ""; S.query = ""; applyFilter(); $("q").blur(); }
     else if (S.epic && S.view && !S.epic.single) setView(null);

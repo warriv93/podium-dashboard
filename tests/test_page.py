@@ -100,6 +100,21 @@ FINISHED_RUN = {
         {"id": "M2", "title": "second", "status": "working", "phase": "build", "deps": ["M1"],
          "stories": [{"id": "S1", "title": "a", "status": "done"}, {"id": "S2", "title": "b", "status": "done", "deps": ["S1"]},
                      {"id": "S3", "title": "c", "status": "todo", "deps": ["S2"]}]}]}]}
+TWIN_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M1"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "first", "status": "working", "phase": "build", "stories": [{"id": "S1", "title": "S1 of M1", "status": "todo"}]},
+        {"id": "M2", "title": "second", "status": "todo", "deps": ["M1"], "stories": [{"id": "S1", "title": "S1 of M2", "status": "todo"}]},
+        {"id": "M3", "title": "third", "status": "todo", "artifacts": [{"name": "the mock", "path": "mock.md"}]}]}]}
+H = "\"'><b onmouseover=alert(1)>h"
+EMIT_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M1"},
+    "needsYou": {"story": f"M1/{H}", "reason": "r"},
+    "assumptions": [{"question": "q", "choice": "c", "why": "w", "status": "open", "story": H, "milestone": "M1"}],
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "M", "status": "working", "phase": "build",
+         "stories": [{"id": H, "title": "h", "status": "working", "deps": []}, {"id": "S2", "title": "b", "status": "todo", "deps": [H]}]},
+        {"id": "M2", "title": "N", "status": "todo", "deps": ["M1"]}]}]}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
 
 HARNESS = r"""
@@ -144,22 +159,23 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
   S.digestSince = 0;
   render();
   renderEvents();
-  await openSheet("__quest");
+  await openSheet({ quest: true });
   for (const E of S.project.epics) {
     setEpic(E.id);
-    await openSheet("__root");
+    await openSheet({ epic: E.id });
     for (const m of E.milestones) {
       setEpic(E.id);
-      await openSheet(m.id);
+      await openSheet({ ms: m.id });
       setView(m.id);
-      await openSheet("__root");
-      for (const s of m.stories || []) await openSheet(s.id);
-      for (let i = 0; i < (m.artifacts || []).length; i++) await openSheet(`A${i + 1}`);
+      await openSheet({ ms: m.id });
+      for (const s of m.stories || []) await openSheet({ ms: m.id, story: s.id });
+      for (let i = 0; i < (m.artifacts || []).length; i++) await openSheet({ ms: m.id, story: `A${i + 1}` });
     }
     S.ds = { id: E.id, tab: 0 };
     renderDs();
   }
   if (FILES.doc) await openDoc(...JSON.parse(FILES.doc));
+  if (FILES.probe) OUT.push("PROBE " + JSON.stringify(await eval(FILES.probe)));
   const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
   if (gained.length) throw new Error(`Object.prototype gained ${gained}`);
   OUT.push(`TITLE ${esc(document.title)}`);
@@ -180,6 +196,17 @@ class Scan(HTMLParser):
 
     def handle_data(self, data):
         self.text.append(data)
+
+
+class Opens(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.found = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if "data-open" in attrs:
+            self.found.append(attrs)
 
 
 class Avatars(HTMLParser):
@@ -356,6 +383,77 @@ class HostileRun(unittest.TestCase):
             self.assertIn(kind, text)
         self.assertNotIn("[native code]", text + "".join(v for _, _, v in scan.attrs))
 
+
+    def sheets(self, run, *opens):
+        """Opens each selection, or follows each `#/…` link, in turn: the sheet head's title, the link Copy link gives, and the last toast."""
+        expr = ("(async () => { const out = []; for (const o of %s) {"
+                " if (typeof o === 'string') { location.hash = o; await goTo(parseRoute()); } else await openSheet(o);"
+                " out.push([$('sheet-head').innerHTML, sheetRoute()?.hash ?? null, $('toast').textContent]); } return out; })()") % json.dumps(opens)
+        self.rendered(run, [], PROGRESS, (), probe=expr)
+        shown = json.loads([h for h in self.html if h.startswith("PROBE ")][-1][len("PROBE "):])
+        return [((re.search(r"<h2>(.*?)</h2>", head) or [None, None])[1], link, toast) for head, link, toast in shown]
+
+    def opens(self, marker, unit):
+        """(data-open, data-story) of every element that opens a sheet inside the pieces of output that start with marker, cut at each unit."""
+        found = []
+        for html in self.html:
+            for piece in re.split(f"(?={re.escape(unit)})", html):
+                if piece.startswith(marker):
+                    parser = Opens()
+                    parser.feed(piece)
+                    found += [(o["data-open"], o.get("data-story")) for o in parser.found]
+        return found
+
+    def test_a_story_sheet_shows_the_story_of_its_own_milestone_when_two_milestones_share_its_id(self):
+        shown = self.sheets(TWIN_RUN, {"ms": "M1", "story": "S1"}, {"ms": "M2", "story": "S1"}, {"ms": "M1", "story": "S1"})
+        self.assertEqual([title for title, _, _ in shown], ["S1 of M1", "S1 of M2", "S1 of M1"])
+
+    def test_copy_link_gives_the_milestone_on_a_milestone_sheet_and_the_milestone_and_story_on_a_story_sheet(self):
+        shown = self.sheets(TWIN_RUN, {"ms": "M2"}, {"ms": "M2", "story": "S1"}, {"ms": "M1", "story": "S1"}, {"epic": "e1"}, {"quest": True})
+        self.assertEqual([link for _, link, _ in shown], ["#/M2", "#/M2/S1", "#/M1/S1", "#/epic/e1", "#/quest"])
+        self.assertEqual(shown[0][0], "second")
+
+    def test_a_link_to_a_story_opens_that_milestones_story(self):
+        shown = self.sheets(TWIN_RUN, "#/M2/S1", "#/M1/S1", "#/M2")
+        self.assertEqual([(title, link) for title, link, _ in shown], [("S1 of M2", "#/M2/S1"), ("S1 of M1", "#/M1/S1"), ("second", "#/M2")])
+
+    def test_an_artifact_of_a_milestone_without_stories_opens_as_its_story_and_links_to_it(self):
+        self.assertEqual(self.sheets(TWIN_RUN, {"ms": "M3", "story": "A1"})[0][:2], ("the mock", "#/M3/A1"))
+
+    def test_a_story_or_milestone_the_run_lacks_says_so_and_keeps_the_open_sheet(self):
+        shown = self.sheets(TWIN_RUN, {"ms": "M2", "story": "S1"}, {"ms": "M2", "story": "S9"}, {"ms": "M9"}, {"ms": "M3", "story": "A2"}, "#/M1/A1")
+        self.assertEqual(shown[1], ("S1 of M2", "#/M2/S1", "This run has no story M2/S9"))
+        self.assertEqual(shown[2], ("S1 of M2", "#/M2/S1", "This run has no milestone M9"))
+        self.assertEqual(shown[3][2], "This run has no story M3/A2")
+        self.assertEqual(shown[4][2], "This run has no story M1/A1")
+
+    def test_story_links_name_their_milestone_and_story_and_milestone_links_only_the_milestone(self):
+        events = [{"type": "merged", "milestone": "M1", "story": H, "at": DONE}]
+        scan = self.rendered(EMIT_RUN, events, PROGRESS, (), probe='(S.expanded = new Set(["0"]), render(), null)')
+        story = ("M1", H)
+        for kind in ("working", "needs", "assumed", "digest"):
+            self.assertIn(story, self.opens(f'<div class="banner {kind}"', '<div class="banner '), kind)
+        self.assertIn(story, self.opens('<li class="ev"', '<li class="ev"'))
+        self.assertIn(story, self.opens('<div class="node working', '<div class="node '))
+        chips = self.opens('<span class="link-chip', '<span class="link-chip')
+        self.assertIn(story, chips)
+        self.assertIn(("M1", None), chips)
+        self.assertIn(("M2", None), self.opens('<div class="fms ', '<div class="fms '))
+        everywhere = Opens()
+        for html in self.html:
+            everywhere.feed(html)
+        self.assertEqual([o for o in everywhere.found if "data-ms" in o or o["data-open"] in (H, "S2")], [])
+        self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+
+    def test_the_idle_banner_does_not_count_a_story_handed_to_another_session_as_ready(self):
+        run = {**TWIN_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
+            {"id": "M1", "title": "first", "status": "working", "phase": "build",
+             "stories": [{"id": "S1", "title": "a", "status": "todo"}, {"id": "S2", "title": "b", "status": "todo"}]},
+            {"id": "M2", "title": "second", "status": "todo", "deps": ["M1"]}]}]}
+        self.rendered(run, [], PROGRESS, (), **{"podium/handoffs.json": json.dumps({"M1/S1": {"at": DONE}})})
+        banners = "".join(h for h in self.html if "banner idle" in h)
+        self.assertIn("M1: 1 story is ready to assign", banners)
+        self.assertNotIn("2 stories are ready", banners)
 
     def test_share_says_what_it_will_do_while_the_run_does_not_sync(self):
         label, tip = self.share_button({**CYCLIC_RUN, "sync": {"enabled": False, "ref": "refs/heads/podium-run/acme"}})
