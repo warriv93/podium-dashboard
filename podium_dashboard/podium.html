@@ -968,6 +968,8 @@ function defaultOpen() {
 }
 const msBuildAll = (m) => (S.project.buildAll !== undefined && m.id === S.project.active?.milestone ? !!S.project.buildAll : !!m.buildAll);
 const idPath = (id) => String(id).split("/").map(encodeURIComponent).join("/");
+const dotted = (id) => String(id).split("/").some((x) => x === "." || x === "..");
+const refuseDotted = (id) => (dotted(id) ? (toast(`${id} isn't an id this Podium can act on`), true) : false);
 const phaseLabel = (p) => phases().find(([k]) => k === p)?.[1] || p || "";
 function viewStatus(s, map, ms) {
   if (s.status !== "todo") return s.status;
@@ -1438,6 +1440,7 @@ const colleaguesPr = (pr) => !!pr.owner && !isMe(pr.owner);
 const prsToReview = () => draftPrs().filter((pr) => !(colleaguesPr(pr) && looksAt(pr).some((e) => isMe(e.by))));
 const lookedBy = (pr) => (colleaguesPr(pr) ? [] : looksAt(pr).filter((e) => e.by && !isMe(e.by)).map((e) => e.by));
 async function markLooked(pr) {
+  if (refuseDotted(pr.ms)) return;
   const r = await fetch(`/reviewed/${encodeURIComponent(pr.ms)}?number=${encodeURIComponent(pr.number)}${pr.repo ? `&repo=${encodeURIComponent(pr.repo)}` : ""}`, { method: "POST" }).catch(() => null);
   if (!r?.ok) return toast(r ? `Couldn't mark ${pr.ms} #${pr.number}: ${r.status}` : SERVER_DOWN);
   S.events = [...(S.events || []), (await r.json()).reviewed];
@@ -1491,6 +1494,7 @@ function assumedBanner() {
   return `<div class="banner assumed"><span class="label">Decided while you were away · ${left ? `${left} to settle` : "all answered"}</span><span class="sub">Confirm or reverse each; the arrow on the right shows the details</span>${left > 1 ? `<button class="btn confirm-all" data-settle="confirm" data-id="all">Confirm all ${left}</button>` : ""}<ul class="assumed-list">${items}</ul></div>`;
 }
 async function settle(action, id) {
+  if (refuseDotted(id)) return;
   let note = "";
   const all = id === "all", open = (S.project?.assumptions || []).filter((a) => a.status === "open" && !S.settling?.[a.n]).map((a) => a.n);
   if (all && !window.confirm(`Confirm all ${open.length} decisions the orchestrator made while you were away?`)) return;
@@ -1934,6 +1938,7 @@ function asanaAsk(m) {
   return `<div class="sec"><div class="approvalbox asana-ask"><b>Completed in Asana</b>, but not landed here. Skip building it?<div class="muted" style="margin:4px 0 8px">Skip drops the milestone${m.status === "working" ? " and stops its running stories" : ""}; Keep building leaves the subtask as it is in Asana.${safeUrl(m.asana.url) ? ` <a class="prlink" href="${esc(safeUrl(m.asana.url))}" target="_blank" rel="noopener">Open in Asana ↗</a>` : ""}</div><div class="settle">${act}</div></div></div>`;
 }
 async function asanaDone(choice, id) {
+  if (refuseDotted(id)) return;
   try {
     const r = await fetch(`/asana-done/${encodeURIComponent(id)}?choice=${choice}`, { method: "POST" });
     if (!r.ok) throw new Error(r.status);
@@ -1952,6 +1957,7 @@ function asanaMeta(x) {
 const asanaRow = (x) => (x?.asana?.url ? `<dt>Asana</dt><dd>${asanaBtn(x)}${asanaMeta(x)}</dd>` : "");
 const linkBtn = (epic) => `<button class="asanabtn linkasana" data-link-asana="${esc(epic || "")}" title="${epic ? "Link this epic to its Asana task; its subtasks become milestones" : "Link an Asana project (its tasks become epics) or a task (it becomes an epic)"}">${ASANA_ICO}${epic ? "Asana" : "Link Asana project"}</button>`;
 async function linkAsana(epic) {
+  if (epic && refuseDotted(epic)) return;
   const what = epic ? `the Asana task for epic ${epic}` : "an Asana project or task";
   const url = (window.prompt(`Paste the link to ${what}`, "") || "").trim();
   if (!url) return;
@@ -2362,6 +2368,7 @@ const NO_ORCHESTRATOR = () => (orchCmd() ? `No orchestrator is watching — run 
 const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`;
 const releaseBtn = (id) => `<button class="release" data-release="${esc(id)}" title="Take it back: the orchestrator may dispatch it again" aria-label="Take it back">✕</button>`;
 async function release(id) {
+  if (refuseDotted(id)) return;
   try {
     const r = await fetch(`/handoff/${idPath(id)}`, { method: "DELETE" });
     if (!r.ok) throw new Error(r.status);
@@ -2374,6 +2381,7 @@ async function release(id) {
 const LINK_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.8 9.2a2.5 2.5 0 0 0 3.5 0l2.2-2.2a2.5 2.5 0 0 0-3.5-3.5l-.7.7M9.2 6.8a2.5 2.5 0 0 0-3.5 0L3.5 9a2.5 2.5 0 0 0 3.5 3.5l.7-.7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 const copyBtn = (action, id) => `<button class="copy" data-copy="${action}" data-id="${esc(id)}" title="Copy the prompt to run it in another session" aria-label="Copy prompt">${COPY_ICON}</button>`;
 async function copyPrompt(action, id) {
+  if (refuseDotted(id)) return;
   try {
     let r = action === "assign"
       ? await fetch(`/handoff/${idPath(id)}`, { method: "POST" })
@@ -2401,6 +2409,7 @@ async function restartServer() {
   toast("The Podium server didn't come back — start it again with podium server --detach");
 }
 async function act(action, id) {
+  if (refuseDotted(id)) return;
   const path = ["assign", "plan", "human", "domain-story", "build-all", "stop", "claim", "proceed"].includes(action) ? `/${action}/${idPath(id)}` : `/${action}`;
   try {
     const r = await fetch(path, { method: "POST" });

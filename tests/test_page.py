@@ -1399,6 +1399,20 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("no id", strip)
         self.assertIn('data-decision="__proto__"', strip)
 
+    def test_an_id_with_dot_segments_never_reaches_another_endpoint(self):
+        expr = ("(async () => { const sent = []; const real = fetch;"
+                " globalThis.fetch = async (p, o) => (sent.push(String(p)), real(p, o));"
+                " for (const id of ['../restart', 'M1/../../pull', './M1', '..']) {"
+                "  await act('plan', id); await release(id); await copyPrompt('plan', id); await copyPrompt('assign', id);"
+                "  await settle('confirm', id); await asanaDone('skip', id); await markLooked({ ms: id, number: 1 }); await linkAsana(id); }"
+                " const bad = sent.slice(); sent.length = 0;"
+                " await act('plan', 'M1'); await release('M1/S1');"
+                " return { bad, good: sent, toast: $('toast').textContent }; })()")
+        self.rendered(TWIN_RUN, [], PROGRESS, (), probe=expr)
+        got = self.probe()
+        self.assertEqual(got["bad"], [])
+        self.assertEqual(got["good"], ["/plan/M1", "/handoff/M1/S1"])
+
 STICKY_HARNESS = r"""
 const src = require("fs").readFileSync(process.argv[2], "utf8");
 const fn = src.slice(src.indexOf("function trackStickyBar()"), src.indexOf("trackStickyBar();\n"));
