@@ -312,18 +312,13 @@ a.wchip { color: inherit; text-decoration: none; }
 .fdec .dmeta a[data-drill] { color: var(--accent); cursor: pointer; }
 .fnext { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: var(--accent); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 2px; position: relative; z-index: 1; }
 .fnext::after { content: ""; flex: 1; border-top: 1.5px dashed var(--accent); opacity: .5; }
-.fwaves { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
-.fwave { display: flex; align-items: center; gap: 4px; }
-.fwave .fw { font-size: 9.5px; font-weight: 700; color: var(--text-3); width: 22px; flex: none; }
-.fsc { flex: 1 1 0; min-width: 0; border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 3px 6px; font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.fsc b { color: var(--text); margin-right: 4px; }
-.fsc:hover { border-color: var(--accent); }
-.fsc.done { background: var(--purple-soft); border-color: transparent; }
-.fsc.working { border: 1.5px solid var(--green-dot); color: var(--text); }
-.fsc.approval { border: 1.5px solid var(--amber-dot); color: var(--text); }
-.fsc.failed, .fsc.blocked { border: 1.5px solid var(--red); }
-.fsc.waiting { border-style: dashed; background: transparent; }
-.fsc.dim, .fms.dim, .fepic.dim { opacity: .28; }
+.fdots { display: flex; gap: 3px; align-self: flex-end; }
+.fdots i { width: 8px; height: 8px; border-radius: 2px; background: var(--line-2); }
+.fdots i.done { background: var(--purple); }
+.fdots i.working { background: var(--green-dot); }
+.fdots i.approval { background: var(--amber-dot); }
+.fdots i.failed, .fdots i.blocked { background: var(--red); }
+.fms.dim, .fepic.dim { opacity: .28; }
 .map-head h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text-2); }
 .map-head h2 .kind { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin-right: 5px; }
 .map-head h2 .here { color: var(--text-2); }
@@ -1194,9 +1189,9 @@ function fullMs(m, all) {
   else if (left.length) foot = `<span class="badge waiting">Needs ${esc(waitIds(left))}</span>`;
   else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ __proto__: null, draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
   const map = dict(stories.map((s) => [s.id, s]));
-  const waves = st === "working" && stories.length ? `<div class="fwaves">${wavesOf(stories).map((w, i) => `<div class="fwave"><span class="fw">W${i + 1}</span>${w.map((s) => `<span class="fsc ${esc(fullStatus(s, map))}" data-drill="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"><b>${esc(s.id)}</b>${esc(s.title)}</span>`).join("")}</div>`).join("")}</div>` : "";
+  const dots = stories.length ? `<span class="fdots">${wavesOf(stories).flat().map((s) => `<i class="${esc(fullStatus(s, map))}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"></i>`).join("")}</span>` : "";
   const go = stories.length || (m.artifacts || []).length ? `data-drill="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
-  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${waves}</div>`;
+  return `<div class="fms ${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
 }
 function miniMap(vm) {
   const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
@@ -1641,7 +1636,7 @@ function storyNode(s, p, map) {
 function applyFilter() {
   if (!S.epic || !S.view) {
     const q = S.query.trim().toLowerCase();
-    document.querySelectorAll(".fms, .fsc").forEach((c) => c.classList.toggle("dim", !!q && !c.textContent.toLowerCase().includes(q)));
+    document.querySelectorAll(".fms").forEach((c) => c.classList.toggle("dim", !!q && !c.textContent.toLowerCase().includes(q)));
     return;
   }
   const map = byId();

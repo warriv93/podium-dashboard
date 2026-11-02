@@ -274,6 +274,18 @@ class HostileRun(unittest.TestCase):
                 ("".join(scan.text), [v for tag, k, v in scan.attrs if tag == "a" and k == "href"], scan) if row else None)
         return cards
 
+    def card_dots(self, milestones):
+        """Each milestone card's story dots in the full map, by id: the card's drill target and each dot's attributes, or None for no dots."""
+        run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": milestones}]}
+        self.rendered(run, [], PROGRESS, ())
+        page = [h for h in self.html if 'class="fms ' in h][-1]
+        cards = {}
+        for card in re.split(r'(?=<div class="fms )', page)[1:]:
+            row = re.search(r'<span class="fdots">(.*?)</span>', card, re.S)
+            dots = [dict(re.findall(r'([\w-]+)="([^"]*)"', tag)) for tag in re.findall(r"<i [^>]*>", row.group(1))] if row else None
+            cards[re.search(r'data-id="([^"]*)"', card).group(1)] = (re.search(r'data-drill="([^"]*)"', card.split(">")[0]), dots, card)
+        return cards
+
     def share_button(self, run):
         """The Share button's label and tooltip, as the last render of the header put them."""
         self.rendered(run, [], PROGRESS, ())
@@ -372,7 +384,6 @@ class HostileRun(unittest.TestCase):
     def test_renders_a_run_whose_stories_and_milestones_depend_on_each_other_in_a_cycle(self):
         scan = self.rendered(CYCLIC_RUN, [], PROGRESS, ("S1", "S2", "S3"))
         text = "".join(scan.text)
-        self.assertIn("W1", text)
         self.assertNotIn("elsewhere-only", text)
         self.assertNotIn("Dispatcher", text)
 
@@ -629,6 +640,36 @@ class HostileRun(unittest.TestCase):
                                   "stories": [{"id": "S3", "title": "s", "status": "todo", "repos": ["web"]}]}])
         self.assertEqual(cards["M1"][0], "coreno PR yetwebno PR yetapino PR yet")
         self.assertEqual(cards["M2"][0], "webno PR yet")
+
+    def test_milestone_cards_show_one_dot_per_story_in_wave_order_classed_by_the_stories_status(self):
+        cards = self.card_dots([{"id": "M1", "title": "a", "status": "working", "stories": [
+            {"id": "S1", "title": "first", "status": "done"},
+            {"id": "S3", "title": "third", "status": "todo", "deps": ["S2"]},
+            {"id": "S2", "title": "second", "status": "working", "deps": ["S1"]},
+            {"id": "S4", "title": "fourth", "status": "todo"}]},
+            {"id": "M2", "title": "b", "status": "parked", "stories": [{"id": "S1", "title": "only", "status": "approval"}]}])
+        _, dots, card = cards["M1"]
+        self.assertEqual([(d["class"], d["data-ms"], d["data-story"], d["title"]) for d in dots],
+                         [("done", "M1", "S1", "S1 \u00b7 first"), ("ready", "M1", "S4", "S4 \u00b7 fourth"),
+                          ("working", "M1", "S2", "S2 \u00b7 second"), ("waiting", "M1", "S3", "S3 \u00b7 third")])
+        self.assertNotIn("fwave", card)
+        self.assertNotIn("fsc", card)
+        self.assertEqual([d["class"] for d in cards["M2"][1]], ["approval"])
+
+    def test_a_milestone_card_without_stories_has_no_dots(self):
+        cards = self.card_dots([{"id": "M1", "title": "a", "status": "parked"}, {"id": "M2", "title": "b", "status": "working", "stories": []}])
+        self.assertEqual([cards["M1"][1], cards["M2"][1]], [None, None])
+
+    def test_clicking_a_story_dot_is_clicking_its_card(self):
+        _, dots, card = self.card_dots([{"id": "M1", "title": "a", "status": "working", "stories": [{"id": "S1", "title": "s", "status": "todo"}]}])["M1"]
+        self.assertTrue(card.startswith('<div class="fms '))
+        self.assertIn('data-drill="M1"', card.split(">")[0])
+        self.assertTrue(all("data-drill" not in d and "data-open" not in d for d in dots))
+
+    def test_a_hostile_story_title_on_a_dot_is_text(self):
+        _, dots, _ = self.card_dots([{"id": "M1", "title": "a", "status": "parked", "stories": [{"id": X, "title": X, "status": X}]}])["M1"]
+        self.assertEqual(len(dots), 1)
+        self.assertNotIn("pwn", dots[0])
 
     def test_a_milestone_card_without_known_repos_has_no_chip_row(self):
         cards = self.card_repos([{"id": "M1", "title": "a", "status": "parked"},
