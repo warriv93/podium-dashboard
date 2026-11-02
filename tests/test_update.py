@@ -28,7 +28,9 @@ class SelfUpdate(unittest.TestCase):
         self.calls = []
         self.head, self.pip_version, self.ls_remote_fails = NEW, "24.0", None
         self.dist = FROM_GIT
-        for target, name, value in ((human, "HUMAN_FILE", os.path.join(self.tmp, "podium", "human.json")),
+        self.venv = False
+        for target, name, value in ((update, "in_venv", lambda: self.venv),
+                                    (human, "HUMAN_FILE", os.path.join(self.tmp, "podium", "human.json")),
                                     (update, "run", self.fake_run),
                                     (update, "direct_url", lambda: self.dist)):
             patched = unittest.mock.patch.object(target, name, value)
@@ -156,6 +158,12 @@ class SelfUpdate(unittest.TestCase):
         self.pip_version = "22.0"
         self.podium()
         self.assertEqual(self.installs(), [["--user", "--quiet", "--upgrade", f"git+{URL}"]])
+
+    def test_a_venv_install_such_as_pipxs_upgrades_without_user(self):
+        self.venv = True
+        self.pip_version = "21.2.4"
+        self.assertEqual(self.podium(), ["UPDATED podium aaaaaaa→bbbbbbb", "RESTART server"])
+        self.assertEqual(self.installs(), [["--quiet", "--upgrade", "pip"], ["--quiet", "--upgrade", f"git+{URL}"]])
 
     def test_an_unknown_flag_is_refused(self):
         with self.assertRaises(SystemExit):

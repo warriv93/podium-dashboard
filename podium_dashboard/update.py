@@ -91,6 +91,15 @@ def remote_head(url):
     return sha
 
 
+def in_venv():
+    return sys.prefix != sys.base_prefix
+
+
+def install(*args, what):
+    """pip install into this interpreter's own site: --user outside a venv; pipx's and other venvs refuse --user."""
+    pip("install", *(() if in_venv() else ("--user",)), "--quiet", "--upgrade", *args, what=what)
+
+
 def pip(*args, timeout=PIP_TIMEOUT, what="pip"):
     return output([sys.executable, "-m", "pip", *args], timeout, what)
 
@@ -106,7 +115,7 @@ def pip_major():
 def upgrade_old_pip():
     """pip before 22 cannot build this package from git: upgrade it first."""
     if pip_major() < 22:
-        pip("install", "--user", "--quiet", "--upgrade", "pip", what="pip upgrade")
+        install("pip", what="pip upgrade")
 
 
 def self_update(check=False, force=False, now=None):
@@ -129,7 +138,7 @@ def self_update(check=False, force=False, now=None):
         if check:
             return [f"BEHIND podium {old[:7]}→{new[:7]}"]
         upgrade_old_pip()
-        pip("install", "--user", "--quiet", "--upgrade", f"git+{url}", what="pip install")
+        install(f"git+{url}", what="pip install")
     except Failed as e:
         return [f"WARN podium {e}"]
     return [f"UPDATED podium {old[:7]}→{new[:7]}", "RESTART server"]
