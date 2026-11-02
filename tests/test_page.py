@@ -156,6 +156,7 @@ PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i,
 
 HARNESS = r"""
 const OUT = [];
+const SCROLLS = [];
 const els = {};
 function element() {
   let html = "";
@@ -180,7 +181,7 @@ Object.assign(globalThis, {
   document: { getElementById: node, querySelector: (s) => node("query " + s), querySelectorAll: () => [], documentElement: element(),
               addEventListener() {}, visibilityState: "visible", hidden: false, title: "", createElement: element },
   localStorage: { getItem: (k) => (FILES.localStorage || {})[k] ?? null, setItem() {}, removeItem() {} },
-  addEventListener() {}, getComputedStyle: () => ({ position: "sticky" }), matchMedia: () => ({ matches: false }), scrollTo() {}, requestAnimationFrame: () => 0,
+  addEventListener() {}, getComputedStyle: () => ({ position: "sticky" }), matchMedia: () => ({ matches: false }), scrollTo: (o) => SCROLLS.push(o), requestAnimationFrame: (f) => (f(), 0),
   setInterval: () => 0, setTimeout: () => 0, MutationObserver: class { observe() {} }, CSS: { escape: String }, Node: { TEXT_NODE: 3 },
   fetch: async (path) => {
     const at = String(path).split("?")[0], body = Object.hasOwn(FILES, at) ? FILES[at] : undefined;
@@ -215,6 +216,7 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
   if (FILES.probe) OUT.push("PROBE " + JSON.stringify(await eval(FILES.probe)));
   const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
   if (gained.length) throw new Error(`Object.prototype gained ${gained}`);
+  OUT.push("SCROLLS " + JSON.stringify(SCROLLS));
   OUT.push(`TITLE ${esc(document.title)}`);
   OUT.push(`FEED ${[...node("feed").classes].join(" ")}`);
   process.stdout.write(JSON.stringify(OUT));
@@ -318,7 +320,7 @@ class HostileRun(unittest.TestCase):
         page = [h for h in self.html if 'class="fms ' in h][-1]
         cards = {}
         for card in re.split(r'(?=<div class="fms )', page)[1:]:
-            row = re.search(r'<span class="fdots">(.*?)</span>', card, re.S)
+            row = re.search(r'<span class="fdots"[^>]*>(.*?)</span>', card, re.S)
             dots = [dict(re.findall(r'([\w-]+)="([^"]*)"', tag)) for tag in re.findall(r"<i [^>]*>", row.group(1))] if row else None
             cards[re.search(r'data-id="([^"]*)"', card).group(1)] = (re.search(r'data-expand-ms="([^"]*)"', card.split(">")[0]), dots, card)
         return cards
@@ -726,8 +728,9 @@ class HostileRun(unittest.TestCase):
             {"id": "M2", "title": "b", "status": "parked", "stories": [{"id": "S1", "title": "only", "status": "approval"}]}])
         _, dots, card = cards["M1"]
         self.assertEqual([(d["class"], d["data-ms"], d["data-story"], d["title"]) for d in dots],
-                         [("done", "M1", "S1", "S1 \u00b7 first"), ("ready", "M1", "S4", "S4 \u00b7 fourth"),
-                          ("working", "M1", "S2", "S2 \u00b7 second"), ("waiting", "M1", "S3", "S3 \u00b7 third")])
+                         [("done", "M1", "S1", "S1 \u00b7 first \u00b7 merged"), ("ready", "M1", "S4", "S4 \u00b7 fourth \u00b7 ready"),
+                          ("working", "M1", "S2", "S2 \u00b7 second \u00b7 working"), ("waiting", "M1", "S3", "S3 \u00b7 third \u00b7 waiting")])
+        self.assertIn('<span class="fdots" role="img" aria-label="1 merged, 1 ready, 1 working, 1 waiting">', card)
         self.assertNotIn("fwave", card)
         self.assertNotIn("fsc", card)
         self.assertEqual([d["class"] for d in cards["M2"][1]], ["approval"])
@@ -761,6 +764,9 @@ class HostileRun(unittest.TestCase):
     def probe(self):
         return json.loads([h for h in self.html if h.startswith("PROBE ")][-1][len("PROBE "):])
 
+    def scrolls(self):
+        return json.loads(next(h for h in self.html if h.startswith("SCROLLS "))[len("SCROLLS "):])
+
     @staticmethod
     def open_cards(html):
         return re.findall(r'<div class="fms open [^"]*" data-id="([^"]*)"', html)
@@ -788,7 +794,7 @@ class HostileRun(unittest.TestCase):
     def test_the_open_card_has_a_collapse_button_and_a_title_that_opens_the_milestone_sheet(self):
         maps, _ = self.maps()
         card = self.open_card(maps[0])
-        self.assertIn('<button class="ocollapse" data-collapse>', card)
+        self.assertIn('<button class="ocollapse" data-collapse aria-expanded="true">', card)
         self.assertRegex(card, r'<span class="title otitle" data-open="M2"[^>]*>second</span>')
         self.assertNotIn("data-expand-ms", card.split(">")[0])
 
@@ -901,6 +907,21 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(self.open_cards(maps[0]), ["M3"])
         self.assertEqual(loaded, {"open": "M3", "sel": {"ms": "M3", "story": "S6"}})
 
+    def test_a_link_to_a_story_scrolls_to_its_milestone_and_a_load_without_a_link_does_not(self):
+        self.maps(location={"hash": "#/M3/S6"})
+        self.assertEqual([o["behavior"] for o in self.scrolls()], ["smooth"])
+        self.maps()
+        self.assertEqual(self.scrolls(), [])
+
+    def test_a_later_story_link_scrolls_to_its_milestone_and_keeps_the_sheet_open(self):
+        self.maps(probe='(async () => { location.hash = "#/M2/S4"; S.route = parseRoute(); await goTo(S.route); return S.sel; })()')
+        self.assertEqual(self.probe(), {"ms": "M2", "story": "S4"})
+        self.assertEqual([o["behavior"] for o in self.scrolls()], ["smooth"])
+
+    def test_the_needs_banner_story_chip_scrolls_to_its_milestone(self):
+        self.maps({**OPEN_RUN, "needsYou": {"story": "M3/S6", "reason": "r"}})
+        self.assertIn('<span class="wchip" data-open="M3" data-story="S6" data-scroll>', "".join(self.html))
+
     def test_a_later_link_opens_the_milestone_in_place_and_a_story_link_also_its_sheet(self):
         maps, _ = self.maps(probe='(() => { const out = []; for (const h of ["#/M3", "#/M2/S4"]) {'
                                   ' location.hash = h; S.route = parseRoute(); followLink(); out.push([S.open, S.sel]); } return out; })()')
@@ -1011,7 +1032,7 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(lines, ["Waves 1–2 · 2 merged", "S1 a", "S2 b", "Show ▸", "Wave 3"])
         self.assertEqual(cards, ["S3"])
         self.assertEqual(chips, ["S1", "S2"])
-        self.assertIn('<button class="ocollapse" data-unfold="M2">Show ▸</button>', self.open_card(maps[0]))
+        self.assertIn('<button class="ocollapse" data-unfold="M2" aria-expanded="false">Show ▸</button>', self.open_card(maps[0]))
 
     def test_show_unfolds_the_merged_waves_as_cards_in_place_and_fold_merged_waves_folds_them_back(self):
         maps, _ = self.maps(FINISHED_RUN, probe='(() => { expand("M2"); const out = [S.unfold.M2 === true]; toggleFold("M2"); out.push(S.unfold.M2 === true); return out; })()')
@@ -1022,6 +1043,31 @@ class HostileRun(unittest.TestCase):
         maps, _ = self.maps(FINISHED_RUN, probe='(expand("M2"), toggleFold("M2"), toggleFold("M2"), Object.keys(S.unfold))')
         self.assertEqual(self.probe(), [])
         self.assertEqual(self.tree_text(self.open_card(maps[-1]))[2], ["S1", "S2"])
+
+    def test_the_fold_toggle_says_whether_the_merged_waves_are_folded(self):
+        maps, _ = self.maps(FINISHED_RUN, probe='(expand("M2"), toggleFold("M2"), 0)')
+        self.assertIn('<button class="ocollapse" data-unfold="M2" aria-expanded="true">Fold merged waves ▴</button>', self.open_card(maps[-1]))
+
+    def test_an_expandable_closed_card_is_a_collapsed_button_and_one_that_opens_a_sheet_is_not(self):
+        maps, _ = self.maps()
+        cards = {re.search(r'data-id="([^"]*)"', c).group(1): c.split(">")[0] for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
+        self.assertIn('data-expand-ms="M3" data-id="M3" tabindex="0" role="button" aria-expanded="false"', cards["M3"])
+        self.assertNotIn("role=", cards["R1"])
+
+    def test_after_an_action_in_the_map_focus_returns_to_the_control_that_replaces_the_one_acted_on(self):
+        probe = '''(() => {
+          const focused = [], q = document.querySelector;
+          document.querySelector = (s) => Object.assign(q(s), { focus: () => focused.push(s) });
+          const inMap = (on) => { document.activeElement = { closest: (s) => (on && s === "#map" ? {} : null) }; };
+          collapse();
+          inMap(true); expand("M2"); collapse(); expand("M2"); toggleFold("M2");
+          inMap(false); expand("M2"); toggleFold("M2"); collapse();
+          document.querySelector = q;
+          return focused;
+        })()'''
+        self.maps(FINISHED_RUN, probe=probe)
+        self.assertEqual(self.probe(), ['#map .fms.open[data-id="M2"] .otitle', '#map .fms[data-id="M2"]',
+                                        '#map .fms.open[data-id="M2"] .otitle', '#map .mtree[data-ms="M2"] [data-unfold]'])
 
     def test_a_fold_chip_opens_its_story_sheet(self):
         maps, _ = self.maps(FINISHED_RUN, probe='(openSheet({ ms: "M2", story: "S1" }), S.sel)')

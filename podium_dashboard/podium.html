@@ -15,6 +15,7 @@
   --amber: #c27c00; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.14);
   --red: #d70015; --red-soft: rgba(255,59,48,.10);
   --purple: #8250df; --purple-soft: rgba(130,80,223,.12);
+  --fold-ink: #6f42c1; --fold-link: #0062cc;
   --gray-soft: rgba(142,142,147,.14);
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.06);
   --shadow-hi: 0 2px 4px rgba(0,0,0,.06), 0 14px 36px rgba(0,0,0,.12);
@@ -30,6 +31,7 @@
     --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
     --red: #ff6961; --red-soft: rgba(255,69,58,.16);
     --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
+    --fold-ink: #b392f0; --fold-link: #4da6ff;
     --gray-soft: rgba(142,142,147,.20);
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
     --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
@@ -44,6 +46,7 @@
   --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
   --red: #ff6961; --red-soft: rgba(255,69,58,.16);
   --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
+  --fold-ink: #b392f0; --fold-link: #4da6ff;
   --gray-soft: rgba(142,142,147,.20);
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
   --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
@@ -319,6 +322,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .ostat b { color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
 .owork { color: var(--green); }
 .ocollapse { border: 0; background: none; padding: 2px 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ocollapse[data-unfold] { color: var(--fold-link); }
 .mwave { display: flex; flex-direction: column; gap: 7px; }
 .mwl { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .mrow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -337,7 +341,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .mfl { font-size: 12px; color: var(--text-3); }
 .mfl b { color: var(--text); font-weight: 650; }
 .fchips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 0; min-width: 0; }
-.fchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 6px; background: var(--purple-soft); color: var(--purple); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.fchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 6px; background: var(--purple-soft); color: var(--fold-ink); font-size: 11.5px; font-weight: 600; cursor: pointer; }
 .fchip.sel { box-shadow: 0 0 0 2px var(--accent); }
 .fchip.dim { opacity: .28; }
 .mrefold { display: flex; justify-content: flex-end; }
@@ -1137,9 +1141,17 @@ function fullMs(m, all) {
   const cls = `${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}`;
   if (S.open === m.id && canExpand(m)) return `<div class="fms open ${cls}" data-id="${esc(m.id)}">${openHead(m, st === "working" && !msWaits(m) && stories.length ? msPrPills(m) : foot)}${msBody(m)}</div>`;
   const map = storyIndex(m);
-  const dots = stories.length ? `<span class="fdots">${wavesOf(stories).flat().map((s) => `<i class="${esc(viewStatus(s, map, m.id))}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title}`)}"></i>`).join("")}</span>` : "";
+  const dotted = wavesOf(stories).flat().map((s) => [s, viewStatus(s, map, m.id)]);
+  const dots = stories.length ? `<span class="fdots" role="img" aria-label="${esc(dotSummary(dotted.map(([, st]) => dotWord(st))))}">${dotted.map(([s, st]) => `<i class="${esc(st)}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title} · ${dotWord(st)}`)}"></i>`).join("")}</span>` : "";
   const go = canExpand(m) && hasBody(m) ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
-  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
+  const asButton = go.startsWith("data-expand-ms") ? ` role="button" aria-expanded="false"` : "";
+  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"${asButton}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
+}
+const dotWord = (st) => (st === "done" ? "merged" : st);
+function dotSummary(words) {
+  const counts = new Map();
+  for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
+  return [...counts].map(([w, n]) => `${n} ${w}`).join(", ");
 }
 function openHead(m, foot) {
   const stories = m.stories || [], merged = stories.filter(isMerged).length, waits = waitPills(m);
@@ -1149,7 +1161,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}<button class="ocollapse" data-collapse>▾ Collapse</button></span></div>`;
+  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}<button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
@@ -1199,14 +1211,16 @@ function msTree(m, map) {
   const wave = ([i, w]) => `<div class="mwave"><span class="mwl">Wave ${i + 1}${w.length > 1 ? ` · ${w.length} in parallel` : ""}</span><div class="mrow">${w.map((s) => storyCard(m, s, map)).join("")}</div></div>`;
   const chip = (s) => `<span class="fchip${isSel(m.id, s.id) ? " sel" : ""}" data-open="${id}" data-story="${esc(s.id)}" tabindex="0"><b>${esc(s.id)}</b> ${esc(s.title)}</span>`;
   const fold = !n ? "" : folded
-    ? `<div class="mfold"><span class="mfl"><b>${n > 1 ? `Waves 1–${n}` : "Wave 1"}</b> · ${merged.length} merged</span><span class="fchips">${merged.map(chip).join("")}</span><button class="ocollapse" data-unfold="${id}">Show ▸</button></div>`
-    : `<div class="mrefold"><button class="ocollapse" data-unfold="${id}">Fold merged waves ▴</button></div>`;
+    ? `<div class="mfold"><span class="mfl"><b>${n > 1 ? `Waves 1–${n}` : "Wave 1"}</b> · ${merged.length} merged</span><span class="fchips">${merged.map(chip).join("")}</span><button class="ocollapse" data-unfold="${id}" aria-expanded="false">Show ▸</button></div>`
+    : `<div class="mrefold"><button class="ocollapse" data-unfold="${id}" aria-expanded="true">Fold merged waves ▴</button></div>`;
   return `<div class="mtree" data-ms="${id}">${fold}${(folded ? rows.slice(n) : rows).map(wave).join("")}</div>`;
 }
 function toggleFold(id) {
+  const focused = focusInMap();
   if (S.unfold[id]) delete S.unfold[id];
   else S.unfold[id] = true;
   render();
+  if (focused) refocus(`#map .mtree[data-ms="${CSS.escape(id)}"] [data-unfold]`);
 }
 function msBody(m) {
   const stories = m.stories || [], arts = m.artifacts || [];
@@ -1431,7 +1445,7 @@ function needsBanner() {
   if (!prs.length && !n) return "";
   const { ms: nms, story: nid } = needsTarget();
   const ids = [...new Set([...prs.map((pr) => pr.ms), ...(nms ? [nms] : [])])];
-  const story = nid && nms ? `<span class="wchip" data-open="${esc(nms)}" data-story="${esc(nid)}"><b>${esc(nid)}</b> open story ›</span>` : "";
+  const story = nid && nms ? `<span class="wchip" data-open="${esc(nms)}" data-story="${esc(nid)}" data-scroll><b>${esc(nid)}</b> open story ›</span>` : "";
   const looked = (pr) => ((who) => (who.length ? ` <span class="cycle">· ${who.map(personName).join(", ")} looked at it</span>` : ""))(lookedBy(pr));
   const tick = (pr) => (colleaguesPr(pr) ? `<label class="looked" title="Tells ${personName(pr.owner)} and hides it here until the PR changes"><input type="checkbox" data-looked="${esc(prKey(pr.ms, pr.repo, pr.number))}">Looked</label>` : "");
   const chips = prs.map((pr) => ((url, text) => `<span class="wchip pr-chip">${url ? `<a class="pr-link" href="${esc(url)}" target="_blank" rel="noopener">${text} <span class="cycle">· draft ↗</span>${looked(pr)}</a>` : `<span class="pr-link">${text} <span class="cycle">· draft</span>${looked(pr)}</span>`}${tick(pr)}</span>`)(
@@ -1945,14 +1959,31 @@ async function linkAsana(epic) {
   } catch { toast(SERVER_DOWN); }
 }
 
+const focusInMap = () => !!document.activeElement?.closest?.("#map");
+const refocus = (selector) => document.querySelector(selector)?.focus();
 function expand(id) {
   const m = msOf(id);
   if (!m) return;
   if (!canExpand(m)) return openSheet({ ms: m.id });
+  const focused = focusInMap();
   S.open = m.id; S.openGuessed = false;
   render();
+  if (focused) refocus(`#map .fms.open[data-id="${CSS.escape(m.id)}"] .otitle`);
 }
-function collapse() { S.open = null; S.openGuessed = false; render(); }
+function collapse() {
+  const focused = focusInMap(), was = S.open;
+  S.open = null; S.openGuessed = false;
+  render();
+  if (focused && was) refocus(`#map .fms[data-id="${CSS.escape(was)}"]`);
+}
+function scrollToMs(id) {
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`#map .fms[data-id="${CSS.escape(id)}"]`);
+    if (!card) return;
+    scrollTo({ top: card.getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" });
+    card.classList.add("flash");
+  });
+}
 function reveal(id) {
   if (window.matchMedia("(max-width: 1100px)").matches) $("feed").classList.remove("on");
   const m = msOf(id);
@@ -1960,12 +1991,7 @@ function reveal(id) {
   S.ds = null;
   if (S.sel) closeSheet();
   expand(m.id);
-  requestAnimationFrame(() => {
-    const card = document.querySelector(`#map .fms[data-id="${CSS.escape(m.id)}"]`);
-    if (!card) return;
-    scrollTo({ top: card.getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" });
-    card.classList.add("flash");
-  });
+  scrollToMs(m.id);
 }
 
 /* what the sheet shows: {quest: true}, {epic}, {ms} or {ms, story}, where a story id is unique only within its milestone
@@ -2427,6 +2453,7 @@ async function goTo(r) {
   if (!resolveSel(sel)) return none(selName(sel));
   if (sel.ms === a && b === undefined && !r.doc) return reveal(a);
   await openSheet(sel);
+  if (sel.story !== undefined) scrollToMs(a);
   if (r.doc) await openDoc(r.doc.path, r.doc.base);
 }
 function followLink() {
@@ -2504,6 +2531,7 @@ document.addEventListener("click", (ev) => {
   if (o) {
     if (window.matchMedia("(max-width: 1100px)").matches) $("feed").classList.remove("on");
     openSheet(o.dataset.story === undefined ? { ms: o.dataset.open } : { ms: o.dataset.open, story: o.dataset.story });
+    if (o.dataset.scroll !== undefined) scrollToMs(o.dataset.open);
   }
 });
 document.addEventListener("keydown", (ev) => {
