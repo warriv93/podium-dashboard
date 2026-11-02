@@ -175,21 +175,17 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
   renderEvents();
   await openSheet({ quest: true });
   for (const E of S.project.epics) {
-    setEpic(E.id);
     await openSheet({ epic: E.id });
     for (const m of E.milestones) {
-      setEpic(E.id);
+      await openSheet({ ms: m.id });
       expand(m.id);
-      await openSheet({ ms: m.id });
-      setView(m.id);
-      await openSheet({ ms: m.id });
+      render();
       for (const s of m.stories || []) await openSheet({ ms: m.id, story: s.id });
       for (let i = 0; i < (m.artifacts || []).length; i++) await openSheet({ ms: m.id, story: `A${i + 1}` });
     }
     S.ds = { id: E.id, tab: 0 };
     renderDs();
   }
-  S.view = null;
   collapse();
   if (FILES.doc) await openDoc(...JSON.parse(FILES.doc));
   if (FILES.probe) OUT.push("PROBE " + JSON.stringify(await eval(FILES.probe)));
@@ -462,7 +458,7 @@ class HostileRun(unittest.TestCase):
         for kind in ("working", "needs", "assumed", "digest"):
             self.assertIn(story, self.opens(f'<div class="banner {kind}"', '<div class="banner '), kind)
         self.assertIn(story, self.opens('<li class="ev"', '<li class="ev"'))
-        self.assertIn(story, self.opens('<div class="node working', '<div class="node '))
+        self.assertIn(story, self.opens('<div class="node compact working', '<div class="node '))
         chips = self.opens('<span class="link-chip', '<span class="link-chip')
         self.assertIn(story, chips)
         self.assertIn(("M1", None), chips)
@@ -535,13 +531,8 @@ class HostileRun(unittest.TestCase):
         labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "1"})
         self.assertIn("Show all · 1 hidden", labels)
 
-    def test_the_story_map_has_its_own_setting_in_podium_hide_finished_stories(self):
-        self.assertIn('"podium-hide-finished-stories"', open(PAGE).read())
-        full = {"podium-hide-finished": "1"}
+    def test_a_stored_podium_hide_finished_stories_hides_no_milestone(self):
         stories = {"podium-hide-finished-stories": "1"}
-        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, full, "stories")), {"Hide finished"})
-        self.assertIn("Show all · 1 hidden", self.hide_finished_buttons(FINISHED_RUN, full, "map"))
-        self.assertIn("Show all · 2 hidden", self.hide_finished_buttons(FINISHED_RUN, stories, "stories"))
         self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, stories, "map")), {"Hide finished"})
 
     def feed_classes(self, stored=None):
@@ -792,6 +783,48 @@ class HostileRun(unittest.TestCase):
         self.assertIn('<a data-reveal="M3">third</a>', shown)
         self.assertNotIn("data-drill", shown)
         self.assertNotIn("data-drill", open(PAGE).read())
+
+    def test_the_page_has_no_story_map(self):
+        page = open(PAGE).read()
+        for gone in ("data-drill", "Full map", "S.view"):
+            self.assertNotIn(gone, page)
+
+    def filter_counts(self, html):
+        return {k: (label, int(n)) for k, label, n in re.findall(r'data-filter="(\w+)">([^<]*)<span class="n">(\d+)</span>', html)}
+
+    def test_the_filters_count_every_milestones_stories_and_always_say_done(self):
+        self.maps()
+        shown = [h for h in self.html if 'data-filter="all"' in h]
+        self.assertTrue(shown)
+        self.assertEqual(self.filter_counts(shown[0]), {"all": ("All", 6), "working": ("Working", 1), "todo": ("To do", 3),
+                                                        "done": ("Done", 2), "failed": ("Failed", 0)})
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["epics"][0]["milestones"].append({"id": "M9", "title": "gone", "status": "dropped", "stories": [{"id": "S9", "title": "x", "status": "failed"}]})
+        self.maps(run)
+        self.assertEqual(self.filter_counts([h for h in self.html if 'data-filter="all"' in h][-1])["all"], ("All", 6))
+
+    def test_a_filter_dims_the_stories_dots_and_milestones_that_miss_it_and_removes_none(self):
+        maps, _ = self.maps(probe='(() => { const out = []; for (const [f, q] of [["working", ""], ["all", "six"], ["all", "second"], ["done", "one"]]) {'
+                                  ' S.filter = f; S.query = q; render();'
+                                  ' out.push([msList().flatMap((m) => (m.stories || []).filter((s) => storyMatches(m, s)).map((s) => `${m.id}/${s.id}`)),'
+                                  ' msList().filter((m) => msMatches(m, m.title)).map((m) => m.id)]); } return out; })()')
+        self.assertEqual(self.probe(), [[["M2/S2"], ["M2"]], [["M3/S6"], ["M3"]], [[], ["M2"]], [["M1/S1"], ["M1"]]])
+        for ms, story in (("M1", "S1"), ("M2", "S2"), ("M2", "S3"), ("M2", "S4"), ("M2", "S5"), ("M3", "S6")):
+            self.assertEqual(len(re.findall(f'data-(?:open|ms)="{ms}" data-story="{story}"', maps[-1])), 1, story)
+        self.assertEqual(re.findall(r'<div class="fms [^"]*"[^>]* data-id="(\w+)"', maps[-1]), ["R1", "M1", "M2", "M3"])
+
+    def test_the_search_names_the_whole_map_and_the_filters_and_legend_always_show(self):
+        page = open(PAGE).read()
+        self.assertIn('<input id="q" type="search" placeholder="Search milestones, stories, files, ids"', page)
+        self.assertNotIn(".placeholder =", page)
+        self.maps(probe='(() => { const out = []; for (const go of [() => {}, () => collapse(), () => expand("M3")]) {'
+                        ' go(); out.push([$("filters").hidden, document.querySelector(".legend").hidden]); } return out; })()')
+        self.assertEqual(self.probe(), [[False, False]] * 3)
+
+    def test_the_quality_panel_follows_the_open_milestone(self):
+        self.maps(probe='(() => { const out = []; for (const go of [() => {}, () => expand("M2"), () => collapse(), () => expand("M3"), () => reveal("R1")]) {'
+                        ' go(); out.push($("quality").hidden ? null : $("qsum").innerHTML.match(/class="qms">([^<]*)/)?.[1]); } return out; })()')
+        self.assertEqual(self.probe(), [None, "M2", None, "M3", "M3"])
 
     def test_the_open_card_sits_in_its_epics_column_like_a_closed_card(self):
         maps, _ = self.maps()

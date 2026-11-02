@@ -87,7 +87,7 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | `note` | free text, shown on the card |
 | `stories` | list of stories |
 | `quality` | `{contract: [{cmd, ok, at}], gate: {findings, fixed, skipped, note, file} or null, criteria: [{text, pass}]}` |
-| `artifacts` | `[{name, path, phase}]` documents shown in the drill-down |
+| `artifacts` | `[{name, path, phase}]` documents shown when the milestone opens on the map |
 | `domainStories` | `{status, at, stories: [{title, path, spec}]}` |
 | `asana` | see Asana |
 

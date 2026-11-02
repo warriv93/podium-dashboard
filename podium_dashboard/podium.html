@@ -176,10 +176,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .bar3 { display: inline-flex; gap: 3px; }
 .bar3 i { width: 14px; height: 4px; border-radius: 2px; background: var(--gray-soft); }
 .bar3 i.on { background: var(--green-dot); }
-.node .doing { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
-.node .doing .bar3 { margin-left: auto; }
-.node .doing.why { display: block; color: var(--red); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.node .since { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .agentlink { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; white-space: nowrap; }
 .agentlink:hover { text-decoration: underline; }
 .pulse { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--green-dot); flex: none; }
@@ -238,17 +234,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .map-sentinel { height: 1px; margin-bottom: -1px; pointer-events: none; }
 .map-head h2 { flex: 1; min-width: 0; }
 .map-head .legend { flex: none; white-space: nowrap; }
-.mini { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); cursor: pointer; font-size: 12.5px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.mini:hover { border-color: var(--accent); }
-.mini-l { color: var(--accent); font-weight: 600; white-space: nowrap; }
-.mpills { display: flex; gap: 4px; }
-.mpill { font-size: 10.5px; font-weight: 700; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--text-2); background: var(--card); white-space: nowrap; }
-.mpill[data-reveal]:hover { border-color: var(--accent); color: var(--accent); }
-.mpill.done { background: var(--gray-soft); border-color: transparent; color: var(--text-3); }
-.mpill.working { border-color: var(--green-dot); color: var(--green); }
-.mpill.waiting { border-style: dashed; }
-.mpill.moved { background: var(--gray-soft); border-color: transparent; color: var(--text-3); text-decoration: line-through; }
-.mpill.here { outline: 2px solid var(--accent); outline-offset: 1px; color: var(--text); }
 .ftools { margin-left: auto; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; align-items: center; min-width: 0; text-transform: none; letter-spacing: 0; }
 .ftools .mockbtn, .ftools .asanabtn { margin-left: 0; }
 .fepic .eyebrow { display: flex; align-items: center; min-height: 22px; }
@@ -318,6 +303,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fdots i.working { background: var(--green-dot); }
 .fdots i.approval { background: var(--amber-dot); }
 .fdots i.failed, .fdots i.blocked { background: var(--red); }
+.fdots i.dim { opacity: .28; }
 .fms.dim, .fepic.dim { opacity: .28; }
 .fms.open { cursor: default; gap: 12px; padding: 12px 14px 14px; border-radius: 16px; }
 .fms.open:not(.working):not(.waits):not(.waitfor):not(.failed) { background: var(--card); box-shadow: var(--shadow-hi); }
@@ -361,17 +347,13 @@ a.wchip { color: inherit; text-decoration: none; }
 .map { position: relative; margin: 0 auto; }
 .map svg.edges { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .edge { fill: none; stroke: var(--line-2); stroke-width: 1.5; transition: stroke .2s, opacity .2s; }
-.waveband { fill: var(--gray-soft); opacity: .55; }
 .edge.done { stroke: var(--text-3); }
 .edge.overlap { stroke-dasharray: 4 5; }
 .edge.hi { stroke: var(--accent); stroke-width: 2; }
-.map.focus .edge:not(.hi) { opacity: .35; }
 .map-wrap { position: relative; }
-.waves { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
-.rowlabel { position: absolute; left: 14px; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: .05em; text-transform: uppercase; }
 
 .node {
-  position: absolute; background: var(--card-2); border: 1px solid var(--line); border-radius: 16px;
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 16px;
   padding: 12px 14px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px;
   box-shadow: var(--shadow); transition: transform .18s ease, box-shadow .18s ease, opacity .2s, border-color .2s;
 }
@@ -421,18 +403,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .copy:hover { color: var(--text); filter: brightness(.96); }
 .btn.big + .copy { width: 34px; height: 34px; }
 
-.node.epic { background: var(--card); padding: 16px 18px; gap: 8px; border-radius: 20px; }
-.node.epic .title { font-size: 16.5px; font-weight: 680; -webkit-line-clamp: 1; }
-.node.epic > * { flex-shrink: 0; }
-.node.epic .eyebrow { display: flex; align-items: center; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; }
-.epic-row { display: flex; align-items: center; gap: 14px; margin-top: auto; }
-.ring { width: 38px; height: 38px; flex: none; }
-.ring circle { fill: none; stroke-width: 4; }
-.ring .track { stroke: var(--gray-soft); }
-.ring .val { stroke: var(--green-dot); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset .6s ease; }
-.epic-stat { font-size: 13px; color: var(--text-2); line-height: 1.3; }
-.epic-stat b { color: var(--text); font-size: 15px; font-variant-numeric: tabular-nums; }
-.epic-row .btn { margin-left: auto; }
 .node.artifact .title { -webkit-line-clamp: 1; }
 .node.artifact .sid { background: var(--accent-soft); color: var(--accent); }
 
@@ -485,7 +455,6 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .people .who b { font-weight: 600; color: var(--text); }
 .people .who.me b { color: var(--accent); }
 .people a { cursor: pointer; color: inherit; text-decoration: underline dotted; }
-.node.epic .eyebrow .owner, .node.epic .eyebrow .claim { margin-left: 8px; }
 .asanabtn.linkasana { background: var(--card-2); color: var(--text-3); border-color: var(--line-2); cursor: pointer; font-family: inherit; }
 .asanabtn.linkasana:hover { background: rgba(240,106,106,.12); color: #e8384f; border-color: rgba(232,56,79,.55); }
 .map-head > h2 > .linkasana { margin-left: 0; }
@@ -620,7 +589,6 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .node.parked .title, .node.later .title { color: var(--text-2); }
 .node.dropped { opacity: .45; }
 .node.dropped .title { text-decoration: line-through; color: var(--text-3); }
-.node.ms[data-reveal] .model { color: var(--accent); }
 .node .foot .when { margin-left: auto; }
 .prlink { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
 .prlink:hover { text-decoration: underline; }
@@ -632,7 +600,6 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .repo-line { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; min-width: 0; }
 .ms-repos { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; min-width: 0; }
 .ms-repos .repo-line { overflow: visible; }
-.repo-chips { display: flex; gap: 4px; overflow: hidden; }
 .repo { font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--gray-soft); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
 .pr { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 7px; white-space: nowrap; text-decoration: none; border: 1px solid transparent; }
 a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
@@ -716,7 +683,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
     <div class="toolbar">
       <label class="search">
         <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".55"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".55"/></svg>
-        <input id="q" type="search" placeholder="Search stories, files, ids" autocomplete="off">
+        <input id="q" type="search" placeholder="Search milestones, stories, files, ids" autocomplete="off">
         <span class="kbd">⌘K</span>
       </label>
       <div class="seg" id="filters" role="tablist"></div>
@@ -734,7 +701,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
         </div>
       </div>
       <div class="page-title" id="page-title"></div>
-      <div class="map-wrap"><div class="waves" id="waves"></div><div class="map-scroll"><div class="map" id="map"></div></div></div>
+      <div class="map-wrap"><div class="map-scroll"><div class="map" id="map"></div></div></div>
       <div id="ds-view"></div>
     </section>
     <details class="card quality" id="quality">
@@ -780,11 +747,10 @@ const UNSTARTED = ["draft", "parked", "later"];
 const POLL_MS = 2000;
 const HIDDEN_POLL_MS = 30000;
 let lastPoll = 0;
-const W = 236, H = 140, EPIC_W = 380, EPIC_W_REPOS = 460, EPIC_H = 132, GX = 22, GY = 64, PAD = 56;
 
 /* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
 const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
-const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epicView: undefined, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], view: undefined, open: undefined, query: "", filter: "all", online: true };
+const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: undefined, query: "", filter: "all", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -825,7 +791,7 @@ function setInfo(i) {
   if ((first || meChanged) && S.raw) loadProject();
   if (peopleChanged || meChanged) renderPeople();
   if (S.project) renderFetch();
-  if ((first || meChanged || orchChanged) && S.project) { render(); if (S.sel) renderSheet(); }
+  if ((first || meChanged || orchChanged) && S.project) render();
 }
 /* a poll keeps the server alive only while someone is at the tab: in view and touched in the last
    10 minutes, so a tab left open on an unattended screen lets it stop when idle */
@@ -874,25 +840,10 @@ function personal(d) {
 }
 function loadProject() {
   S.project = personal(normalizeProject(JSON.parse(S.raw)));
-  if (S.epicView === undefined) S.epicView = S.project.active?.epic || (S.project.epics.length === 1 ? S.project.epics[0].id : null);
-  if (S.epicView && !S.project.epics.some((x) => x.id === S.epicView)) S.epicView = null;
-  S.epic = S.epicView ? epicCtx(S.epicView) : null;
-  chooseView();
   if (S.open === undefined) S.open = defaultOpen();
   else if (S.open && !openMs()) S.open = null;
 }
 const epicOfMs = (ms) => S.project.epics.find((E) => (E.milestones || []).some((m) => m.id === ms))?.id;
-function chooseView() {
-  if (!S.epic) return;
-  if (S.view === undefined || (S.view && !msById()[S.view])) S.view = null;
-}
-function setEpic(id, view) {
-  S.epicView = id; S.epic = id ? epicCtx(id) : null; S.view = view === undefined ? undefined : view;
-  chooseView();
-  S.sel = null; S.filter = "all"; S.query = ""; $("q").value = "";
-  $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
-  render();
-}
 async function poll() {
   lastPoll = Date.now();
   try {
@@ -977,7 +928,6 @@ function bar3(n) { return `<span class="bar3" aria-label="step ${n} of 3">${[1, 
 
 const msById = () => dict(S.epic.milestones.map((m) => [m.id, m]));
 const activeMs = () => msById()[S.epic.active] || null;
-const viewMs = () => (S.view ? msById()[S.view] : null);
 const storyIndex = (m) => dict((m.stories || []).map((s) => [s.id, s]));
 const isBuilding = (m) => !!m && m.status === "working" && (m.id === S.project.active?.milestone || m.phase === "build");
 const buildingMs = () => S.project.epics.flatMap((E) => E.milestones || []).filter(isBuilding);
@@ -989,8 +939,6 @@ function defaultOpen() {
 }
 const msBuildAll = (m) => (S.project.buildAll !== undefined && m.id === S.project.active?.milestone ? !!S.project.buildAll : !!m.buildAll);
 const idPath = (id) => String(id).split("/").map(encodeURIComponent).join("/");
-const items = () => viewMs()?.stories || (viewMs() ? [] : S.epic.milestones);
-const byId = () => dict(items().map((s) => [s.id, s]));
 const phaseLabel = (p) => phases().find(([k]) => k === p)?.[1] || p || "";
 function viewStatus(s, map, ms) {
   if (s.status !== "todo") return s.status;
@@ -1000,12 +948,14 @@ function viewStatus(s, map, ms) {
 function filterKey(st) {
   return { __proto__: null, ready: "todo", waiting: "todo", todo: "todo", draft: "todo", parked: "todo", later: "todo", approval: "working", elsewhere: "working", blocked: "failed" }[st] || st;
 }
-function matches(s) {
+function storyMatches(m, s) {
   const q = S.query.trim().toLowerCase();
-  if (S.filter !== "all" && filterKey(viewStatus(s, byId(), S.view)) !== S.filter) return false;
+  if (S.filter !== "all" && filterKey(viewStatus(s, storyIndex(m), m.id)) !== S.filter) return false;
   if (!q) return true;
   return [s.id, s.title, s.summary, ...(s.files || []), ...(s.covers || []), ...repoNames(s)].join(" ").toLowerCase().includes(q);
 }
+const msMatches = (m, text) => (m.stories || []).some((s) => storyMatches(m, s))
+  || (S.filter === "all" && String(text).toLowerCase().includes(S.query.trim().toLowerCase()));
 
 const msRepos = (m) => Object.entries(m?.repos || {}).map(([repo, r]) => ({ repo, ...(r || {}) }));
 const repoNames = (x) => (Array.isArray(x.repos) ? x.repos : Object.keys(x.repos || {}));
@@ -1045,8 +995,6 @@ function msCardRepos(m) {
   for (const s of m.stories || []) for (const repo of repoNames(s)) if (!seen.has(repo)) { seen.add(repo); rows.push({ repo, prs: [] }); }
   return rows.length ? `<div class="ms-repos">${rows.map((r) => `<span class="repo-line">${repoChip(r)}</span>`).join("")}</div>` : "";
 }
-const repoLinesHeight = (rows, perLine) => (rows.length ? 6 + rows.reduce((n, r) => n + Math.ceil(Math.max(1, r.prs.length) / perLine), 0) * 22 : 0);
-const repoChips = (names) => (names.length ? `<div class="repo-chips">${names.map((r) => `<span class="repo">${esc(r)}</span>`).join("")}</div>` : "");
 function msBranch(m) {
   if (m.branch) return m.branch;
   const b = [...new Set(msRepos(m).map((r) => r.branch).filter(Boolean))];
@@ -1072,49 +1020,6 @@ function renderPeople() {
   }).join("");
 }
 
-function layout(list, sz = { h: H, rw: EPIC_W, rh: EPIC_H }, cols = Infinity) {
-  const map = dict(list.map((s) => [s.id, s]));
-  const rank = dict();
-  const r = (id, seen = new Set()) => {
-    if (rank[id]) return rank[id];
-    if (seen.has(id)) return 1;
-    seen.add(id);
-    const s = map[id];
-    const ups = [...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => map[d]);
-    return (rank[id] = ups.length ? 1 + Math.max(...ups.map((d) => r(d, seen))) : 1);
-  };
-  list.forEach((s) => r(s.id));
-  const rows = [];
-  list.forEach((s) => (rows[rank[s.id]] ||= []).push(s));
-  const lines = (row) => (cols >= row.length ? [row] : Array.from({ length: Math.ceil(row.length / cols) }, (_, i) => row.slice(i * cols, (i + 1) * cols)));
-  const xIndex = dict();
-  rows.forEach((row, ri) => {
-    if (!row) return;
-    if (ri > 1) {
-      const bary = (s) => {
-        const ups = [...(s.deps || []), ...(s.overlapAfter || [])].filter((d) => xIndex[d] !== undefined);
-        return ups.length ? ups.reduce((a, d) => a + xIndex[d], 0) / ups.length : 0;
-      };
-      row.sort((a, b) => bary(a) - bary(b) || a.id.localeCompare(b.id, undefined, { numeric: true }));
-    }
-    lines(row).forEach((line) => line.forEach((s, i) => (xIndex[s.id] = i - (line.length - 1) / 2)));
-  });
-  const maxRow = Math.max(1, ...rows.filter(Boolean).map((r) => Math.min(r.length, cols)));
-  const width = Math.max(sz.rw + 2 * PAD, maxRow * (W + GX) - GX + 2 * PAD);
-  const cx = width / 2;
-  const pos = dict(), rowY = [], rowN = [], rowH = [], rowL = [];
-  let y = PAD / 2 + sz.rh + GY;
-  rows.forEach((row) => {
-    if (!row) return;
-    rowY.push(y); rowN.push(row.length); rowL.push(lines(row).length); rowH.push(lines(row).length * (sz.h + GY) - GY);
-    lines(row).forEach((line) => {
-      line.forEach((s) => (pos[s.id] = { x: cx + xIndex[s.id] * (W + GX) - W / 2, y, w: W, h: sz.h }));
-      y += sz.h + GY;
-    });
-  });
-  pos.__root = { x: cx - sz.rw / 2, y: PAD / 2, w: sz.rw, h: sz.rh };
-  return { pos, width, height: y - GY + PAD, rows: rowY.length, rowY, rowN, rowH, rowL };
-}
 function runOrder(list) {
   const by = dict(list.map((m) => [m.id, m]));
   const group = (m) => ({ __proto__: null, done: 0, moved: 0, working: 1, dropped: 3 }[m.status] ?? 2);
@@ -1136,25 +1041,14 @@ function curve(a, b) {
 
 function render() {
   if (!S.project) return;
-  const P = S.project;
   renderAttention();
   renderPeople();
   renderShare();
   renderFetch();
   renderCrew();
-  const full = !S.epic || !S.view;
-  if (S.ds && !full && S.ds.id !== S.view) S.ds = null;
   renderDs();
-  $("filters").hidden = full;
-  document.querySelector(".legend").hidden = full;
-  if (full) return renderFull();
-  const e = S.epic;
-  $("epic-title").textContent = e.epic.title;
-  const am = activeMs();
-  renderStepper();
-  renderBanner();
   renderFilters();
-  renderMap();
+  renderFull();
   renderQuality();
   if (S.sel) renderSheet();
 }
@@ -1171,7 +1065,6 @@ function projectChrome() {
     const landed = P.epics.reduce((n, E) => n + (E.milestones || []).filter((m) => m.status === "done").length, 0);
     $("banner").innerHTML = needsBanner() + waitBanner() + digestBanner() + assumedBanner() + `<div class="banner idle"><span class="label">Idle</span><span class="sub">${P.epics.length} epics · ${landed} milestones landed · open an epic to plan its next milestone</span></div>`;
   }
-  $("q").placeholder = "Search epics and milestones";
 }
 
 function wavesOf(list) {
@@ -1260,23 +1153,13 @@ function storyCard(m, s, map) {
   const act = st === "elsewhere" ? releaseBtn(sk) : ["working", "approval", "failed"].includes(st) ? agentLink(s) : "";
   return `<div class="node compact ${esc(st)}${isSel(m.id, s.id) ? " sel" : ""}" data-open="${esc(m.id)}" data-story="${esc(s.id)}" tabindex="0"><div class="top"><span class="sid">${esc(s.id)}</span></div><span class="title">${esc(s.title)}</span><div class="foot">${assign || storyBadge(m, s, st, map)}${act}</div></div>`;
 }
-function miniMap(vm) {
-  const all = dict(S.project.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
-  const pills = runOrder(Object.values(all).filter((x) => x.status !== "dropped")).map((x) =>
-    `<span class="mpill ${esc(fullStatus(x, all))} ${x.id === vm.id ? "here" : ""}" ${x.id === vm.id ? "" : `data-reveal="${esc(x.id)}"`} title="${esc(`${x.id} · ${x.title}${x.owner ? ` · ${isMe(x.owner) ? "yours" : x.owner}` : ""}`)}">${esc(x.id)}</span>`).join("");
-  return `<div class="mini" data-out tabindex="0" title="Back to the full map"><span class="mini-l">‹ Full map</span><span class="mpills">${pills}</span></div>`;
-}
 function renderFull() {
   const P = S.project, open = S.epic;
   projectChrome();
   S.epic = open;
   $("map-title").innerHTML = P.project.quest ? "Epics" : P.project.asana?.url ? `<span class="fproj">${asanaBtn(P.project)}${asanaMeta(P.project)}</span>` : linkBtn("");
   $("page-title").innerHTML = P.project.quest ? questTile(P) : "";
-  $("quality").hidden = true;
-  $("waves").innerHTML = "";
   const m = $("map");
-  m.style.width = ""; m.style.height = ""; m.style.zoom = 1;
-  m.classList.remove("focus");
   const all = dict(P.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const lane = dict(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
   const listed = runOrder(Object.values(all).filter((x) => x.status !== "dropped"));
@@ -1520,11 +1403,12 @@ function workingBanner(working) {
 }
 
 function renderFilters() {
-  const map = byId(), counts = { all: 0 };
-  items().forEach((s) => { counts.all++; const k = filterKey(viewStatus(s, map, viewMs()?.id)); counts[k] = (counts[k] || 0) + 1; });
-  const vm = viewMs(), merged = vm && vm.status !== "done";
-  $("filters").innerHTML = FILTERS.map(([k, l]) => [k, k === "done" && merged ? "Merged" : l]).map(([k, l]) => `<button class="${S.filter === k ? "on" : ""}" data-filter="${k}">${l}<span class="n">${counts[k] || 0}</span></button>`).join("");
-  $("q").placeholder = viewMs() ? "Search stories, files, ids" : "Search milestones, brief items, ids";
+  const counts = dict([["all", 0]]);
+  for (const m of msList().filter((x) => x.status !== "dropped")) {
+    const map = storyIndex(m);
+    for (const s of m.stories || []) { counts.all++; const k = filterKey(viewStatus(s, map, m.id)); counts[k] = (counts[k] || 0) + 1; }
+  }
+  $("filters").innerHTML = FILTERS.map(([k, l]) => `<button class="${S.filter === k ? "on" : ""}" data-filter="${k}">${l}<span class="n">${counts[k] || 0}</span></button>`).join("");
 }
 
 /* a mock path is relative to the run dir, which this server hosts; "../" reaches the repo, hosted under /repo/ */
@@ -1549,7 +1433,7 @@ function dsBtn(E) {
     : what === "epic" ? "Draw this epic's process as domain stories, from its brief" : "Draw what this milestone changes as domain stories, starting from the epic's when it has them";
   return orch() ? `<button class="dsbtn" data-act="domain-story" data-id="${esc(E.id)}" title="${esc(tip)}">${DS_ICO}Domain story</button>` : "";
 }
-function openDs(id) { S.ds = { id, tab: 0 }; if (S.epic && S.view && S.view !== id) S.view = null; render(); requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" })); }
+function openDs(id) { S.ds = { id, tab: 0 }; render(); requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" })); }
 function closeDs() { S.ds = null; render(); }
 function renderDs() {
   const E = S.ds && dsOwner(S.ds.id);
@@ -1580,140 +1464,25 @@ function specOf(s) {
 const mockBtn = (x) => ((m) => (m ? `<a class="mockbtn" href="${esc(m.href)}" target="_blank" rel="noopener" title="Open the UI mock in a new tab"><span>🎨</span>Mock</a>` : ""))(mockOf(x));
 
 
-function renderMap() {
-  const e = S.epic, vm = viewMs();
-  const stories = vm?.stories || [];
-  let list, kind;
-  if (stories.length) { list = stories; kind = "story"; }
-  else { list = (vm.artifacts || []).map((a, i) => ({ id: `A${i + 1}`, title: a.name, summary: a.path, artifact: a })); kind = "artifact"; }
-  $("map-title").innerHTML = e.single ? "" : miniMap(vm);
-  $("page-title").innerHTML = "";
-  const rootRows = vm ? msRepoRows(vm) : epicRepoRows(e.milestones);
-  const nodeLines = kind === "milestone" ? Math.max(0, ...list.map((m) => msRepos(m).length)) : kind === "story" && list.some((s) => (s.repos || []).length) ? 1 : 0;
-  const sz = { h: H + (nodeLines ? 4 + nodeLines * 20 : 0), rw: rootRows.length ? EPIC_W_REPOS : EPIC_W, rh: EPIC_H + repoLinesHeight(rootRows, 3) };
-  const avail = $("map").parentElement.clientWidth - 8;
-  const cols = innerWidth <= 1100 ? Math.max(1, Math.floor((avail / 0.6 - 2 * PAD + GX) / (W + GX))) : Infinity;
-  const L = layout(list, sz, cols);
-  const map = dict(list.map((s) => [s.id, s]));
-  const needsStory = String(S.project.needsYou?.story || "").split("/").pop();
-  const hides = (s) => S.hideFinished.stories && kind === "story" && ["done", "dropped"].includes(s.status) && !isSel(vm.id, s.id) && s.id !== needsStory;
-  const shown = list.filter((s) => !hides(s));
-  renderHideFinished(kind === "story" ? "stories" : "map", list.length - shown.length);
-  const edges = [];
-  shown.forEach((s) => {
-    const deps = (s.deps || []).filter((d) => L.pos[d] && !hides(map[d]));
-    const from = deps.length ? deps : (s.overlapAfter || []).filter((d) => L.pos[d] && !hides(map[d])).length ? [] : ["__root"];
-    from.forEach((d) => {
-      const hi = isSel(vm.id, d) || isSel(vm.id, s.id);
-      const done = d !== "__root" && map[d]?.status === "done";
-      edges.push(`<path class="edge ${done ? "done" : ""} ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
-    });
-    (s.overlapAfter || []).filter((d) => L.pos[d] && !hides(map[d])).forEach((d) => {
-      const hi = isSel(vm.id, d) || isSel(vm.id, s.id);
-      edges.push(`<path class="edge overlap ${hi ? "hi" : ""}" d="${curve(L.pos[d], L.pos[s.id])}"/>`);
-    });
-  });
-  const m = $("map");
-  m.style.width = L.width + "px";
-  m.style.height = L.height + "px";
-  m.classList.toggle("focus", S.sel?.ms === vm.id && S.sel.story !== undefined);
-  const box = m.parentElement;
-  const fit = Math.min(1, Math.max(innerWidth <= 1100 ? 0.6 : 0.75, (box.clientWidth - 8) / L.width));
-  m.style.zoom = fit;
-  // map y scaled by the zoom, below the scroller's 8px top padding
-  const rowShown = (i) => shown.filter((s) => L.pos[s.id].y >= L.rowY[i] && L.pos[s.id].y <= L.rowY[i] + L.rowH[i]).length;
-  $("waves").innerHTML = kind === "story" ? Array.from({ length: L.rows }, (_, i) => `<span class="rowlabel" style="top:${8 + (L.rowY[i] - 22) * fit}px">Wave ${i + 1}${!rowShown(i) ? " · all finished" : L.rowN[i] > 1 ? ` · ${L.rowN[i]} in parallel` : ""}</span>`).join("") : "";
-  const node = kind === "story" ? storyNode : artifactNode;
-  const bands = kind === "story" ? L.rowH.map((h, i) => (L.rowL[i] > 1 ? `<rect class="waveband" x="${PAD / 4}" y="${L.rowY[i] - 14}" width="${L.width - PAD / 2}" height="${h + 28}" rx="18"/>` : "")).join("") : "";
-  m.innerHTML = `<svg class="edges" width="${L.width}" height="${L.height}">${bands}${edges.join("")}</svg>${milestoneRoot(L.pos.__root, vm)}${shown.map((s) => node(s, L.pos[s.id], map)).join("")}`;
-  if (S.centeredFor !== S.view && box.scrollWidth > box.clientWidth) { box.scrollLeft = (box.scrollWidth - box.clientWidth) / 2; }
-  S.centeredFor = S.view;
-  applyFilter();
-}
-
-function ring(frac) {
-  const C = 2 * Math.PI * 15;
-  return `<svg class="ring" viewBox="0 0 38 38"><circle class="track" cx="19" cy="19" r="15"/><circle class="val" cx="19" cy="19" r="15" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>`;
-}
-function rootBox(p, id, eyebrow, title, body, repos = "") {
-  return `<div class="node epic" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;min-height:${p.h}px" data-open="${esc(id)}" tabindex="0">
-    <span class="eyebrow">${eyebrow}</span><span class="title">${esc(title)}</span>${repos}<div class="epic-row">${body}</div></div>`;
-}
-function milestoneRoot(p, m) {
-  const stories = m.stories || [];
-  const done = stories.filter((s) => s.status === "done").length;
-  let btn = "";
-  if (orch() && isBuilding(m) && stories.some((s) => s.status !== "done")) {
-    btn = msBuildAll(m)
-      ? `<button class="btn ghost big" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
-      : `<button class="btn big" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
-  }
-  const stat = stories.length
-    ? `<div class="epic-stat"><b>${done}</b> of ${stories.length} stories ${m.status === "done" ? "done" : "merged to branch"}<br>${m.status === "done" ? `Landed${m.shippedAt ? ` ${day(m.shippedAt)}` : ""}` : done === stories.length ? msDoing(m) : msBuildAll(m) ? "Building wave by wave" : "Assign stories or build all"}</div>`
-    : `<div class="epic-stat">Breakdown pending<br>${esc(phaseLabel(m.phase))} in progress</div>`;
-  return rootBox(p, m.id, `${S.epic.single ? "Epic" : `Milestone · ${esc(m.id)}`}${ownerOrClaim(m)}<span class="ftools">${mockBtn(m) || mockBtn(S.epic.epic)}${dsBtn(m)}${asanaBtn(m, true)}</span>`, S.epic.single ? S.epic.epic.title : m.title, `${ring(stories.length ? done / stories.length : 0)}${stat}${btn}`, repoLines(msRepoRows(m)));
-}
-
-
-function artifactNode(s, p) {
-  return `<div class="node artifact" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(viewMs().id)}" data-story="${esc(s.id)}" tabindex="0">
-    <div class="top"><span class="sid">${esc(s.artifact.phase || "doc")}</span></div>
-    <span class="title">${esc(s.title)}</span>
-    <div class="foot"><span class="mono">${esc(s.artifact.path)}</span></div></div>`;
-}
-
 function agentHref(s) {
   return s.agent?.backend === "paseo" && s.agent.id && S.info?.paseoServer ? `paseo://h/${encodeURIComponent(S.info.paseoServer)}/agent/${encodeURIComponent(s.agent.id)}` : null;
 }
 const agentLink = (s) => ((h) => (h ? `<a class="agentlink" href="${esc(h)}" title="Open this story's agent in Paseo">Paseo ↗</a>` : ""))(agentHref(s));
-const since = (at) => (at ? `<span class="since" data-since="${esc(at)}" title="Running since ${esc(clock(at))}">${dur(Date.now() - Date.parse(at))}</span>` : "");
-function failReason(ms, s) {
-  const f = progressLines(ms, s.id).filter((l) => l.stage === "FAILED").pop();
-  return f?.note || s.note || "";
-}
-
-function storyNode(s, p, map) {
-  const vm = viewMs(), live = isBuilding(vm), sk = key(vm.id, s.id);
-  const st = viewStatus(s, map, vm.id);
-  let foot = "", top = "";
-  const first = commitsOf(s)[0];
-  if (st === "done") foot = `<span class="badge ${doneCls(vm)}">${storyDone(vm)}</span>${first ? `<span class="when mono">${esc(shortSha(first.sha))}</span>` : ""}`;
-  else if (st === "working") foot = `<span class="pulse"></span><span class="badge working">Working on</span>${since(s.startedAt)}${agentLink(s)}`;
-  else if (st === "approval") foot = `<span class="pulse amber"></span><span class="badge approval">Waiting for approval</span>${agentLink(s)}`;
-  else if (st === "elsewhere") foot = `<span class="badge elsewhere">In another session</span>${releaseBtn(sk)}`;
-  else if (st === "failed") foot = `<span class="badge failed">Failed · ${num(s.attempts)}/${maxAttempts()}</span>${agentLink(s)}`;
-  else if (st === "blocked") foot = `<span class="badge blocked">Blocked by ${esc((s.deps || []).filter((d) => map[d]?.status !== "done").join(", "))}</span>`;
-  else if (st === "dropped") foot = `<span class="badge dropped">Dropped</span>`;
-  else if (st === "ready") {
-    const badge = `<span class="badge ready">Ready</span>`;
-    if (live && orch()) { top = badge; foot = `<button class="btn" data-act="assign" data-id="${esc(sk)}">Assign subagent</button>${copyBtn("assign", sk)}`; } else foot = badge;
-  } else {
-    const wait = (s.deps || []).filter((d) => map[d]?.status !== "done");
-    const badge = `<span class="badge waiting" title="Waiting on ${esc(wait.join(", "))}">Waiting on ${esc(wait.join(", "))}</span>`;
-    if (live && orch()) { top = badge; foot = `<button class="btn" disabled title="Waiting on ${esc(wait.join(", "))}">Assign subagent</button>`; } else foot = badge;
-  }
-  return `<div class="node ${esc(st)} ${isSel(vm.id, s.id) ? "sel" : ""}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px" data-open="${esc(vm.id)}" data-story="${esc(s.id)}" data-id="${esc(s.id)}" tabindex="0">
-    <div class="top"><span class="sid">${esc(s.id)}</span>${top}<span class="model">${esc(s.model || "")}</span></div>
-    <span class="title">${esc(s.title)}</span>
-    ${repoChips(s.repos || [])}
-    ${st === "elsewhere" && !progressLines(vm.id, s.id).length ? `<div class="doing">Copied · not started yet</div>` : ""}${["working", "elsewhere"].includes(st) && (st === "working" || progressLines(vm.id, s.id).length) ? (([l, n]) => `<div class="doing">${esc(l)}${bar3(n)}</div>`)(doing(vm.id, s.id)) : ""}${st === "failed" && failReason(vm.id, s) ? `<div class="doing why" title="${esc(failReason(vm.id, s))}">${esc(failReason(vm.id, s))}</div>` : ""}
-    <div class="foot">${foot}</div></div>`;
-}
 
 function applyFilter() {
-  if (!S.epic || !S.view) {
-    const q = S.query.trim().toLowerCase();
-    document.querySelectorAll(".fms").forEach((c) => c.classList.toggle("dim", !!q && !c.textContent.toLowerCase().includes(q)));
-    return;
-  }
-  const map = byId();
-  document.querySelectorAll(".node[data-id]").forEach((n) => map[n.dataset.id] && n.classList.toggle("dim", !matches(map[n.dataset.id])));
+  document.querySelectorAll("#map .fms[data-id]").forEach((c) => {
+    const m = msOf(c.dataset.id);
+    if (!m) return;
+    const map = storyIndex(m);
+    c.classList.toggle("dim", !msMatches(m, c.textContent));
+    c.querySelectorAll("[data-story]").forEach((n) => map[n.dataset.story] && n.classList.toggle("dim", !storyMatches(m, map[n.dataset.story])));
+  });
 }
 
 function renderQuality() {
-  const m = viewMs() || activeMs();
-  $("quality").hidden = !m;
-  if (!m) return;
+  const m = openMs();
+  $("quality").hidden = !m || isResearch(m);
+  if ($("quality").hidden) return;
   const q = m.quality || {};
   const contract = q.contract || [], gate = q.gate, criteria = q.criteria || [];
   const passing = contract.filter((c) => c.ok).length;
@@ -1729,7 +1498,7 @@ function renderQuality() {
     pill(gate ? state([gateOk]) : "pend", gate ? `Gate · ${num(gate.fixed)} of ${num(gate.findings)} fixed` : "Gate not run"),
     pill(state(criteria.map((c) => c.pass)), `Criteria ${crit}/${criteria.length}${critNote}`),
   ];
-  $("qsum").innerHTML = `${S.epic.single ? "" : `<span class="qms">${esc(m.id)}</span>`}${pills.join("")}`;
+  $("qsum").innerHTML = `<span class="qms">${esc(m.id)}</span>${pills.join("")}`;
   $("qgrid").innerHTML = `
     <div class="qcol"><h3>Contract</h3>${contract.map((c) => `<div class="qline">${mark(c.ok)}<code>${esc(c.cmd)}</code><span class="when">${esc(clock(c.at))}</span></div>`).join("") || `<div class="muted">No runs yet</div>`}</div>
     <div class="qcol"><h3>Quality gate</h3>${gate ? `<div class="qline">${mark(gate.findings === gate.fixed + gate.skipped)}<span><b>${num(gate.findings)}</b> findings · ${num(gate.fixed)} fixed · ${num(gate.skipped)} skipped</span></div>${gate.note ? `<div class="qline muted">${esc(gate.note)}</div>` : ""}<div class="qline muted"><code>${esc(gate.file || "")}</code></div>` : `<div class="muted">Runs after the last story merges</div>`}</div>
@@ -2053,7 +1822,7 @@ async function asanaDone(choice, id) {
     const r = await fetch(`/asana-done/${encodeURIComponent(id)}?choice=${choice}`, { method: "POST" });
     if (!r.ok) throw new Error(r.status);
     S.asanaChoice = { __proto__: null, ...S.asanaChoice, [id]: choice };
-    render(); if (S.sel) renderSheet();
+    render();
     toast(choice === "drop" ? `${id}: skipping it` : `${id}: keeping it`);
   } catch { toast(SERVER_DOWN); }
 }
@@ -2078,16 +1847,6 @@ async function linkAsana(epic) {
   } catch { toast(SERVER_DOWN); }
 }
 
-function enterEpicOf(ms) {
-  const ep = epicOfMs(ms);
-  if (ep && ep !== S.epicView) { S.epicView = ep; S.epic = epicCtx(ep); S.view = undefined; chooseView(); }
-}
-function setView(id) {
-  if (S.epic.single) return;
-  S.view = id; S.sel = null; S.filter = "all";
-  $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
-  render();
-}
 function expand(id) {
   const m = msOf(id);
   if (!m || isResearch(m)) return;
@@ -2132,16 +1891,11 @@ const selName = (sel) => (sel.quest ? "quest" : sel.epic !== undefined ? `epic $
 async function openSheet(sel) {
   const r = resolveSel(sel);
   if (!r) return toast(`This run has no ${selName(sel)}`);
-  if (r.kind === "epic") { S.epicView = r.E.id; S.epic = r.ctx; S.view = null; }
-  else if (r.m) {
-    enterEpicOf(r.m.id);
-    if (r.kind !== "ms" && !isResearch(r.m)) S.open = r.m.id;
-  }
+  if (r.m && r.kind !== "ms" && !isResearch(r.m)) S.open = r.m.id;
   S.sel = sel; S.doc = null; S.back = [];
   $("sheet").classList.add("on"); $("scrim").classList.add("on");
   $("sheet").setAttribute("aria-hidden", "false");
   render();
-  renderSheet();
   const path = r.kind === "quest" ? questOf().doc : r.kind === "epic" ? r.E.spec || (r.E.quest && questOf()?.doc) : r.kind === "art" ? r.art.path : (r.s || r.m).brief;
   if (path && S.briefs[path] === undefined) {
     S.docUrl ||= dict();
@@ -2159,7 +1913,7 @@ function closeSheet() {
   S.sel = null; S.doc = null; S.back = [];
   $("sheet").classList.remove("on"); $("scrim").classList.remove("on");
   $("sheet").setAttribute("aria-hidden", "true");
-  if (!S.epic || !S.view) renderFull(); else renderMap();
+  renderFull();
 }
 const CHIP_DOT = { __proto__: null, working: "var(--green-dot)", approval: "var(--amber-dot)", failed: "var(--red)", blocked: "var(--red)" };
 const finished = (x, map) => ["done", "dropped"].includes(map[moveChain(String(x), map).at(-1)]?.status);
@@ -2232,6 +1986,7 @@ function renderSheet() {
   if (S.doc) return docSheet();
   const r = resolveSel(S.sel);
   if (!r) return closeSheet();
+  if (r.ctx) S.epic = r.ctx;
   if (r.kind === "quest") return questSheet();
   if (r.kind === "epic") return epicSheet();
   if (r.kind === "ms") return milestoneSheet(r.m);
@@ -2252,7 +2007,7 @@ function renderSheet() {
   const log = progressLines(vm.id, id);
   const step = st === "elsewhere" && !log.length ? "Copied · not started yet" : ["working", "elsewhere"].includes(st) ? (([l, n]) => `${esc(l)}${bar3(n)}`)(doing(vm.id, id)) : "";
   const elapsed = s.startedAt ? dur((s.finishedAt ? Date.parse(s.finishedAt) : Date.now()) - Date.parse(s.startedAt)) : "—";
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${e.single ? "" : `${esc(vm.id)} · `}${esc(id)}</span>${st === "working" ? `<span class="pulse"></span>` : st === "approval" ? `<span class="pulse amber"></span>` : ""}<span class="badge ${st === "done" ? doneCls(vm) : esc(st)}">${esc(label)}</span></div><h2>${esc(s.title)}</h2><div class="muted">${esc(s.summary || "")}</div>${action ? `<div style="margin-top:12px">${action}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(vm.id)} · ${esc(id)}</span>${st === "working" ? `<span class="pulse"></span>` : st === "approval" ? `<span class="pulse amber"></span>` : ""}<span class="badge ${st === "done" ? doneCls(vm) : esc(st)}">${esc(label)}</span></div><h2>${esc(s.title)}</h2><div class="muted">${esc(s.summary || "")}</div>${action ? `<div style="margin-top:12px">${action}</div>` : ""}`;
   $("sheet-body").innerHTML = `
     ${s.approval ? `<div class="sec"><div class="approvalbox"><b>Waiting for approval</b> — ${esc(s.approval.tool)}<div class="mono" style="margin-top:4px">${esc(s.approval.detail || "")}</div><div class="muted" style="margin-top:6px">Answer it in Paseo, or in the orchestrator terminal.</div></div></div>` : ""}
     ${s.failure ? `<div class="sec"><div class="failbox"><b>Failure</b> — ${esc(s.failure)}</div></div>` : ""}
@@ -2394,7 +2149,7 @@ async function asanaSync() {
   try {
     const r = await fetch(`/asana?url=${encodeURIComponent(S.project.project.asana.url)}`, { method: "POST" });
     if (!r.ok) throw new Error(r.status);
-    S.asanaSync = new Date().toISOString(); render(); if (S.sel) renderSheet();
+    S.asanaSync = new Date().toISOString(); render();
     toast(S.info?.watching ? "Queued: the orchestrator re-reads the quest's Asana subtasks" : `Queued: picked up the next time ${orchCmd() || "the orchestrator"} runs`);
   } catch { toast(SERVER_DOWN); }
 }
@@ -2568,8 +2323,8 @@ async function goTo(r) {
   const badPath = r.doc && (!r.doc.path || r.doc.path.includes("\\") || r.doc.path.split("/").some((x) => !x || x === "." || x === ".."));
   if (r.bad || r.head.length > 2 || badPath || (!a && !r.doc)) return toast("That link isn't one this Podium understands");
   const sel = a === "quest" && !b ? { quest: true } : a === "epic" && b ? { epic: b } : a ? (b ? { ms: a, story: b } : { ms: a })
-    : S.view ? { ms: S.view } : S.epic ? { epic: S.epicView } : null;
-  if (!sel) return none("epic to show it in");
+    : S.open ? { ms: S.open } : null;
+  if (!sel) return none("milestone to show it in");
   if (!resolveSel(sel)) return none(selName(sel));
   if (sel.ms === a && b === undefined && !r.doc) return reveal(a);
   await openSheet(sel);
@@ -2636,7 +2391,6 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-quest]")) { openSheet({ quest: true }); return; }
   const es = ev.target.closest("[data-epic-sheet]");
   if (es) { openSheet({ epic: es.dataset.epicSheet }); return; }
-  if (ev.target.closest("[data-out]") && !ev.target.closest("[data-reveal]")) { setView(null); return; }
   const rv = ev.target.closest("[data-reveal]");
   if (rv) { reveal(rv.dataset.reveal); return; }
   if (ev.target.closest("[data-collapse]")) { collapse(); return; }
@@ -2654,7 +2408,7 @@ document.addEventListener("click", (ev) => {
 document.addEventListener("keydown", (ev) => {
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") { ev.preventDefault(); $("q").focus(); $("q").select(); }
   else if (ev.key === "Escape") onEscape();
-  else if (ev.key === "Enter" && ev.target.matches(".node, .fms, .otitle, .fepic, .mini, .quest")) ev.target.click();
+  else if (ev.key === "Enter" && ev.target.matches(".node, .fms, .otitle, .fepic, .quest")) ev.target.click();
 });
 function onEscape() {
   if (S.sel) closeSheet();
@@ -2724,7 +2478,7 @@ function trackStickyBar() {
   }
 }
 trackStickyBar();
-window.addEventListener("resize", () => { if (!S.project) return; if (!S.epic || !S.view) drawQueue(); else renderMap(); });
+window.addEventListener("resize", () => { if (S.project) drawQueue(); });
 $("quality").addEventListener("toggle", () => (S.qualityTouched = true), { once: true });
 
 setFavicon("");
@@ -2732,7 +2486,6 @@ poll();
 setInterval(() => { if (!document.hidden || Date.now() - lastPoll >= HIDDEN_POLL_MS) poll(); }, POLL_MS);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 setInterval(() => { if (S.events.length) { renderEvents(); renderCrew(); } }, 60000);
-setInterval(() => document.querySelectorAll("[data-since]").forEach((el) => (el.textContent = dur(Date.now() - Date.parse(el.dataset.since)))), 30000);
 </script>
 </body>
 </html>
