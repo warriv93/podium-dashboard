@@ -93,6 +93,16 @@ CYCLIC_RUN = {
                      {"id": "S3", "title": "c", "status": "todo", "deps": ["S2"], "startedAt": "2026-10-20T07:30:00+00:00"},
                      {"id": "S4", "title": "d", "status": "todo", "deps": ["S1"]}]},
         {"id": "M2", "title": "N", "status": "todo", "deps": ["M1"]}]}]}
+HIDE_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M3"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "first", "status": "done"},
+        {"id": "M2", "title": "second", "status": "moved", "movedTo": "M3"},
+        {"id": "M3", "title": "third", "status": "working", "phase": "build", "stories": [
+            {"id": "S1", "title": "a", "status": "done"}, {"id": "S2", "title": "b", "status": "dropped"},
+            {"id": "S3", "title": "c", "status": "done"}, {"id": "S4", "title": "d", "status": "failed", "attempts": 1},
+            {"id": "S5", "title": "e", "status": "todo", "deps": ["S4"]}]},
+        {"id": "M4", "title": "fourth", "status": "todo"}]}]}
 FINISHED_RUN = {
     "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M2"},
     "epics": [{"id": "e1", "title": "E", "milestones": [
@@ -318,12 +328,12 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
 
-    def hide_finished_buttons(self, run, stored=None, scope=None):
-        """The label of every Hide finished button the page rendered, in render order, optionally only the map's or the stories'."""
+    def hide_finished_buttons(self, run, stored=None):
+        """The label of every Hide finished button the page rendered, in render order."""
         self.rendered(run, [], PROGRESS, (), localStorage=stored or {})
         labels = []
         for html in self.html:
-            if f'data-hide-finished="{scope}"' in html if scope else "data-hide-finished" in html:
+            if "data-hide-finished" in html:
                 scan = Scan()
                 scan.feed(html)
                 labels.append("".join(scan.text))
@@ -529,11 +539,48 @@ class HostileRun(unittest.TestCase):
     def test_hide_finished_reads_podium_hide_finished_from_local_storage(self):
         self.assertIn('"podium-hide-finished"', open(PAGE).read())
         labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "1"})
-        self.assertIn("Show all · 1 hidden", labels)
+        self.assertIn("Show all · 3 hidden", labels)
 
-    def test_a_stored_podium_hide_finished_stories_hides_no_milestone(self):
-        stories = {"podium-hide-finished-stories": "1"}
-        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, stories, "map")), {"Hide finished"})
+    def test_a_stored_podium_hide_finished_stories_changes_nothing_and_the_page_no_longer_names_it(self):
+        labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished-stories": "1"})
+        self.assertEqual(set(labels), {"Hide finished"})
+        self.assertNotIn("podium-hide-finished-stories", open(PAGE).read())
+
+    def hidden_map(self, stored=None, run=HIDE_RUN, probe='(expand("M3"), 0)'):
+        """The last full map's milestone ids, the story ids inside the open milestone, and the Hide finished label."""
+        stored = {"podium-hide-finished": "1"} if stored is None else stored
+        maps, _ = self.maps(run, localStorage=stored, probe=probe)
+        full = maps[-1]
+        open_card = self.open_card(full)
+        shown = re.findall(r'<div class="fms [^"]*" [^>]*?data-id="([^"]*)"', full)
+        stories = re.findall(r'<div class="node compact [^"]*" data-open="[^"]*" data-story="([^"]*)"', open_card)
+        label = next(h for h in reversed(self.html) if "data-hide-finished" in h)
+        scan = Scan()
+        scan.feed(label)
+        return shown, stories, "".join(scan.text)
+
+    def test_hide_finished_hides_landed_and_moved_milestones_and_finished_stories_of_the_open_one(self):
+        shown, stories, _ = self.hidden_map()
+        self.assertEqual(shown, ["M3", "M4"])
+        self.assertEqual(stories, ["S4", "S5"])
+
+    def test_hide_finished_shows_every_milestone_and_story_while_off(self):
+        shown, stories, label = self.hidden_map({})
+        self.assertEqual(shown, ["M1", "M2", "M3", "M4"])
+        self.assertEqual(sorted(stories), ["S1", "S2", "S3", "S4", "S5"])
+        self.assertEqual(label, "Hide finished")
+
+    def test_hide_finished_counts_the_milestones_and_stories_it_hides(self):
+        self.assertEqual(self.hidden_map()[2], "Show all · 5 hidden")
+
+    def test_hide_finished_keeps_the_story_whose_sheet_is_open(self):
+        _, stories, label = self.hidden_map(probe='(openSheet({ ms: "M3", story: "S1" }), 0)')
+        self.assertEqual(sorted(stories), ["S1", "S4", "S5"])
+
+    def test_hide_finished_keeps_a_story_that_needs_the_user(self):
+        run = {**HIDE_RUN, "needsYou": {"story": "M3/S3", "reason": "r"}}
+        _, stories, _ = self.hidden_map(run=run)
+        self.assertEqual(sorted(stories), ["S3", "S4", "S5"])
 
     def feed_classes(self, stored=None):
         self.rendered(localStorage=stored or {})

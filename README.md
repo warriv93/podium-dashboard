@@ -117,7 +117,7 @@ The dashboard's **Share** button queues a `share` request for your orchestrator,
 
 Every side sheet has a **Copy link** button left of its close button: the link (`http://127.0.0.1:8765/open?run=<run slug>#/M24`, or `#/M2/S8`, or `#/M24/doc/spec/m24/spec.md`) opens in a colleague's own Podium: `#/M24` opens milestone M24 on the map, `#/M2/S8` opens M2 on the map and story S8's sheet, and a `/doc/` link opens that document's sheet. Port 8765 is where a Podium starts, and any Podium there sends the link on to the server of that run on the colleague's machine, whatever port it took; with no Podium running on 8765-8784 the browser can't connect, and one that doesn't serve the run answers a page with `podium server --detach` to start it in their checkout.
 
-The **Hide finished** button in the map header drops finished milestones from the milestone map and merged or dropped stories from a milestone's story map (a finished item that is open or needs you stays); the choice is kept in the browser under `podium-hide-finished`.
+The **Hide finished** button in the map header drops landed and moved milestones from the map and, inside the open milestone, merged or dropped stories (a finished item that is open or needs you stays, and the button counts what it hides); the choice is kept in the browser under `podium-hide-finished`.
 
 Beside it, a run with two or more people shows one avatar each (everyone in `podium.json`'s `people` or the `by` of an event; yours has a ring; past five people it shows four and a `+N` chip). A green dot means an event of theirs is under 15 minutes old: recent activity, not live presence. The tooltip names the milestones they own, the one they're on with its phase, and when they were last active.
 
