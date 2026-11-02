@@ -115,6 +115,19 @@ EMIT_RUN = {
         {"id": "M1", "title": "M", "status": "working", "phase": "build",
          "stories": [{"id": H, "title": "h", "status": "working", "deps": []}, {"id": "S2", "title": "b", "status": "todo", "deps": [H]}]},
         {"id": "M2", "title": "N", "status": "todo", "deps": ["M1"]}]}]}
+OPEN_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e2", "milestone": "M2"},
+    "epics": [
+        {"id": "e1", "title": "E1", "milestones": [
+            {"id": "M1", "title": "first", "status": "done", "stories": [{"id": "S1", "title": "one", "status": "done"}]},
+            {"id": "R1", "title": "look", "kind": "research", "status": "todo", "artifacts": [{"name": "notes", "path": "r.md"}]}]},
+        {"id": "e2", "title": "E2", "milestones": [
+            {"id": "M2", "title": "second", "status": "working", "phase": "build", "deps": ["M1"], "stories": [
+                {"id": "S2", "title": "two", "status": "working", "model": "opus-model", "agent": {"backend": "paseo", "id": "ag1"}},
+                {"id": "S3", "title": "three", "status": "done"},
+                {"id": "S4", "title": "four", "status": "todo", "deps": ["S3"]},
+                {"id": "S5", "title": "five", "status": "todo", "deps": ["S2"]}]},
+            {"id": "M3", "title": "third", "status": "todo", "deps": ["M2"], "stories": [{"id": "S6", "title": "six", "status": "todo"}]}]}]}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
 
 HARNESS = r"""
@@ -155,6 +168,7 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
 /*PAGE*/
 (async () => {
   await poll();
+  OUT.push("LOADED " + JSON.stringify({ open: S.open ?? null, sel: S.sel }));
   for (const [k, v] of Object.entries(JSON.parse(FILES.progress))) S.progress[k] = v;
   S.digestSince = 0;
   render();
@@ -165,6 +179,7 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
     await openSheet({ epic: E.id });
     for (const m of E.milestones) {
       setEpic(E.id);
+      expand(m.id);
       await openSheet({ ms: m.id });
       setView(m.id);
       await openSheet({ ms: m.id });
@@ -174,6 +189,8 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
     S.ds = { id: E.id, tab: 0 };
     renderDs();
   }
+  S.view = null;
+  collapse();
   if (FILES.doc) await openDoc(...JSON.parse(FILES.doc));
   if (FILES.probe) OUT.push("PROBE " + JSON.stringify(await eval(FILES.probe)));
   const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
@@ -275,7 +292,7 @@ class HostileRun(unittest.TestCase):
         return cards
 
     def card_dots(self, milestones):
-        """Each milestone card's story dots in the full map, by id: the card's drill target and each dot's attributes, or None for no dots."""
+        """Each milestone card's story dots in the full map, by id: the card's expand target and each dot's attributes, or None for no dots."""
         run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": milestones}]}
         self.rendered(run, [], PROGRESS, ())
         page = [h for h in self.html if 'class="fms ' in h][-1]
@@ -283,7 +300,7 @@ class HostileRun(unittest.TestCase):
         for card in re.split(r'(?=<div class="fms )', page)[1:]:
             row = re.search(r'<span class="fdots">(.*?)</span>', card, re.S)
             dots = [dict(re.findall(r'([\w-]+)="([^"]*)"', tag)) for tag in re.findall(r"<i [^>]*>", row.group(1))] if row else None
-            cards[re.search(r'data-id="([^"]*)"', card).group(1)] = (re.search(r'data-drill="([^"]*)"', card.split(">")[0]), dots, card)
+            cards[re.search(r'data-id="([^"]*)"', card).group(1)] = (re.search(r'data-expand-ms="([^"]*)"', card.split(">")[0]), dots, card)
         return cards
 
     def share_button(self, run):
@@ -425,8 +442,8 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(shown[0][0], "second")
 
     def test_a_link_to_a_story_opens_that_milestones_story(self):
-        shown = self.sheets(TWIN_RUN, "#/M2/S1", "#/M1/S1", "#/M2")
-        self.assertEqual([(title, link) for title, link, _ in shown], [("S1 of M2", "#/M2/S1"), ("S1 of M1", "#/M1/S1"), ("second", "#/M2")])
+        shown = self.sheets(TWIN_RUN, "#/M2/S1", "#/M1/S1")
+        self.assertEqual([(title, link) for title, link, _ in shown], [("S1 of M2", "#/M2/S1"), ("S1 of M1", "#/M1/S1")])
 
     def test_an_artifact_of_a_milestone_without_stories_opens_as_its_story_and_links_to_it(self):
         self.assertEqual(self.sheets(TWIN_RUN, {"ms": "M3", "story": "A1"})[0][:2], ("the mock", "#/M3/A1"))
@@ -663,13 +680,148 @@ class HostileRun(unittest.TestCase):
     def test_clicking_a_story_dot_is_clicking_its_card(self):
         _, dots, card = self.card_dots([{"id": "M1", "title": "a", "status": "working", "stories": [{"id": "S1", "title": "s", "status": "todo"}]}])["M1"]
         self.assertTrue(card.startswith('<div class="fms '))
-        self.assertIn('data-drill="M1"', card.split(">")[0])
-        self.assertTrue(all("data-drill" not in d and "data-open" not in d for d in dots))
+        self.assertIn('data-expand-ms="M1"', card.split(">")[0])
+        self.assertTrue(all("data-expand-ms" not in d and "data-open" not in d for d in dots))
 
     def test_a_hostile_story_title_on_a_dot_is_text(self):
         _, dots, _ = self.card_dots([{"id": "M1", "title": "a", "status": "parked", "stories": [{"id": X, "title": X, "status": X}]}])["M1"]
         self.assertEqual(len(dots), 1)
         self.assertNotIn("pwn", dots[0])
+
+    def maps(self, run=OPEN_RUN, **kw):
+        """Every full map the page rendered, in order, and the state the first load left: {open, sel}."""
+        self.rendered(run, [], PROGRESS, (), **kw)
+        loaded = json.loads(next(h for h in self.html if h.startswith("LOADED "))[len("LOADED "):])
+        return [h for h in self.html if '<div class="full"' in h], loaded
+
+    def probe(self):
+        return json.loads([h for h in self.html if h.startswith("PROBE ")][-1][len("PROBE "):])
+
+    @staticmethod
+    def open_cards(html):
+        return re.findall(r'<div class="fms open [^"]*" data-id="([^"]*)"', html)
+
+    @staticmethod
+    def open_card(html):
+        return re.split(r'(?=<div class="fms )', html[html.index('<div class="fms open '):])[1]
+
+    def test_the_building_milestone_renders_open_on_load_and_no_other(self):
+        maps, loaded = self.maps()
+        self.assertEqual(self.open_cards(maps[0]), ["M2"])
+        self.assertEqual(maps[0].count('class="fms open'), 1)
+        self.assertEqual(loaded, {"open": "M2", "sel": None})
+
+    def test_opening_a_milestone_closes_the_one_that_was_open(self):
+        maps, _ = self.maps(probe='(expand("M2"), expand("M3"), S.open)')
+        self.assertEqual(self.probe(), "M3")
+        self.assertEqual(self.open_cards(maps[-1]), ["M3"])
+
+    def test_escape_closes_the_sheet_first_and_then_the_open_milestone(self):
+        maps, _ = self.maps(probe='(() => { S.ds = null; expand("M2"); openSheet({ ms: "M3" }); onEscape(); const first = [S.open, S.sel]; onEscape(); return [first, S.open]; })()')
+        self.assertEqual(self.probe(), [["M2", None], None])
+        self.assertEqual(self.open_cards(maps[-1]), [])
+
+    def test_the_open_card_has_a_collapse_button_and_a_title_that_opens_the_milestone_sheet(self):
+        maps, _ = self.maps()
+        card = self.open_card(maps[0])
+        self.assertIn('<button class="ocollapse" data-collapse>', card)
+        self.assertRegex(card, r'<span class="title otitle" data-open="M2"[^>]*>second</span>')
+        self.assertNotIn("data-expand-ms", card.split(">")[0])
+
+    def test_a_research_card_opens_its_sheet_and_never_expands(self):
+        maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
+        self.assertEqual(self.probe(), ["M2", {"ms": "R1"}])
+        research = re.search(r'<div class="fms [^"]*research"[^>]*>', maps[0]).group(0)
+        self.assertIn('data-open="R1"', research)
+        self.assertNotIn("data-expand-ms", research)
+
+    def test_a_later_poll_never_moves_or_reopens_the_open_milestone(self):
+        swap = ('{ const run = JSON.parse(FILES["podium/podium.json"]), [m2, m3] = run.epics[1].milestones;'
+                ' Object.assign(m2, { status: "done" }); Object.assign(m3, { status: "working", phase: "build", n: (m3.n || 0) + 1 });'
+                ' run.active.milestone = "M3"; FILES["podium/podium.json"] = JSON.stringify(run); await poll(); }')
+        self.maps(probe=f'(async () => {{ expand("M2"); {swap} const kept = S.open; collapse(); {swap} return [kept, S.open]; }})()')
+        self.assertEqual(self.probe(), ["M2", None])
+
+    def test_a_project_with_one_milestone_opens_it_on_load_on_the_one_map(self):
+        run = {**OPEN_RUN, "active": None, "epics": [
+            {"id": "e1", "title": "E1", "milestones": [{"id": "M1", "title": "only", "status": "todo", "stories": [{"id": "S1", "title": "a", "status": "todo"}]}]},
+            {"id": "e2", "title": "E2", "milestones": [{"id": "R1", "title": "look", "kind": "research", "status": "todo"}]}]}
+        maps, loaded = self.maps(run)
+        self.assertEqual(self.open_cards(maps[0]), ["M1"])
+        self.assertEqual(loaded["open"], "M1")
+
+    def test_with_nothing_building_and_several_milestones_nothing_opens_on_load(self):
+        run = {**OPEN_RUN, "active": None, "epics": [{"id": "e1", "title": "E1", "milestones": [
+            {"id": "M1", "title": "a", "status": "todo", "stories": [{"id": "S1", "title": "a", "status": "todo"}]},
+            {"id": "M2", "title": "b", "status": "parked"}]}]}
+        maps, loaded = self.maps(run)
+        self.assertEqual(self.open_cards(maps[0]), [])
+        self.assertEqual(loaded["open"], None)
+
+    def test_when_the_open_milestone_leaves_the_run_nothing_is_open(self):
+        maps, _ = self.maps(probe='(async () => { expand("M3"); const run = JSON.parse(FILES["podium/podium.json"]);'
+                                  ' run.epics[1].milestones.pop(); FILES["podium/podium.json"] = JSON.stringify(run); await poll(); return S.open; })()')
+        self.assertIsNone(self.probe())
+        self.assertEqual(self.open_cards(maps[-1]), [])
+
+    def test_a_link_to_a_milestone_opens_it_in_place_without_a_sheet_from_the_first_render(self):
+        maps, loaded = self.maps(location={"hash": "#/M3"})
+        self.assertEqual(self.open_cards(maps[0]), ["M3"])
+        self.assertEqual(loaded, {"open": "M3", "sel": None})
+
+    def test_a_link_to_a_story_opens_its_milestone_and_its_sheet_from_the_first_render(self):
+        maps, loaded = self.maps(location={"hash": "#/M3/S6"})
+        self.assertEqual(self.open_cards(maps[0]), ["M3"])
+        self.assertEqual(loaded, {"open": "M3", "sel": {"ms": "M3", "story": "S6"}})
+
+    def test_a_later_link_opens_the_milestone_in_place_and_a_story_link_also_its_sheet(self):
+        maps, _ = self.maps(probe='(() => { const out = []; for (const h of ["#/M3", "#/M2/S4"]) {'
+                                  ' location.hash = h; S.route = parseRoute(); followLink(); out.push([S.open, S.sel]); } return out; })()')
+        self.assertEqual(self.probe(), [["M3", None], ["M2", {"ms": "M2", "story": "S4"}]])
+        self.assertEqual(self.open_cards(maps[-1]), ["M2"])
+
+    def test_controls_that_went_to_a_milestone_reveal_it_on_the_map(self):
+        run = {**OPEN_RUN, "needsYou": {"story": "M3/S6", "reason": "r"}}
+        events = [{"type": "phase", "milestone": "M3", "phase": "build", "at": ago(minutes=4)}]
+        self.rendered(run, events, PROGRESS, (), info={"people": {"ann": {"active": "M3"}, "bob": {}}})
+        shown = "".join(self.html)
+        self.assertIn('<a data-reveal="M3">M3</a>', [h for h in self.html if 'class="who' in h][-1])
+        self.assertIn('<span class="wchip" data-reveal="M3"><b>M3</b> go to milestone in map ›</span>', shown)
+        self.assertIn('<span class="wchip" data-reveal="M3"><b>M3</b> → Build</span>', shown)
+        self.assertIn('<a data-reveal="M3">M3</a> Phase →', shown)
+        self.assertIn('<a data-reveal="M3">third</a>', shown)
+        self.assertNotIn("data-drill", shown)
+        self.assertNotIn("data-drill", open(PAGE).read())
+
+    def test_the_open_card_sits_in_its_epics_column_like_a_closed_card(self):
+        maps, _ = self.maps()
+        self.assertRegex(maps[0], r'<div class="ford">#\d+</div><div></div><div class="fms open ')
+        self.assertNotIn("grid-column", self.open_card(maps[0]))
+        self.assertRegex(maps[-1], r'<div class="ford">#\d+</div><div></div><div class="fms working')
+
+    def test_each_story_shows_once_on_the_map(self):
+        maps, _ = self.maps()
+        for ms, story in (("M1", "S1"), ("M2", "S2"), ("M2", "S3"), ("M2", "S4"), ("M2", "S5"), ("M3", "S6")):
+            self.assertEqual(len(re.findall(f'data-(?:open|ms)="{ms}" data-story="{story}"', maps[0])), 1, story)
+
+    def test_story_cards_show_id_title_status_and_the_agent_link_or_assign_or_take_back_in_rows_of_three(self):
+        maps, _ = self.maps(**{"podium/handoffs.json": json.dumps({"M2/S5": {"at": DONE}}),
+                               "podium/stories/M2/S2.progress": "2026-10-20T07:00:00+00:00 RED x\n"})
+        found = re.findall(r'(<div class="node compact[^"]*" data-open="M2" data-story="(S\d)".*?</div></div>)', self.open_card(maps[0]))
+        cards = {sid: card for card, sid in found}
+        self.assertEqual(sorted(cards), ["S2", "S3", "S4", "S5"])
+        self.assertIn('<span class="sid">S2</span>', cards["S2"])
+        self.assertIn('<span class="title">two</span>', cards["S2"])
+        self.assertIn('<span class="badge working">Working on</span>', cards["S2"])
+        self.assertIn("Paseo ↗", cards["S2"])
+        for gone in ("opus-model", "Making them pass", 'class="doing', 'class="model'):
+            self.assertNotIn(gone, cards["S2"])
+        self.assertIn('data-act="assign" data-id="M2/S4"', cards["S4"])
+        self.assertIn('data-release="M2/S5"', cards["S5"])
+        self.assertIn('<span class="badge done merged">Merged to branch</span>', cards["S3"])
+        self.assertRegex(open(PAGE).read(), r"\.mrow \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)")
+        sheet = next(h for h in self.html if "<dt>Model</dt>" in h and "opus-model" in h)
+        self.assertIn('<dt>Step</dt><dd class="doing">Making them pass', sheet)
 
     def test_a_milestone_card_without_known_repos_has_no_chip_row(self):
         cards = self.card_repos([{"id": "M1", "title": "a", "status": "parked"},
@@ -783,7 +935,7 @@ class HostileRun(unittest.TestCase):
     def test_a_moved_milestone_card_is_greyed_with_a_pill_that_jumps_to_its_target(self):
         cards, _ = self.moved()
         self.assertIn("moved", cards["M10"][0].split())
-        self.assertIn('<span class="badge moved" data-drill="M11">Moved to M11</span>', cards["M10"][1])
+        self.assertIn('<span class="badge moved" data-reveal="M11">Moved to M11</span>', cards["M10"][1])
         self.assertNotIn("Ready", cards["M10"][1])
 
     def test_the_target_card_says_what_it_includes(self):
@@ -823,7 +975,7 @@ class HostileRun(unittest.TestCase):
 
     def test_the_feed_says_a_milestone_moved_and_why_under_phases(self):
         _, feed = self.moved(events=[{"type": "moved", "milestone": "M10", "to": "M11", "pattern": "<b>simple</b>", "at": ago(hours=1)}])
-        self.assertIn('<a data-drill="M10">M10</a> moved to <a data-drill="M11">M11</a> (&lt;b&gt;simple&lt;/b&gt;)', feed)
+        self.assertIn('<a data-reveal="M10">M10</a> moved to <a data-reveal="M11">M11</a> (&lt;b&gt;simple&lt;/b&gt;)', feed)
         self.assertIn('"moved"', re.search(r"phases: \[[^\]]*\]", open(PAGE).read()).group(0))
 
     def test_hostile_move_fields_are_text(self):
@@ -875,11 +1027,11 @@ class HostileRun(unittest.TestCase):
         for closed in ("Old", "Gone", "Elsewhere"):
             self.assertNotIn(closed, strip)
 
-    def test_the_strip_marks_your_own_claim_and_drills_into_affected_milestones(self):
+    def test_the_strip_marks_your_own_claim_and_reveals_affected_milestones(self):
         [strip, _] = self.strips([{"id": "D1", "epic": "e1", "question": "Q", "type": "discussion", "status": "open",
                                    "owner": "ann", "affects": ["M11", "billing", "M99"]}])
         self.assertIn('<span class="owner" style="background:hsl(354 50% 45%)" title="Yours (ann): you are settling it">👤 <span class="who">you</span></span>', strip)
-        self.assertIn('<span class="dmeta">affects <a data-drill="M11">M11</a>, billing, M99</span>', strip)
+        self.assertIn('<span class="dmeta">affects <a data-reveal="M11">M11</a>, billing, M99</span>', strip)
 
     def test_a_strip_of_closed_decisions_only_shows_the_count(self):
         [strip, _] = self.strips([{"id": "D1", "epic": "e1", "question": "Q", "type": "discussion", "status": "resolved"}])
