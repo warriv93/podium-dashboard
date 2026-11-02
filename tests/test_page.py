@@ -217,6 +217,7 @@ const PROTO = Object.getOwnPropertyNames(Object.prototype);
   const gained = Object.getOwnPropertyNames(Object.prototype).filter((k) => !PROTO.includes(k));
   if (gained.length) throw new Error(`Object.prototype gained ${gained}`);
   OUT.push("SCROLLS " + JSON.stringify(SCROLLS));
+  OUT.push("FLASHED " + JSON.stringify(Object.keys(els).filter((k) => els[k].classes.has("flash")).map((k) => /data-id="([^"]*)"/.exec(k)?.[1])));
   OUT.push(`TITLE ${esc(document.title)}`);
   OUT.push(`FEED ${[...node("feed").classes].join(" ")}`);
   process.stdout.write(JSON.stringify(OUT));
@@ -728,9 +729,9 @@ class HostileRun(unittest.TestCase):
             {"id": "M2", "title": "b", "status": "parked", "stories": [{"id": "S1", "title": "only", "status": "approval"}]}])
         _, dots, card = cards["M1"]
         self.assertEqual([(d["class"], d["data-ms"], d["data-story"], d["title"]) for d in dots],
-                         [("done", "M1", "S1", "S1 \u00b7 first \u00b7 merged"), ("ready", "M1", "S4", "S4 \u00b7 fourth \u00b7 ready"),
-                          ("working", "M1", "S2", "S2 \u00b7 second \u00b7 working"), ("waiting", "M1", "S3", "S3 \u00b7 third \u00b7 waiting")])
-        self.assertIn('<span class="fdots" role="img" aria-label="1 merged, 1 ready, 1 working, 1 waiting">', card)
+                         [("done", "M1", "S1", "S1 \u00b7 first \u00b7 merged"), ("ready", "M1", "S4", "S4 \u00b7 fourth \u00b7 to do"),
+                          ("working", "M1", "S2", "S2 \u00b7 second \u00b7 working"), ("waiting", "M1", "S3", "S3 \u00b7 third \u00b7 to do")])
+        self.assertIn('<span class="fdots" role="img" aria-label="1 merged, 2 to do, 1 working">', card)
         self.assertNotIn("fwave", card)
         self.assertNotIn("fsc", card)
         self.assertEqual([d["class"] for d in cards["M2"][1]], ["approval"])
@@ -766,6 +767,10 @@ class HostileRun(unittest.TestCase):
 
     def scrolls(self):
         return json.loads(next(h for h in self.html if h.startswith("SCROLLS "))[len("SCROLLS "):])
+
+    def flashed(self, ms):
+        flashed = json.loads(next(h for h in self.html if h.startswith("FLASHED "))[len("FLASHED "):])
+        return ["flash"] if ms in flashed else []
 
     @staticmethod
     def open_cards(html):
@@ -910,6 +915,7 @@ class HostileRun(unittest.TestCase):
     def test_a_link_to_a_story_scrolls_to_its_milestone_and_a_load_without_a_link_does_not(self):
         self.maps(location={"hash": "#/M3/S6"})
         self.assertEqual([o["behavior"] for o in self.scrolls()], ["smooth"])
+        self.assertEqual(self.flashed("M3"), ["flash"])
         self.maps()
         self.assertEqual(self.scrolls(), [])
 
@@ -917,6 +923,20 @@ class HostileRun(unittest.TestCase):
         self.maps(probe='(async () => { location.hash = "#/M2/S4"; S.route = parseRoute(); await goTo(S.route); return S.sel; })()')
         self.assertEqual(self.probe(), {"ms": "M2", "story": "S4"})
         self.assertEqual([o["behavior"] for o in self.scrolls()], ["smooth"])
+        self.assertEqual(self.flashed("M2"), ["flash"])
+        self.assertEqual(self.flashed("M3"), [])
+
+    def test_a_story_link_scrolls_before_the_sheet_has_finished_loading(self):
+        self.maps(probe='(async () => { const order = []; scrollTo = () => order.push("scroll"); const open = openSheet;'
+                        ' openSheet = async (sel) => { order.push("open"); await open(sel); order.push("opened"); };'
+                        ' location.hash = "#/M2/S4"; S.route = parseRoute(); await goTo(S.route); return order; })()')
+        self.assertEqual(self.probe(), ["open", "scroll", "opened"])
+
+    def test_scrolling_to_a_milestone_clears_the_sticky_map_head_as_well_as_the_toolbar(self):
+        self.maps(probe='(() => { const scrolls = []; scrollTo = (o) => scrolls.push(o.top);'
+                        ' document.querySelector(".map-head").getBoundingClientRect = () => ({ top: 0, height: 50 });'
+                        ' collapse(); reveal("M3"); return scrolls; })()')
+        self.assertEqual(self.probe(), [-62])
 
     def test_the_needs_banner_story_chip_scrolls_to_its_milestone(self):
         self.maps({**OPEN_RUN, "needsYou": {"story": "M3/S6", "reason": "r"}})
@@ -1048,11 +1068,26 @@ class HostileRun(unittest.TestCase):
         maps, _ = self.maps(FINISHED_RUN, probe='(expand("M2"), toggleFold("M2"), 0)')
         self.assertIn('<button class="ocollapse" data-unfold="M2" aria-expanded="true">Fold merged waves ▴</button>', self.open_card(maps[-1]))
 
-    def test_an_expandable_closed_card_is_a_collapsed_button_and_one_that_opens_a_sheet_is_not(self):
+    def test_an_expandable_closed_card_has_a_collapsed_title_button_and_no_role_of_its_own(self):
         maps, _ = self.maps()
-        cards = {re.search(r'data-id="([^"]*)"', c).group(1): c.split(">")[0] for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
-        self.assertIn('data-expand-ms="M3" data-id="M3" tabindex="0" role="button" aria-expanded="false"', cards["M3"])
-        self.assertNotIn("role=", cards["R1"])
+        cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
+        self.assertIn('<div class="fms ', cards["M3"])
+        self.assertIn('data-expand-ms="M3" data-id="M3">', cards["M3"])
+        self.assertIn('<button class="title" aria-expanded="false">', cards["M3"])
+        self.assertNotIn("role=", cards["M3"].split(">")[0])
+        self.assertNotIn("tabindex", cards["M3"].split(">")[0])
+
+    def test_a_card_that_opens_a_sheet_stays_focusable_with_a_plain_title(self):
+        maps, _ = self.maps()
+        cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
+        self.assertIn('data-open="R1" data-id="R1" tabindex="0">', cards["R1"])
+        self.assertNotIn("aria-expanded", cards["R1"])
+        self.assertIn('<span class="title">', cards["R1"])
+
+    def test_dot_words_read_as_plain_language(self):
+        self.maps(probe='["done", "approval", "elsewhere", "failed", "blocked", "working", "todo", "ready", "waiting", "draft", "parked", "later", "<b>"].map(dotWord)')
+        self.assertEqual(self.probe(), ["merged", "needs approval", "on another machine", "failed", "blocked", "working", "to do", "to do", "to do",
+                                        "not started", "not started", "not started", "<b>"])
 
     def test_after_an_action_in_the_map_focus_returns_to_the_control_that_replaces_the_one_acted_on(self):
         probe = '''(() => {
@@ -1066,7 +1101,7 @@ class HostileRun(unittest.TestCase):
           return focused;
         })()'''
         self.maps(FINISHED_RUN, probe=probe)
-        self.assertEqual(self.probe(), ['#map .fms.open[data-id="M2"] .otitle', '#map .fms[data-id="M2"]',
+        self.assertEqual(self.probe(), ['#map .fms.open[data-id="M2"] .otitle', '#map .fms[data-id="M2"] button.title',
                                         '#map .fms.open[data-id="M2"] .otitle', '#map .mtree[data-ms="M2"] [data-unfold]'])
 
     def test_a_fold_chip_opens_its_story_sheet(self):

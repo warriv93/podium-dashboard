@@ -262,6 +262,8 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms .fid .owner { max-width: 100%; }
 .fms .ftools { flex: 0 1 auto; }
 .fms .title { font-weight: 620; font-size: 13.5px; }
+.fms button.title { border: 0; background: none; padding: 0; font-family: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; text-align: left; cursor: inherit; }
+.fms button.title:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; border-radius: 4px; }
 .fms .foot { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-2); flex-wrap: wrap; }
 .fms.done { background: transparent; box-shadow: none; }
 .fms.research { border-style: dashed; }
@@ -1143,11 +1145,13 @@ function fullMs(m, all) {
   const map = storyIndex(m);
   const dotted = wavesOf(stories).flat().map((s) => [s, viewStatus(s, map, m.id)]);
   const dots = stories.length ? `<span class="fdots" role="img" aria-label="${esc(dotSummary(dotted.map(([, st]) => dotWord(st))))}">${dotted.map(([s, st]) => `<i class="${esc(st)}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title} · ${dotWord(st)}`)}"></i>`).join("")}</span>` : "";
-  const go = canExpand(m) && hasBody(m) ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
-  const asButton = go.startsWith("data-expand-ms") ? ` role="button" aria-expanded="false"` : "";
-  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"${asButton}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div><span class="title">${esc(m.title)}</span>${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
+  const expands = canExpand(m) && hasBody(m);
+  const go = expands ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
+  const title = expands ? `<button class="title" aria-expanded="false">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
+  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
 }
-const dotWord = (st) => (st === "done" ? "merged" : st);
+const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", parked: "not started", later: "not started" };
+const dotWord = (st) => DOT_WORDS[st] || st;
 function dotSummary(words) {
   const counts = new Map();
   for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
@@ -1974,13 +1978,14 @@ function collapse() {
   const focused = focusInMap(), was = S.open;
   S.open = null; S.openGuessed = false;
   render();
-  if (focused && was) refocus(`#map .fms[data-id="${CSS.escape(was)}"]`);
+  if (focused && was) refocus(`#map .fms[data-id="${CSS.escape(was)}"] button.title`);
 }
 function scrollToMs(id) {
   requestAnimationFrame(() => {
     const card = document.querySelector(`#map .fms[data-id="${CSS.escape(id)}"]`);
     if (!card) return;
-    scrollTo({ top: card.getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" });
+    const head = document.querySelector(".map-head")?.getBoundingClientRect().height || 0;
+    scrollTo({ top: card.getBoundingClientRect().top + scrollY - stickyOffset() - head - 12, behavior: "smooth" });
     card.classList.add("flash");
   });
 }
@@ -2452,8 +2457,9 @@ async function goTo(r) {
   if (!sel) return none("milestone to show it in");
   if (!resolveSel(sel)) return none(selName(sel));
   if (sel.ms === a && b === undefined && !r.doc) return reveal(a);
-  await openSheet(sel);
+  const opened = openSheet(sel);
   if (sel.story !== undefined) scrollToMs(a);
+  await opened;
   if (r.doc) await openDoc(r.doc.path, r.doc.base);
 }
 function followLink() {
