@@ -1032,7 +1032,7 @@ class HostileRun(unittest.TestCase):
             self.assertNotIn(gone, cards["S2"])
         self.assertIn('data-act="assign" data-id="M2/S4"', cards["S4"])
         self.assertIn('data-release="M2/S5"', cards["S5"])
-        self.assertIn('<span class="badge done merged">Merged to branch</span>', cards["S3"])
+        self.assertIn('<span class="badge done merged">Merged<span class="more"> to branch</span></span>', cards["S3"])
         self.assertRegex(open(PAGE).read(), r"\.mrow \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)")
         sheet = next(h for h in self.html if "<dt>Model</dt>" in h and "opus-model" in h)
         self.assertIn('<dt>Step</dt><dd class="doing">Making them pass', sheet)
@@ -1049,7 +1049,8 @@ class HostileRun(unittest.TestCase):
     def test_merged_leading_waves_fold_into_one_line_of_chips_and_the_wave_count_goes_on(self):
         maps, _ = self.maps(FINISHED_RUN)
         lines, cards, chips = self.tree_text(self.open_card(maps[0]))
-        self.assertEqual(lines, ["Waves 1–2 · 2 merged", "S1 a", "S2 b", "Show ▸", "Wave 3"])
+        self.assertEqual(lines, ["Waves 1–2 · 2 merged", "Show ▸", "S1 a", "S2 b", "Wave 3"])
+        self.assertIn('<div class="mfh"><span class="mfl"><b>Waves 1–2</b> · 2 merged</span><button class="ocollapse" data-unfold="M2"', self.open_card(maps[0]))
         self.assertEqual(cards, ["S3"])
         self.assertEqual(chips, ["S1", "S2"])
         self.assertIn('<button class="ocollapse" data-unfold="M2" aria-expanded="false">Show ▸</button>', self.open_card(maps[0]))

@@ -342,12 +342,16 @@ a.wchip { color: inherit; text-decoration: none; }
 .mfold { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
 .mfl { font-size: 12px; color: var(--text-3); }
 .mfl b { color: var(--text); font-weight: 650; }
+.mfold:has(> .mfh) { display: block; padding: 9px 12px 10px; }
+.mfh { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .fchips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 0; min-width: 0; }
+.mfh + .fchips { margin-top: 8px; }
 .fchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 6px; background: var(--purple-soft); color: var(--fold-ink); font-size: 11.5px; font-weight: 600; cursor: pointer; }
 .fchip.sel { box-shadow: 0 0 0 2px var(--accent); }
 .fchip.dim { opacity: .28; }
 .mrefold { display: flex; justify-content: flex-end; }
-.node.compact { position: relative; min-height: 88px; padding: 7px 9px; gap: 4px; border-radius: 11px; }
+.node.compact { position: relative; min-height: 88px; padding: 7px 9px; gap: 4px; border-radius: 11px; container-type: inline-size; }
+@container (max-width: 190px) { .node.compact .badge .more { display: none; } }
 .node.compact .title { font-size: 12.5px; }
 .node.compact .foot { min-height: 22px; gap: 4px 6px; font-size: 11px; flex-wrap: wrap; }
 .node.compact .badge { padding: 2px 7px; font-size: 10.5px; }
@@ -1217,7 +1221,7 @@ function msTree(m, map) {
   const wave = ([i, w]) => `<div class="mwave"><span class="mwl">Wave ${i + 1}${w.length > 1 ? ` · ${w.length} in parallel` : ""}</span><div class="mrow">${w.map((s) => storyCard(m, s, map)).join("")}</div></div>`;
   const chip = (s) => `<span class="fchip${isSel(m.id, s.id) ? " sel" : ""}" data-open="${id}" data-story="${esc(s.id)}" tabindex="0"><b>${esc(s.id)}</b> ${esc(s.title)}</span>`;
   const fold = !n ? "" : folded
-    ? `<div class="mfold"><span class="mfl"><b>${n > 1 ? `Waves 1–${n}` : "Wave 1"}</b> · ${merged.length} merged</span><span class="fchips">${merged.map(chip).join("")}</span><button class="ocollapse" data-unfold="${id}" aria-expanded="false">Show ▸</button></div>`
+    ? `<div class="mfold"><div class="mfh"><span class="mfl"><b>${n > 1 ? `Waves 1–${n}` : "Wave 1"}</b> · ${merged.length} merged</span><button class="ocollapse" data-unfold="${id}" aria-expanded="false">Show ▸</button></div><span class="fchips">${merged.map(chip).join("")}</span></div>`
     : `<div class="mrefold"><button class="ocollapse" data-unfold="${id}" aria-expanded="true">Fold merged waves ▴</button></div>`;
   return `<div class="mtree" data-ms="${id}">${fold}${(folded ? rows.slice(n) : rows).map(wave).join("")}</div>`;
 }
@@ -1236,7 +1240,7 @@ function msBody(m) {
 function storyBadge(m, s, st, map) {
   const wait = esc(depsOf(s).filter((d) => map[d]?.status !== "done").join(", "));
   return { __proto__: null,
-    done: `<span class="badge ${doneCls(m)}">${storyDone(m)}</span>`,
+    done: `<span class="badge ${doneCls(m)}">${m.status === "done" ? storyDone(m) : `Merged<span class="more"> to branch</span>`}</span>`,
     working: `<span class="pulse"></span><span class="badge working">Working on</span>`,
     approval: `<span class="pulse amber"></span><span class="badge approval">Waiting for approval</span>`,
     elsewhere: `<span class="badge elsewhere">In another session</span>`,
