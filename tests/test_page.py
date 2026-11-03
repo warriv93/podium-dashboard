@@ -801,6 +801,8 @@ class HostileRun(unittest.TestCase):
         card = self.open_card(maps[0])
         self.assertIn('<button class="ocollapse" data-collapse aria-expanded="true">', card)
         self.assertRegex(card, r'<span class="title otitle" data-open="M2"[^>]*>second</span>')
+        self.assertLess(card.index("data-collapse"), card.index('class="title otitle"'), "Collapse sits in the top row, before the title")
+        self.assertNotIn("data-collapse", card[card.index('class="oside"'):])
         self.assertNotIn("data-expand-ms", card.split(">")[0])
 
     def test_a_research_card_opens_its_sheet_and_never_expands(self):

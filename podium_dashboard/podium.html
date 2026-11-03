@@ -315,7 +315,11 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms.flash { animation: flash 1.2s ease-out; }
 @keyframes flash { 0%, 35% { outline: 3px solid var(--accent); outline-offset: 3px; } 100% { outline: 3px solid transparent; outline-offset: 3px; } }
 .ohead { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; }
-.ohead .fidrow { flex-wrap: wrap; align-items: center; }
+.ohead .fidrow { flex-wrap: wrap; align-items: center; padding-right: 76px; }
+.ohead { position: relative; }
+.ohead .ocollapse[data-collapse] { position: absolute; top: 0; right: 0; }
+.ohead { container-type: inline-size; }
+@container (min-width: 640px) { .ohead .oside { margin-top: 26px; } }
 .oepic { font-size: 11.5px; color: var(--text-3); }
 .otitle { font-size: 15px; cursor: pointer; }
 .otitle:hover { color: var(--accent); }
@@ -1171,7 +1175,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}<button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span></div>`;
+  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
