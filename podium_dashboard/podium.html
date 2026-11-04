@@ -783,7 +783,7 @@ let lastPoll = 0;
 
 /* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
 const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
-const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: undefined, unfold: dict(), query: "", filter: "all", online: true };
+const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: null, unfold: dict(), query: "", filter: "all", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -872,7 +872,6 @@ function personal(d) {
 }
 function loadProject() {
   S.project = personal(normalizeProject(JSON.parse(S.raw)));
-  if (S.open === undefined || S.openGuessed) { S.open = defaultOpen(); S.openGuessed = !S.info; }
   if (S.open && !canExpand(openMs())) S.open = null;
 }
 const epicOfMs = (ms) => S.project.epics.find((E) => (E.milestones || []).some((m) => m.id === ms))?.id;
@@ -970,10 +969,6 @@ const msOf = (id) => msList().find((m) => m.id === id) || null;
 const openMs = () => msOf(S.open);
 const canExpand = (m) => !!m && !isResearch(m) && m.status !== "dropped";
 const hasBody = (m) => !!((m.stories || []).length || (m.artifacts || []).length);
-function defaultOpen() {
-  const plain = msList().filter((m) => !isResearch(m)), active = plain.find((m) => m.id === S.project.active?.milestone);
-  return (isBuilding(active) ? active : plain.find(isBuilding) || (plain.length === 1 ? plain[0] : null))?.id ?? null;
-}
 const msBuildAll = (m) => (S.project.buildAll !== undefined && m.id === S.project.active?.milestone ? !!S.project.buildAll : !!m.buildAll);
 const idPath = (id) => String(id).split("/").map(encodeURIComponent).join("/");
 const dotted = (id) => String(id).split("/").some((x) => x === "." || x === "..");
@@ -1984,13 +1979,13 @@ function expand(id) {
   if (!m) return;
   if (!canExpand(m)) return openSheet({ ms: m.id });
   const focused = focusInMap();
-  S.open = m.id; S.openGuessed = false;
+  S.open = m.id;
   render();
   if (focused) refocus(`#map .fms.open[data-id="${CSS.escape(m.id)}"] .otitle`);
 }
 function collapse() {
   const focused = focusInMap(), was = S.open;
-  S.open = null; S.openGuessed = false;
+  S.open = null;
   render();
   if (focused && was) refocus(`#map .fms[data-id="${CSS.escape(was)}"] button.title`);
 }
@@ -2035,7 +2030,7 @@ const selName = (sel) => (sel.quest ? "quest" : sel.epic !== undefined ? `epic $
 async function openSheet(sel) {
   const r = resolveSel(sel);
   if (!r) return toast(`This run has no ${selName(sel)}`);
-  if (r.m && r.kind !== "ms" && canExpand(r.m)) { S.open = r.m.id; S.openGuessed = false; }
+  if (r.m && r.kind !== "ms" && canExpand(r.m)) S.open = r.m.id;
   S.sel = sel; S.doc = null; S.back = [];
   $("sheet").classList.add("on"); $("scrim").classList.add("on");
   $("sheet").setAttribute("aria-hidden", "false");

@@ -780,11 +780,10 @@ class HostileRun(unittest.TestCase):
     def open_card(html):
         return re.split(r'(?=<div class="fms )', html[html.index('<div class="fms open '):])[1]
 
-    def test_the_building_milestone_renders_open_on_load_and_no_other(self):
+    def test_nothing_opens_on_load_not_even_the_milestone_being_built(self):
         maps, loaded = self.maps()
-        self.assertEqual(self.open_cards(maps[0]), ["M2"])
-        self.assertEqual(maps[0].count('class="fms open'), 1)
-        self.assertEqual(loaded, {"open": "M2", "sel": None})
+        self.assertEqual(self.open_cards(maps[0]), [])
+        self.assertEqual(loaded, {"open": None, "sel": None})
 
     def test_opening_a_milestone_closes_the_one_that_was_open(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("M3"), S.open)')
@@ -797,8 +796,8 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(self.open_cards(maps[-1]), [])
 
     def test_the_open_card_has_a_collapse_button_and_a_title_that_opens_the_milestone_sheet(self):
-        maps, _ = self.maps()
-        card = self.open_card(maps[0])
+        maps, _ = self.maps(probe='expand("M2")')
+        card = self.open_card(maps[-1])
         self.assertIn('<button class="ocollapse" data-collapse aria-expanded="true">', card)
         self.assertRegex(card, r'<span class="title otitle" data-open="M2"[^>]*>second</span>')
         self.assertLess(card.index("data-collapse"), card.index('class="title otitle"'), "Collapse sits in the top row, before the title")
@@ -819,18 +818,9 @@ class HostileRun(unittest.TestCase):
         self.maps(probe=f'(async () => {{ expand("M2"); {swap} const kept = S.open; collapse(); {swap} return [kept, S.open]; }})()')
         self.assertEqual(self.probe(), ["M2", None])
 
-    def test_a_project_with_one_milestone_opens_it_on_load_on_the_one_map(self):
+    def test_a_project_with_one_milestone_leaves_it_closed_on_load(self):
         run = {**OPEN_RUN, "active": None, "epics": [
-            {"id": "e1", "title": "E1", "milestones": [{"id": "M1", "title": "only", "status": "todo", "stories": [{"id": "S1", "title": "a", "status": "todo"}]}]},
-            {"id": "e2", "title": "E2", "milestones": [{"id": "R1", "title": "look", "kind": "research", "status": "todo"}]}]}
-        maps, loaded = self.maps(run)
-        self.assertEqual(self.open_cards(maps[0]), ["M1"])
-        self.assertEqual(loaded["open"], "M1")
-
-    def test_with_nothing_building_and_several_milestones_nothing_opens_on_load(self):
-        run = {**OPEN_RUN, "active": None, "epics": [{"id": "e1", "title": "E1", "milestones": [
-            {"id": "M1", "title": "a", "status": "todo", "stories": [{"id": "S1", "title": "a", "status": "todo"}]},
-            {"id": "M2", "title": "b", "status": "parked"}]}]}
+            {"id": "e1", "title": "E1", "milestones": [{"id": "M1", "title": "only", "status": "todo", "stories": [{"id": "S1", "title": "a", "status": "todo"}]}]}]}
         maps, loaded = self.maps(run)
         self.assertEqual(self.open_cards(maps[0]), [])
         self.assertEqual(loaded["open"], None)
@@ -868,16 +858,6 @@ class HostileRun(unittest.TestCase):
         self.maps(probe='(() => { const scrolls = []; requestAnimationFrame = (f) => (f(), 0); scrollTo = (o) => scrolls.push(o.behavior);'
                         ' collapse(); reveal("M3"); return [S.open, scrolls, [...document.querySelector(\'#map .fms[data-id="M3"]\').classes]]; })()')
         self.assertEqual(self.probe(), ["M3", ["smooth"], ["flash"]])
-
-    def test_a_shared_run_first_opens_the_milestone_this_person_is_building(self):
-        run = json.loads(json.dumps(OPEN_RUN))
-        run["epics"][1]["milestones"][1].update({"status": "working", "phase": "spec"})
-        run["people"] = {"ann": {"active": {"epic": "e2", "milestone": "M3"}}}
-        self.maps(run, probe='(() => { const info = S.info, out = [];'
-                             ' for (const touch of [() => {}, () => expand("M2")]) {'
-                             ' S.info = null; S.open = undefined; loadProject(); touch(); const first = S.open; setInfo(info); out.push([first, S.open]); }'
-                             ' return out; })()')
-        self.assertEqual(self.probe(), [["M2", "M3"], ["M2", "M2"]])
 
     def test_the_open_card_keeps_what_the_closed_cards_foot_shows(self):
         run = json.loads(json.dumps(OPEN_RUN))
@@ -1010,9 +990,10 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(self.probe(), [None, "M2", None, "M3", "M3"])
 
     def test_the_open_card_sits_in_its_epics_column_like_a_closed_card(self):
-        maps, _ = self.maps()
-        self.assertRegex(maps[0], r'<div class="ford">#\d+</div><div></div><div class="fms open ')
-        self.assertNotIn("grid-column", self.open_card(maps[0]))
+        maps, _ = self.maps(probe='(expand("M2"), collapse())')
+        opened = next(m for m in maps if self.open_cards(m) == ["M2"])
+        self.assertRegex(opened, r'<div class="ford">#\d+</div><div></div><div class="fms open ')
+        self.assertNotIn("grid-column", self.open_card(opened))
         self.assertRegex(maps[-1], r'<div class="ford">#\d+</div><div></div><div class="fms working')
 
     def test_each_story_shows_once_on_the_map(self):
@@ -1022,8 +1003,8 @@ class HostileRun(unittest.TestCase):
 
     def test_story_cards_show_id_title_status_and_the_agent_link_or_assign_or_take_back_in_rows_of_three(self):
         maps, _ = self.maps(**{"podium/handoffs.json": json.dumps({"M2/S5": {"at": DONE}}),
-                               "podium/stories/M2/S2.progress": "2026-10-20T07:00:00+00:00 RED x\n"})
-        found = re.findall(r'(<div class="node compact[^"]*" data-open="M2" data-story="(S\d)".*?</div></div>)', self.open_card(maps[0]))
+                               "podium/stories/M2/S2.progress": "2026-10-20T07:00:00+00:00 RED x\n"}, probe='expand("M2")')
+        found = re.findall(r'(<div class="node compact[^"]*" data-open="M2" data-story="(S\d)".*?</div></div>)', self.open_card(maps[-1]))
         cards = {sid: card for card, sid in found}
         self.assertEqual(sorted(cards), ["S2", "S3", "S4", "S5"])
         self.assertIn('<span class="sid">S2</span>', cards["S2"])
@@ -1049,13 +1030,13 @@ class HostileRun(unittest.TestCase):
         return lines, cards, chips
 
     def test_merged_leading_waves_fold_into_one_line_of_chips_and_the_wave_count_goes_on(self):
-        maps, _ = self.maps(FINISHED_RUN)
-        lines, cards, chips = self.tree_text(self.open_card(maps[0]))
+        maps, _ = self.maps(FINISHED_RUN, probe='expand("M2")')
+        lines, cards, chips = self.tree_text(self.open_card(maps[-1]))
         self.assertEqual(lines, ["Waves 1–2 · 2 merged", "Show ▸", "S1 a", "S2 b", "Wave 3"])
-        self.assertIn('<div class="mfh"><span class="mfl"><b>Waves 1–2</b> · 2 merged</span><button class="ocollapse" data-unfold="M2"', self.open_card(maps[0]))
+        self.assertIn('<div class="mfh"><span class="mfl"><b>Waves 1–2</b> · 2 merged</span><button class="ocollapse" data-unfold="M2"', self.open_card(maps[-1]))
         self.assertEqual(cards, ["S3"])
         self.assertEqual(chips, ["S1", "S2"])
-        self.assertIn('<button class="ocollapse" data-unfold="M2" aria-expanded="false">Show ▸</button>', self.open_card(maps[0]))
+        self.assertIn('<button class="ocollapse" data-unfold="M2" aria-expanded="false">Show ▸</button>', self.open_card(maps[-1]))
 
     def test_show_unfolds_the_merged_waves_as_cards_in_place_and_fold_merged_waves_folds_them_back(self):
         maps, _ = self.maps(FINISHED_RUN, probe='(() => { expand("M2"); const out = [S.unfold.M2 === true]; toggleFold("M2"); out.push(S.unfold.M2 === true); return out; })()')
@@ -1114,9 +1095,9 @@ class HostileRun(unittest.TestCase):
         self.assertIn(".fchip", re.search(r'ev\.target\.matches\("([^"]*)"\)\) ev\.target\.click', open(PAGE).read()).group(1))
 
     def test_with_hide_finished_on_merged_waves_are_hidden_with_no_fold_line(self):
-        maps, _ = self.maps(FINISHED_RUN, localStorage={"podium-hide-finished": "1"})
-        self.assertEqual(self.tree_text(self.open_card(maps[0])), (["Wave 3"], ["S3"], []))
-        self.assertNotIn("Fold merged waves", self.open_card(maps[0]))
+        maps, _ = self.maps(FINISHED_RUN, localStorage={"podium-hide-finished": "1"}, probe='expand("M2")')
+        self.assertEqual(self.tree_text(self.open_card(maps[-1])), (["Wave 3"], ["S3"], []))
+        self.assertNotIn("Fold merged waves", self.open_card(maps[-1]))
 
     def test_with_hide_finished_on_an_open_milestone_whose_stories_all_finished_says_so_with_a_show_button(self):
         run = json.loads(json.dumps(FINISHED_RUN))
@@ -1159,9 +1140,9 @@ class HostileRun(unittest.TestCase):
         run = json.loads(json.dumps(TREE_RUN))
         run["epics"][0]["milestones"][0]["stories"] = [{"id": "S1", "title": "a", "status": "todo", "deps": {}, "overlapAfter": 5},
                                                        {"id": "S2", "title": "b", "status": "todo", "deps": 5, "overlapAfter": {}}]
-        maps, _ = self.maps(run, probe='treeRows(msOf("M1")).map((w) => w.map((s) => s.id))')
+        maps, _ = self.maps(run, probe='(expand("M1"), treeRows(msOf("M1")).map((w) => w.map((s) => s.id)))')
         self.assertEqual(self.probe(), [["S1", "S2"]])
-        self.assertEqual(re.findall(r'<div class="node compact ready" data-open="M1" data-story="(S\d)"', self.open_card(maps[0])), ["S1", "S2"])
+        self.assertEqual(re.findall(r'<div class="node compact ready" data-open="M1" data-story="(S\d)"', self.open_card(maps[-1])), ["S1", "S2"])
 
     def test_the_tree_draws_its_lines_behind_opaque_cards_without_removing_the_queue_lines(self):
         page = open(PAGE).read()
