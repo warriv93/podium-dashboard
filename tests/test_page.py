@@ -815,6 +815,33 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("data-collapse", card[card.index('class="oside"'):])
         self.assertNotIn("data-expand-ms", card.split(">")[0])
 
+    @staticmethod
+    def must_run():
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["epics"][1]["milestones"][0]["priority"] = "must"
+        return run
+
+    def test_a_must_have_milestone_shows_a_must_pill_after_its_id_and_others_show_none(self):
+        maps, _ = self.maps(self.must_run())
+        cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
+        self.assertIn('<span class="sid">M2</span><span class="mustpill" title="Must have"><b>★</b>Must</span>', cards["M2"])
+        self.assertNotIn("mustpill", cards["M3"])
+        self.assertNotIn("data-must", maps[0])
+
+    def test_only_the_open_card_has_the_must_have_switch(self):
+        maps, _ = self.maps(self.must_run(), probe='(expand("M2"), expand("M3"))')
+        opened = {self.open_cards(m)[0]: self.open_card(m) for m in maps if self.open_cards(m)}
+        self.assertIn('<button class="mustsw" role="switch" aria-checked="true" data-must="M2">', opened["M2"])
+        self.assertIn('<span class="sid">M2</span><span class="mustpill"', opened["M2"])
+        self.assertIn('<button class="mustsw" role="switch" aria-checked="false" data-must="M3">', opened["M3"])
+
+    def test_flipping_the_switch_posts_the_priority_and_shows_it_at_once(self):
+        self.maps(probe='(async () => { const calls = [];'
+                        ' globalThis.fetch = async (p, o) => (calls.push([p, o && o.method]), { ok: true, status: 200, json: async () => ({}) });'
+                        ' await setMust("M2", true); const on = msOf("M2").priority; await setMust("M2", false);'
+                        ' return [calls, on, msOf("M2").priority ?? null]; })()')
+        self.assertEqual(self.probe(), [[["/priority/M2?must=1", "POST"], ["/priority/M2?must=0", "POST"]], "must", None])
+
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
         self.assertEqual(self.probe(), ["M2", {"ms": "R1"}])

@@ -17,6 +17,7 @@
   --purple: #8250df; --purple-soft: rgba(130,80,223,.12);
   --fold-ink: #6f42c1; --fold-link: #0062cc;
   --gray-soft: rgba(142,142,147,.14);
+  --star: #f5a800; --star-ink: #3a2600;
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.06);
   --shadow-hi: 0 2px 4px rgba(0,0,0,.06), 0 14px 36px rgba(0,0,0,.12);
   --radius: 18px;
@@ -260,6 +261,15 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms .fid { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; flex: 1 1 auto; }
 .fms .fidrow { display: flex; align-items: baseline; gap: 6px; }
 .fms .fid .owner { max-width: 100%; }
+.mustpill { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 7px 0 5px; border-radius: 9px; font-size: 10.5px; font-weight: 700; line-height: 1; background: var(--star); color: var(--star-ink); box-shadow: 0 1px 4px rgba(200,130,0,.35); align-self: center; flex: none; }
+.mustpill b { font-size: 12px; }
+.mustsw { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); font: inherit; font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.mustsw b { color: var(--text-3); font-size: 13px; }
+.mustsw i { position: relative; width: 30px; height: 18px; margin-left: 4px; border-radius: 9px; background: var(--line-2); }
+.mustsw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
+.mustsw[aria-checked="true"] b { color: var(--star); }
+.mustsw[aria-checked="true"] i { background: var(--star); }
+.mustsw[aria-checked="true"] i::after { left: 14px; }
 .fms .ftools { flex: 0 1 auto; }
 .fms .title { font-weight: 620; font-size: 13.5px; }
 .fms button.title { border: 0; background: none; padding: 0; font-family: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; text-align: left; cursor: inherit; }
@@ -1156,7 +1166,7 @@ function fullMs(m, all) {
   const expands = canExpand(m) && hasBody(m);
   const go = expands ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
   const title = expands ? `<button class="title" aria-expanded="false">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
-  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
+  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${mustPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
 }
 const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", parked: "not started", later: "not started" };
 const DOT_ROOM = 16;
@@ -1166,6 +1176,17 @@ function dotSummary(words) {
   for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
   return [...counts].map(([w, n]) => `${n} ${w}`).join(", ");
 }
+const mustPill = (m) => (m.priority === "must" ? `<span class="mustpill" title="Must have"><b>★</b>Must</span>` : "");
+const mustSwitch = (m) => `<button class="mustsw" role="switch" aria-checked="${m.priority === "must"}" data-must="${esc(m.id)}"><b>★</b>Must have<i></i></button>`;
+async function setMust(id, on) {
+  if (refuseDotted(id)) return;
+  const r = await fetch(`/priority/${idPath(id)}?must=${on ? 1 : 0}`, { method: "POST" }).catch(() => null);
+  if (!r?.ok) return toast(r ? `Couldn't mark ${id}: ${r.status}` : SERVER_DOWN);
+  const m = msOf(id);
+  if (m && on) m.priority = "must";
+  else if (m) delete m.priority;
+  render();
+}
 function openHead(m, foot) {
   const stories = m.stories || [], merged = stories.filter(isMerged).length, waits = waitPills(m);
   const working = stories.filter((s) => ["working", "approval"].includes(s.status)).map((s) => s.id);
@@ -1174,7 +1195,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
+  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${mustPill(m)}${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${mustSwitch(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
@@ -2520,6 +2541,8 @@ document.addEventListener("click", (ev) => {
     keep(); requestAnimationFrame(keep);
     return;
   }
+  const nd = ev.target.closest("[data-must]");
+  if (nd) { ev.stopPropagation(); setMust(nd.dataset.must, nd.getAttribute("aria-checked") !== "true"); return; }
   const lk = ev.target.closest("[data-looked]");
   if (lk) { const pr = prsToReview().find((x) => prKey(x.ms, x.repo, x.number) === lk.dataset.looked); if (pr) markLooked(pr); return; }
   const st = ev.target.closest("[data-settle]");

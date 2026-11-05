@@ -508,6 +508,8 @@ def make_handler(root):
                 return self.reply(200, pull_run(root) or {"result": "OFF"})
             if first == "reviewed":
                 return self.reviewed(urllib.parse.unquote(url.path[len("/reviewed/"):]), parse_qs(url.query))
+            if first == "priority":
+                return self.priority(urllib.parse.unquote(url.path[len("/priority/"):]), parse_qs(url.query).get("must", [""])[0])
             if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
                 return self.reply(409, {"error": "no orchestrator is watching"})
             if url.path.startswith("/handoff/"):
@@ -650,6 +652,22 @@ def make_handler(root):
             p.event("reviewed", mid, number=pr.get("number"), **fields)
             threading.Thread(target=sync.autosave, args=(p,), daemon=True).start()
             self.reply(202, {"reviewed": p.new_events[-1]})
+
+        def priority(self, mid, must):
+            """POST /priority/<milestone>?must=1|0: mark the milestone must have, or clear the mark. Written to
+            podium.json at once; it needs no watcher."""
+            if must not in ("1", "0"):
+                return self.reply(400, {"error": "must is 1 or 0"})
+            p = load_podium(root)
+            m = next((x for x in p.milestones() if x.get("id") == mid), None) if p else None
+            if not m:
+                return self.reply(404, {"error": "unknown milestone"})
+            if must == "1":
+                m["priority"] = "must"
+            else:
+                m.pop("priority", None)
+            p.save()
+            self.reply(200, {"milestone": mid, "priority": m.get("priority")})
 
         def queue(self, line):
             os.makedirs(podium_dir(root), exist_ok=True)
