@@ -911,6 +911,45 @@ class HostileRun(unittest.TestCase):
         for still in (".repo", ".badge", ".sid", ".prio", ".owner"):
             self.assertNotIn(still, grows)
 
+    def test_each_milestone_card_shows_its_state_as_a_coloured_rail_and_a_glyph(self):
+        css = open(PAGE).read()
+        for state, glyph, word, colour in (("done", "✓", "Landed", "var(--green)"), ("working", "●", "In progress", "var(--accent)"),
+                                           ("waits", "!", "Waiting on you", "var(--amber)"), ("failed", "✕", "Failed", "var(--red)")):
+            self.assertIn(f'.fms.{state} .fidrow::before {{ content: "{glyph}" / "{word}"; color: {colour}; }}', css)
+        self.assertIn('.fms .fidrow::before { content: "○" / "Not started";', css)
+        self.assertIn(".fms, .fms.working, .fms.waits, .fms.waitfor, .fms.failed { border-left-width: 4px; }", css)
+        self.assertIn(".fms.done { border-left-color: var(--green-dot); }", css)
+
+    def test_work_in_progress_is_blue_so_green_only_means_landed(self):
+        css = open(PAGE).read()
+        self.assertIn(".fms.working { background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--card); border: 1.5px solid var(--accent);", css)
+        self.assertIn(".node.working { background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--card); border: 1.5px solid var(--accent);", css)
+        for rule in (".badge.working { color: var(--accent);", ".fdots i.working { background: var(--accent); }", ".owork { color: var(--accent); }",
+                     ".banner.working { background: var(--accent-soft);", ".bar3 i.on { background: var(--accent); }"):
+            self.assertIn(rule, css)
+        self.assertRegex(css, r"\.pulse \{[^}]*background: var\(--accent\)")
+
+    def test_the_epic_bar_shows_landed_and_in_progress_milestones_apart(self):
+        maps, _ = self.maps()
+        bars = re.findall(r'<div class="fbar">(.*?)</div>', maps[0])
+        self.assertIn('<i class="d" style="width:0%"></i><i class="w" style="width:50%"></i>', bars)
+        css = open(PAGE).read()
+        self.assertIn(".fbar i.d { background: var(--green-dot); }", css)
+        self.assertIn(".fbar i.w { background: var(--accent); }", css)
+
+    def test_links_that_leave_the_podium_carry_an_arrow(self):
+        self.assertIn(':is(a.pr, a.mockbtn, a.asanabtn)::after { content: "↗" / "";', open(PAGE).read())
+
+    def test_info_chips_on_milestone_cards_are_flat_so_they_never_look_like_buttons(self):
+        css = open(PAGE).read()
+        self.assertIn(".fms :is(.sid, .repo), .fms .foot .badge:not([data-reveal]) { background: none; padding-left: 0; padding-right: 0; }", css)
+
+    def test_what_can_be_clicked_shows_a_focus_ring_when_tabbed_to(self):
+        css = open(PAGE).read()
+        ringed = re.search(r":is\(([^)]*(?:\([^)]*\))?[^)]*)\):focus-visible \{ outline: 2px solid var\(--accent\)", css).group(1).split(", ")
+        for clickable in ("a.pr", ".dsbtn", ".mockbtn", ".asanabtn", ".btn", ".share", ".prioseg button", ".fms", ".fepic"):
+            self.assertIn(clickable, ringed)
+
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
         self.assertEqual(self.probe(), ["M2", {"ms": "R1"}])

@@ -128,7 +128,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .banner { border-radius: var(--radius); padding: 14px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; border: 1px solid transparent; }
 .banner .label { font-weight: 650; font-size: 15px; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
 .banner .sub { color: var(--text-2); font-size: 13px; }
-.banner.working { background: var(--green-soft); border-color: rgba(52,199,89,.25); }
+.banner.working { background: var(--accent-soft); border-color: rgba(0,113,227,.25); }
 .banner.needs { background: var(--amber-soft); border-color: rgba(255,159,10,.35); }
 .banner.done { background: var(--gray-soft); color: var(--text-2); }
 .banner.assumed { background: var(--accent-soft); border-color: rgba(0,113,227,.22); flex-direction: column; align-items: stretch; gap: 6px; }
@@ -180,11 +180,11 @@ a.wchip { color: inherit; text-decoration: none; }
 .cycle { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12px; }
 .bar3 { display: inline-flex; gap: 3px; }
 .bar3 i { width: 14px; height: 4px; border-radius: 2px; background: var(--gray-soft); }
-.bar3 i.on { background: var(--green-dot); }
+.bar3 i.on { background: var(--accent); }
 .agentlink { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--accent); text-decoration: none; white-space: nowrap; }
 .agentlink:hover { text-decoration: underline; }
-.pulse { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--green-dot); flex: none; }
-.pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green-dot); animation: pulse 1.8s ease-out infinite; }
+.pulse { position: relative; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+.pulse::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--accent); animation: pulse 1.8s ease-out infinite; }
 .pulse.amber, .pulse.amber::after { background: var(--amber-dot); }
 @keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(3); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pulse::after { animation: none; } }
@@ -253,7 +253,10 @@ a.wchip { color: inherit; text-decoration: none; }
 .fepic .eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .fepic .title { font-weight: 680; font-size: 15px; }
 .fbar { height: 5px; border-radius: 3px; background: var(--gray-soft); overflow: hidden; margin-top: 3px; }
-.fbar i { display: block; height: 100%; background: var(--green-dot); }
+.fbar { display: flex; }
+.fbar i { display: block; height: 100%; }
+.fbar i.d { background: var(--green-dot); }
+.fbar i.w { background: var(--accent); }
 .fsub { font-size: 11.5px; color: var(--text-2); }
 .ford { font-size: 11px; font-weight: 700; color: var(--text-3); text-align: right; align-self: center; letter-spacing: .04em; }
 .fms { margin: 7px 0; display: flex; flex-direction: column; gap: 6px; }
@@ -272,6 +275,8 @@ a.wchip { color: inherit; text-decoration: none; }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release) { transition: transform .12s ease; }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release):hover { transform: scale(1.06); }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release):active { transform: scale(.97); }
+:is(a.pr, a.mockbtn, a.asanabtn)::after { content: "↗" / ""; margin-left: 2px; font-size: .9em; opacity: .75; }
+:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release, .fms, .fepic, .ocollapse):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fdots i[data-story] { transition: transform .12s ease; }
 .fdots i[data-story]:hover { transform: scale(1.4); }
 @media (prefers-reduced-motion: reduce) { :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release), .fdots i[data-story] { transition: none; transform: none !important; } }
@@ -310,12 +315,23 @@ a.wchip { color: inherit; text-decoration: none; }
 .qlinks a:hover, .qlinks-sheet a:hover { color: var(--accent); }
 .qlinks-sheet { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; }
 .fms.done .title { color: var(--text-2); }
-.fms.working { background: linear-gradient(var(--green-soft), var(--green-soft)), var(--card); border: 1.5px solid var(--green-dot); box-shadow: 0 0 0 4px var(--green-soft), var(--shadow-hi); }
+.fms.working { background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--card); border: 1.5px solid var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-hi); }
 .fms.waits { background: linear-gradient(var(--amber-soft), var(--amber-soft)), var(--card); border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
 .fms.waitfor { border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
 .fms.failed { border: 1.5px solid var(--red); }
 .fms.moved { background: transparent; box-shadow: none; opacity: .6; }
 .fms.moved .title { color: var(--text-3); }
+.fms, .fms.working, .fms.waits, .fms.waitfor, .fms.failed { border-left-width: 4px; }
+.fms { border-left-color: var(--line-2); }
+.fms.done { border-left-color: var(--green-dot); }
+.fms .fidrow::before { content: "○" / "Not started"; flex: none; width: 12px; text-align: center; font-size: 11px; font-weight: 800; color: var(--text-3); }
+.fms.done .fidrow::before { content: "✓" / "Landed"; color: var(--green); }
+.fms.working .fidrow::before { content: "●" / "In progress"; color: var(--accent); }
+.fms.waits .fidrow::before { content: "!" / "Waiting on you"; color: var(--amber); }
+.fms.failed .fidrow::before { content: "✕" / "Failed"; color: var(--red); }
+.fms.moved .fidrow::before { content: "→" / "Moved"; }
+.fms.dropped .fidrow::before { content: "–" / "Dropped"; }
+.fms :is(.sid, .repo), .fms .foot .badge:not([data-reveal]) { background: none; padding-left: 0; padding-right: 0; }
 .fms .fincl { font-size: 11px; color: var(--text-3); }
 .infra { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--gray-soft); color: var(--text-3); cursor: help; }
 .fdecs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
@@ -331,7 +347,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fdots { display: flex; gap: 3px; align-self: flex-end; }
 .fdots i { width: 8px; height: 8px; border-radius: 2px; background: var(--line-2); }
 .fdots i.done { background: var(--purple); }
-.fdots i.working { background: var(--green-dot); }
+.fdots i.working { background: var(--accent); }
 .fdots i.approval { background: var(--amber-dot); }
 .fdots i.failed, .fdots i.blocked { background: var(--red); }
 .fdots i.dim { opacity: .28; }
@@ -353,7 +369,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .oside { display: flex; align-items: center; justify-content: flex-end; gap: 8px 12px; flex-wrap: wrap; margin-left: auto; }
 .ostat { font-size: 12px; color: var(--text-2); }
 .ostat b { color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
-.owork { color: var(--green); }
+.owork { color: var(--accent); }
 .ocollapse { border: 0; background: none; padding: 2px 0; color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .ocollapse[data-unfold] { color: var(--fold-link); }
 .mwave { display: flex; flex-direction: column; gap: 7px; }
@@ -424,7 +440,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .node.done:hover { transform: none; box-shadow: none; border-color: var(--line-2); }
 .node.done .title { color: var(--text-2); }
 .node.blocked { opacity: .62; }
-.node.working { background: linear-gradient(var(--green-soft), var(--green-soft)), var(--card); border: 1.5px solid var(--green-dot); box-shadow: 0 0 0 4px var(--green-soft), var(--shadow-hi); }
+.node.working { background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--card); border: 1.5px solid var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-hi); }
 .node.approval, .node.waits { background: linear-gradient(var(--amber-soft), var(--amber-soft)), var(--card); border: 1.5px solid var(--amber-dot); box-shadow: 0 0 0 4px var(--amber-soft), var(--shadow-hi); }
 .node.failed { background: linear-gradient(var(--red-soft), var(--red-soft)), var(--card); border: 1.5px solid var(--red); box-shadow: 0 0 0 4px var(--red-soft), var(--shadow-hi); }
 .node.sel { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-hi); }
@@ -435,7 +451,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .node .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); min-height: 26px; }
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
 .badge.done { background: var(--green-soft); color: var(--green); }
-.badge.working { color: var(--green); padding-left: 2px; }
+.badge.working { color: var(--accent); padding-left: 2px; }
 .badge.needs { color: var(--amber); padding-left: 2px; }
 .badge.approval { background: var(--amber-soft); color: var(--amber); }
 .badge.waitfor { background: var(--amber-soft); color: var(--amber); cursor: help; }
@@ -1327,8 +1343,9 @@ function renderFull() {
   const head = `<div></div>${P.epics.map((E) => {
     const kept = (E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status)), ms = kept.filter((x) => !isResearch(x)), landed = ms.filter((x) => x.status === "done").length;
     const rs = kept.filter(isResearch), answered = rs.filter((x) => x.status === "done").length;
-    const now = ms.find((x) => x.status === "working");
-    return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}${prioPill(E)}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
+    const now = ms.find((x) => x.status === "working"), going = ms.filter((x) => x.status === "working").length;
+    const pct = (n) => (ms.length ? (100 * n) / ms.length : 0);
+    return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}${prioPill(E)}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i class="d" style="width:${pct(landed)}%"></i><i class="w" style="width:${pct(going)}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
   const om = openMs();
   renderCollapsed();

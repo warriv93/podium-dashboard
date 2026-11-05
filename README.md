@@ -121,6 +121,8 @@ The **Hide finished** button in the map header drops landed and moved milestones
 
 **Collapsed**, beside it, shows every closed milestone as one line (id, priority, title and owner) to glance over a long run; the milestone you open still shows in full. The choice is kept in the browser under `podium-collapsed`.
 
+Each milestone card shows its state on a coloured left edge with a glyph before its id: green ✓ landed, blue ● in progress, amber ! waiting on you, red ✕ failed, grey ○ not started. Blue means in progress everywhere on the page, and green only means landed. Each epic's bar splits the same way: green for landed milestones, blue for those in progress.
+
 A milestone or epic marked must have carries a gold **★ Must** pill on the map, one marked should have a soft gold **★ Should** pill; anything unmarked is nice to have. Set a milestone's with the **Nice to have / Should / Must** control on its open card, an epic's (a quest's US tiles) in its sheet (`POST /priority/<milestone>?level=must|should|nice`, or `/priority/epic/<epic>?level=...`; written to `podium.json` at once, with no watcher needed), or with `podium set milestone:<id> priority=must` (`priority=should`, `epic:<id>` for an epic, `priority=null` clears it).
 
 Beside it, a run with two or more people shows one avatar each (everyone in `podium.json`'s `people` or the `by` of an event; yours has a ring; past five people it shows four and a `+N` chip). A green dot means an event of theirs is under 15 minutes old: recent activity, not live presence. The tooltip names the milestones they own, the one they're on with its phase, and when they were last active.
