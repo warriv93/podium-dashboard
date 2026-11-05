@@ -895,6 +895,22 @@ class HostileRun(unittest.TestCase):
         self.assertIn('grid-template-columns:34px minmax(320px, 1fr) minmax(560px, 2fr);min-width:954px', maps[-1])
         self.assertRegex(open(PAGE).read(), r"\.node\.compact \.badge \{[^}]*white-space: normal")
 
+    def test_a_click_on_the_open_cards_padding_or_the_maps_empty_space_collapses_it(self):
+        self.maps(probe='(() => { expand("M2"); onBackdrop({ matches: () => false }); const kept = S.open;'
+                        ' onBackdrop({ matches: (s) => s === BACKDROP }); return [kept, S.open]; })()')
+        self.assertEqual(self.probe(), ["M2", None])
+        backdrop = re.search(r'const BACKDROP = "([^"]*)"', open(PAGE).read()).group(1).split(", ")
+        for part in (".fms.open", ".fms.open .mtree", ".full", ".full > div:empty", "#map"):
+            self.assertIn(part, backdrop)
+
+    def test_what_can_be_clicked_grows_a_little_on_hover_and_info_badges_stay_still(self):
+        css = open(PAGE).read()
+        grows = re.search(r":is\(([^)]*(?:\([^)]*\))?[^)]*)\):hover \{ transform: scale\(1\.06\)", css).group(1).split(", ")
+        for clickable in ("a.pr", ".dsbtn", ".mockbtn", ".asanabtn", ".fchip", ".wchip:not(.pr-chip)", ".btn", ".share", ".prioseg button"):
+            self.assertIn(clickable, grows)
+        for still in (".repo", ".badge", ".sid", ".prio", ".owner"):
+            self.assertNotIn(still, grows)
+
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
         self.assertEqual(self.probe(), ["M2", {"ms": "R1"}])
