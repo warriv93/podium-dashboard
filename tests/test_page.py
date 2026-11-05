@@ -950,6 +950,17 @@ class HostileRun(unittest.TestCase):
         for clickable in ("a.pr", ".dsbtn", ".mockbtn", ".asanabtn", ".btn", ".share", ".prioseg button", ".fms", ".fepic"):
             self.assertIn(clickable, ringed)
 
+    def test_a_closed_milestone_shows_its_owner_as_initials_and_the_open_one_by_name(self):
+        maps, _ = self.maps(probe='(msOf("M2").owner = msOf("M3").owner = "bo.berg", expand("M2"), render(), 0)')
+        cards = dict(re.findall(r'<div class="fms [^"]*" [^>]*?data-id="(M[23])"[^>]*>(.*?)(?=<div class="fms |$)', maps[-1], re.S))
+        self.assertIn('👤 <span class="who">bo.berg</span>', cards["M2"])
+        self.assertIn('<span class="owner dot" style="background:hsl(', cards["M3"])
+        self.assertIn(""" title="bo.berg&#39;s: only they plan and build it">BB</span>""", cards["M3"])
+        self.assertNotIn("👤", cards["M3"])
+        css = open(PAGE).read()
+        self.assertIn(".owner.dot { width: 22px; height: 22px; padding: 0; justify-content: center;", css)
+        self.assertIn(".owner.dot.me { box-shadow: 0 0 0 2px var(--accent); }", css)
+
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
         self.assertEqual(self.probe(), ["M2", {"ms": "R1"}])
@@ -1500,7 +1511,7 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(re.findall(r'data-decision="([^"]*)"', strip), ["D3", "D1", "D2"])
         self.assertEqual(re.findall(r'<div class="fdec( frontier)?" data-decision', strip), [" frontier", "", ""])
         self.assertIn('<span class="sid">D3</span><span class="dtype">unblock</span></div><span class="title">Get keys</span>', strip)
-        self.assertIn('<span class="owner" style="background:hsl(156 50% 45%)" title="bo is settling it">👤 <span class="who">bo</span></span>', strip)
+        self.assertIn('<span class="owner dot" style="background:hsl(156 50% 45%)" title="bo is settling it">BO</span>', strip)
         self.assertIn('<span class="dmeta">blocked by D1</span><span class="dmeta">missing: a price list</span>', strip)
         for closed in ("Old", "Gone", "Elsewhere"):
             self.assertNotIn(closed, strip)
@@ -1508,7 +1519,7 @@ class HostileRun(unittest.TestCase):
     def test_the_strip_marks_your_own_claim_and_reveals_affected_milestones(self):
         [strip, _] = self.strips([{"id": "D1", "epic": "e1", "question": "Q", "type": "discussion", "status": "open",
                                    "owner": "ann", "affects": ["M11", "billing", "M99"]}])
-        self.assertIn('<span class="owner" style="background:hsl(354 50% 45%)" title="Yours (ann): you are settling it">👤 <span class="who">you</span></span>', strip)
+        self.assertIn('<span class="owner dot me" style="background:hsl(354 50% 45%)" title="Yours (ann): you are settling it">AN</span>', strip)
         self.assertIn('<span class="dmeta">affects <a data-reveal="M11">M11</a>, billing, M99</span>', strip)
 
     def test_a_strip_of_closed_decisions_only_shows_the_count(self):

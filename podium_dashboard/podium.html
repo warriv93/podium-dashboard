@@ -265,6 +265,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms .fid { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; flex: 1 1 auto; }
 .fms .fidrow { display: flex; align-items: baseline; gap: 6px; }
 .fms .fid .owner { max-width: 100%; }
+.fms:not(.open) .fid { flex-direction: row; align-items: center; justify-content: space-between; }
 .full[data-collapsed] .fms:not(.open) { flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px; margin: 3px 0; border-radius: 10px; }
 .full[data-collapsed] .fms:not(.open) .ftop, .full[data-collapsed] .fms:not(.open) .fid { display: contents; }
 .full[data-collapsed] .fms:not(.open) .fidrow { order: 1; flex: none; align-items: center; }
@@ -524,6 +525,8 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .achip .k { color: var(--text-3); }
 .owner { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--gray-soft); color: #fff; white-space: nowrap; text-transform: none; letter-spacing: 0; min-width: 0; }
 .owner .who { overflow: hidden; text-overflow: ellipsis; }
+.owner.dot { width: 22px; height: 22px; padding: 0; justify-content: center; font-size: 10px; flex: none; min-width: 22px; cursor: default; }
+.owner.dot.me { box-shadow: 0 0 0 2px var(--accent); }
 .claim { padding: 1px 9px; border-radius: 999px; border: 1px dashed var(--line-2); background: transparent; color: var(--text-2); font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; text-transform: none; letter-spacing: 0; }
 .claim:hover { border-style: solid; border-color: var(--accent); color: var(--accent); }
 .people { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--text-2); min-width: 0; }
@@ -1086,10 +1089,11 @@ function msBranch(m) {
 const isMe = (who) => !!who && who === S.info?.me;
 const personName = (who) => (isMe(who) ? "you" : esc(who));
 const ownerPill = (who, title) => `<span class="owner" style="background:${personColor(who)}" title="${esc(title)}">👤 <span class="who">${personName(who)}</span></span>`;
-const ownerChip = (m) => (m?.owner ? ownerPill(m.owner, isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`) : "");
+const ownerDot = (who, title) => `<span class="owner dot${isMe(who) ? " me" : ""}" style="background:${personColor(who)}" title="${esc(title)}">${esc(initials(who))}</span>`;
+const ownerChip = (m, chip = ownerDot) => (m?.owner ? chip(m.owner, isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`) : "");
 const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
 const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
-const ownerOrClaim = (m) => ownerChip(m) || claimBtn(m);
+const ownerOrClaim = (m, chip) => ownerChip(m, chip) || claimBtn(m);
 function renderPeople() {
   const el = $("people"), people = Object.entries(S.info?.people || {});
   el.hidden = people.length < 2;
@@ -1167,7 +1171,7 @@ const fullStatus = (x, map) => (x.status !== "todo" ? x.status : !depsLeft(x, ma
 const movedPill = (m, all) => (m.movedTo == null ? "" : ((to) => `<span class="badge moved"${all[to] ? ` data-reveal="${esc(to)}"` : ""}>Moved to ${esc(to)}</span>`)(String(m.movedTo)));
 const includesLine = (m) => (Array.isArray(m.includes) && m.includes.length ? `<div class="fincl">includes ${esc(m.includes.join(", "))}</div>` : "");
 const infraTag = (m) => (m.cut?.valuable === false && m.cut.kept ? `<span class="infra" title="${esc(m.cut.kept)}">infra</span>` : "");
-const decisionOwner = (d) => (d.owner ? ownerPill(d.owner, isMe(d.owner) ? `Yours (${d.owner}): you are settling it` : `${d.owner} is settling it`) : "");
+const decisionOwner = (d) => (d.owner ? ownerDot(d.owner, isMe(d.owner) ? `Yours (${d.owner}): you are settling it` : `${d.owner} is settling it`) : "");
 const affectsLine = (d, all) => (Array.isArray(d.affects) && d.affects.length ? `<span class="dmeta">affects ${d.affects.map((a) => (typeof a === "string" && all[a] ? `<a data-reveal="${esc(a)}">${esc(a)}</a>` : esc(a))).join(", ")}</span>` : "");
 function decisionStrip(E, decs, all) {
   const mine = Object.values(decs).filter((d) => d.epic === E.id);
@@ -1243,7 +1247,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${prioControl(m.id, m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
+  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}${ownerOrClaim(m, ownerPill)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${prioControl(m.id, m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
@@ -2305,7 +2309,7 @@ function milestoneSheet(m) {
     ${m.note ? `<div class="sec"><div class="muted">${esc(m.note)}</div></div>` : ""}
     <div class="sec"><h3>Run</h3><dl class="kv">
       <dt>Status</dt><dd>${esc(label)}${m.status === "working" ? ` · ${msDoing(m)}` : ""}</dd>
-      ${m.owner ? `<dt>Owner</dt><dd>${ownerChip(m)}</dd>` : ""}
+      ${m.owner ? `<dt>Owner</dt><dd>${ownerChip(m, ownerPill)}</dd>` : ""}
       ${((k) => (k ? `<dt>Mock</dt><dd><a class="prlink" href="${esc(k.href)}" target="_blank" rel="noopener">Open mock ↗</a>${k.url ? ` · <a class="prlink" href="${esc(k.url)}" target="_blank" rel="noopener">published ↗</a>` : ""}</dd>` : ""))(mockOf(m))}
       ${asanaRow(m)}
       ${m.shippedAt ? `<dt>Landed</dt><dd>${day(m.shippedAt)} · ${landedLinks(m.landedSha)}</dd>` : ""}

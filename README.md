@@ -119,7 +119,7 @@ Every side sheet has a **Copy link** button left of its close button: the link (
 
 The **Hide finished** button in the map header drops landed and moved milestones from the map and, inside the open milestone, merged or dropped stories (a finished item that is open or needs you stays, and the button counts what it hides); the choice is kept in the browser under `podium-hide-finished`.
 
-**Collapsed**, beside it, shows every closed milestone as one line (id, priority, title and owner) to glance over a long run; the milestone you open still shows in full. The choice is kept in the browser under `podium-collapsed`.
+**Collapsed**, beside it, shows every closed milestone as one line (id, priority, title and owner) to glance over a long run; the milestone you open still shows in full. Closed milestones and decisions show their owner as initials, like the avatars in the header; the open milestone and its sheet show the full name. The choice is kept in the browser under `podium-collapsed`.
 
 Each milestone card shows its state on a coloured left edge with a glyph before its id: green ✓ landed, blue ● in progress, amber ! waiting on you, red ✕ failed, grey ○ not started. Blue means in progress everywhere on the page, and green only means landed. Each epic's bar splits the same way: green for landed milestones, blue for those in progress.
 
