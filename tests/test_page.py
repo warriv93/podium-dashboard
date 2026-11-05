@@ -1466,6 +1466,14 @@ class HostileRun(unittest.TestCase):
                         ' return [click("[data-hide-finished]", ".mtree[data-ms]"), click("[data-hide-finished]")]; })()')
         self.assertEqual(self.probe(), [[False, ["smooth"]], [True, []]])
 
+    def test_enter_in_search_goes_to_the_one_milestone_left_or_the_one_it_names(self):
+        self.maps(probe='(() => { const card = (id, dim) => ({ dataset: { id }, classList: { contains: (c) => c === "dim" && dim } });'
+                        ' const at = (q, ...cards) => { S.query = q; document.querySelectorAll = (sel) => (sel === "#map .fms[data-id]" ? cards : []); return searchHit(); };'
+                        ' return [at("m11", card("M1", true), card("M11", false)), at(" M1 ", card("M1", false), card("M11", false)),'
+                        ' at("m", card("M1", false), card("M11", false)), at(" ", card("M1", false)), at("x", card("M1", true))]; })()')
+        self.assertEqual(self.probe(), ["M11", "M1", None, None, None])
+        self.assertIn('$("q").addEventListener("keydown", (ev) => { const id = ev.key === "Enter" && searchHit(); if (id) scrollToMs(id); });', open(PAGE).read())
+
     def test_cards_in_a_wave_sit_under_the_stories_they_depend_on(self):
         self.maps(TREE_RUN, probe='treeRows(msOf("M2")).map((w) => w.map((s) => s.id))')
         self.assertEqual(self.probe(), [["A1", "A2", "A3"], ["B2", "B3", "B1"], ["C2", "C1"]])

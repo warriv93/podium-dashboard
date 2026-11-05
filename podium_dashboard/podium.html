@@ -1724,6 +1724,11 @@ function agentHref(s) {
 }
 const agentLink = (s) => ((h) => (h ? `<a class="agentlink" href="${esc(h)}" title="Open this story's agent in Paseo">Paseo ↗</a>` : ""))(agentHref(s));
 
+function searchHit() {
+  const q = S.query.trim().toLowerCase();
+  const shown = [...document.querySelectorAll("#map .fms[data-id]")].filter((c) => !c.classList.contains("dim")).map((c) => c.dataset.id);
+  return (q && (shown.find((id) => id.toLowerCase() === q) || (shown.length === 1 ? shown[0] : null))) || null;
+}
 function applyFilter() {
   document.querySelectorAll("#map .fms[data-id]").forEach((c) => {
     const m = msOf(c.dataset.id);
@@ -2759,6 +2764,7 @@ function onEscape() {
   else if (S.open) collapse();
 }
 $("q").addEventListener("input", (ev) => { S.query = ev.target.value; applyFilter(); });
+$("q").addEventListener("keydown", (ev) => { const id = ev.key === "Enter" && searchHit(); if (id) scrollToMs(id); });
 new MutationObserver(iconSheetHeads).observe($("sheet-body"), { childList: true });
 $("scrim").addEventListener("click", closeSheet);
 $("sheet-close").addEventListener("click", closeSheet);
