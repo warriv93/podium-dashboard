@@ -961,6 +961,13 @@ class HostileRun(unittest.TestCase):
         self.assertIn(".owner.dot { width: 22px; height: 22px; padding: 0; justify-content: center;", css)
         self.assertIn(".owner.dot.me { box-shadow: 0 0 0 2px var(--accent); }", css)
 
+    def test_every_tile_on_the_map_sits_white_on_a_deeper_shadow_landed_ones_too(self):
+        css = open(PAGE).read()
+        self.assertIn("--shadow-tile: 0 1px 3px rgba(0,0,0,.12), 0 8px 22px rgba(0,0,0,.18);", css)
+        self.assertEqual(css.count("--shadow-tile: 0 1px 3px rgba(0,0,0,.5), 0 8px 22px rgba(0,0,0,.6);"), 2)
+        self.assertIn(".fepic, .fms { position: relative; z-index: 1; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; cursor: pointer; text-align: left; box-shadow: var(--shadow-tile); }", css)
+        self.assertNotIn(".fms.done { background: transparent; box-shadow: none; }", css)
+
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
         self.assertEqual(self.probe(), ["M2", {"ms": "R1"}])
