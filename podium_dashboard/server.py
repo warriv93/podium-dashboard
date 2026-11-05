@@ -8,7 +8,8 @@ the run's orchestrator extension.
 It answers only requests whose Host is 127.0.0.1:<port> or localhost:<port>, and any but a GET or HEAD only when its
 Origin, if any, is that same server: a page elsewhere can't reach it through DNS rebinding or a cross-site form. Only
 a POST, a DELETE or a visible tab's poll from its own page counts as use (below); a HEAD or an OPTIONS never does.
-GET /repo/<path> serves a file of the run dir's git toplevel, else of the run dir, never one outside it; any other
+GET /podium-season/<name> serves a .js or .json file lying directly in the package's season/ folder, the page's
+seasonal layer. GET /repo/<path> serves a file of the run dir's git toplevel, else of the run dir, never one outside it; any other
 path a file of the run dir, never one whose real path (past any symlink) is outside it. A folder, either way, serves
 its index.html (a path without the trailing slash first redirects to it), never a listing. Everything
 it serves but the page itself comes sandboxed (Content-Security-Policy): a synced HTML file runs in an origin of its
@@ -170,6 +171,8 @@ def find_story(root, ident):
 
 PAGE = os.path.join(PACKAGE, "podium.html")
 PAGE_PATHS = ("/", "/index.html", "/podium.html")
+SEASON_DIR = os.path.join(PACKAGE, "season")
+SEASON_TYPES = {".js": "text/javascript; charset=utf-8", ".json": "application/json"}
 SANDBOX = "sandbox allow-scripts allow-forms allow-popups"
 PAGE_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
             "connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'")
@@ -448,6 +451,8 @@ def make_handler(root):
                 return self.reply(200, availability())
             if os.path.basename(self.path.split("?")[0]) in EMPTY_WHEN_MISSING and not os.path.exists(self.translate_path(self.path)):
                 return self.empty(EMPTY_WHEN_MISSING[os.path.basename(self.path.split("?")[0])])
+            if self.path.startswith("/podium-season/"):
+                return self.season_file(self.path[len("/podium-season/"):].split("?")[0])
             if self.path.startswith("/repo/"):
                 return self.repo_file(self.path[len("/repo/"):].split("?")[0])
             if self.path.split("?")[0] in PAGE_PATHS:
@@ -462,6 +467,14 @@ def make_handler(root):
                 self.send_error(404)
                 return None
             return super().send_head()
+
+        def season_file(self, name):
+            """A file of the package's season folder, by its bare name: the seasonal layer's script and animations."""
+            kind = SEASON_TYPES.get(os.path.splitext(name)[1])
+            if not kind or name not in os.listdir(SEASON_DIR):
+                return self.send_error(404)
+            with open(os.path.join(SEASON_DIR, name), "rb") as f:
+                return self.send(200, kind, f.read())
 
         def open_run(self, run):
             """Redirect to the Podium of run `run` on this machine, the page's own fragment (the deep link) kept by the

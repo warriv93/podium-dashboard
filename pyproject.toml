@@ -18,4 +18,4 @@ podium = "podium_dashboard.cli:main"
 include = ["podium_dashboard*"]
 
 [tool.setuptools.package-data]
-podium_dashboard = ["podium.html"]
+podium_dashboard = ["podium.html", "season/*.js", "season/*.json", "season/NOTICE.md"]

@@ -278,6 +278,21 @@ class Hardening(Server):
             self.assertIn("default-src 'self'", r.getheader("Content-Security-Policy"), path)
             self.assertIn("base-uri 'none'", r.getheader("Content-Security-Policy"), path)
 
+    def test_serves_the_season_layer_by_file_name_from_the_package_and_nothing_else(self):
+        self.serve()
+        for path, kind, has in (("/podium-season/season.js", "text/javascript; charset=utf-8", "seasonOn"),
+                                ("/podium-season/lottie_light.min.js", "text/javascript; charset=utf-8", "lottie"),
+                                ("/podium-season/reindeer.json", "application/json", None)):
+            r, body = self.response("GET", path)
+            self.assertEqual((r.status, r.getheader("Content-Type")), (200, kind), path)
+            if has:
+                self.assertIn(has, body)
+            else:
+                self.assertIn("layers", json.loads(body))
+        for path in ("/podium-season/../server.py", "/podium-season/%2e%2e/server.py", "/podium-season/nope.js",
+                     "/podium-season/LICENSES.md", "/podium-season/", "/podium-season/season.js/x"):
+            self.assertEqual(self.response("GET", path)[0].status, 404, path)
+
     def test_serves_files_of_the_repo_and_nothing_above_it(self):
         self.write("api/mock.html", "mock")
         self.write("secret.txt", "secret")

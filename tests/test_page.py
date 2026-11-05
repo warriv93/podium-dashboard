@@ -974,6 +974,10 @@ class HostileRun(unittest.TestCase):
         self.assertIn(".fepic, .fms { position: relative; z-index: 1; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; cursor: pointer; text-align: left; box-shadow: var(--shadow-tile); }", css)
         self.assertNotIn(".fms.done { background: transparent; box-shadow: none; }", css)
 
+    def test_the_page_loads_the_season_layer_deferred_from_the_server(self):
+        page = open(PAGE).read()
+        self.assertIn('<script src="/podium-season/season.js" defer></script>', page[:page.index("</head>")])
+
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
         self.assertEqual(self.probe(), ["M2", {"ms": "R1"}])
