@@ -999,6 +999,35 @@ class HostileRun(unittest.TestCase):
         page = open(PAGE).read()
         self.assertRegex(page, r"\$\{questTimeline\(q, ms, new Date\(\)\)\}")
 
+    def test_a_mock_a_brief_names_opens_from_this_podium_in_a_new_tab(self):
+        refs = ["mock/m10/auth-screens.html#proposed", "mock/m12/", "/Users/someone/plans/run/mock/m2/shots/a.png", "feature-folder/mock/r6/"]
+        self.maps(probe="md(%s)" % json.dumps("\n".join(f"- `{r}`" for r in refs)))
+        links = re.findall(r'<a class="mocklink" href="([^"]*)" target="_blank" rel="noopener" title="Open the mock in a new tab"><code>([^<]*)</code></a>', self.probe())
+        self.assertEqual(links, [("/mock/m10/auth-screens.html#proposed", refs[0]), ("/mock/m12/", refs[1]),
+                                 ("/mock/m2/shots/a.png", refs[2]), ("/mock/r6/", refs[3])])
+
+    def test_a_mock_named_in_plain_text_links_too_and_the_sentence_keeps_its_stop(self):
+        self.maps(probe=r'md("- feature-folder/mock/r6/\nSee mock/m4/api-map.html. Or (mock/m12/) and /__mock/reset")')
+        self.assertEqual(self.probe(),
+                         '<ul><li><a class="mocklink" href="/mock/r6/" target="_blank" rel="noopener" title="Open the mock in a new tab">feature-folder/mock/r6/</a></li></ul>'
+                         '<p>See <a class="mocklink" href="/mock/m4/api-map.html" target="_blank" rel="noopener" title="Open the mock in a new tab">mock/m4/api-map.html</a>.'
+                         ' Or (<a class="mocklink" href="/mock/m12/" target="_blank" rel="noopener" title="Open the mock in a new tab">mock/m12/</a>) and /__mock/reset</p>')
+
+    def test_only_a_page_or_picture_under_mock_becomes_a_mock_link(self):
+        refs = ["mock/m26/figma/README.md", "mock/m12", "spec-brief.md", "/__mock/reset", "web-applications/apps/x/mock-ams/a.html",
+                "mock/../podium/a.html", 'mock/a".html']
+        self.maps(probe="md(%s)" % json.dumps("\n".join(f"- `{r}`" for r in refs)))
+        self.assertNotIn("<a", self.probe())
+
+    def test_a_mock_in_files_in_scope_opens_it_and_other_files_open_the_document(self):
+        self.maps(probe='[fileLink("feature-folder/mock/r6/", "repoDir"), fileLink("core/src/A.java", "repoDir")]')
+        mock, other = self.probe()
+        self.assertEqual(mock, '<a class="file mono mocklink" href="/mock/r6/" target="_blank" rel="noopener" title="Open the mock in a new tab">feature-folder/mock/r6/</a>')
+        self.assertEqual(other, '<a class="file mono" data-doc="core/src/A.java" data-base="repoDir">core/src/A.java</a>')
+
+    def test_a_mock_link_carries_the_mock_buttons_palette(self):
+        self.assertIn('a.mocklink::before { content: "🎨" / "";', open(PAGE).read())
+
     def test_a_quests_us_tiles_carry_the_same_pills(self):
         maps, _ = self.maps(self.priority_run())
         tiles = re.findall(r'<div class="fepic"[^>]*><span class="eyebrow">(.*?)<span class="ftools">', maps[0])
@@ -1088,7 +1117,7 @@ class HostileRun(unittest.TestCase):
         self.assertIn(".fbar i.w { background: var(--accent); }", css)
 
     def test_links_that_leave_the_podium_carry_an_arrow(self):
-        self.assertIn(':is(a.pr, a.mockbtn, a.asanabtn)::after { content: "↗" / "";', open(PAGE).read())
+        self.assertIn(':is(a.pr, a.mockbtn, a.asanabtn, a.mocklink)::after { content: "↗" / "";', open(PAGE).read())
 
     def test_info_chips_on_milestone_cards_are_flat_so_they_never_look_like_buttons(self):
         css = open(PAGE).read()

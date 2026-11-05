@@ -286,7 +286,7 @@ a.wchip { color: inherit; text-decoration: none; }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release) { transition: transform .12s ease; }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release):hover { transform: scale(1.06); }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release):active { transform: scale(.97); }
-:is(a.pr, a.mockbtn, a.asanabtn)::after { content: "↗" / ""; margin-left: 2px; font-size: .9em; opacity: .75; }
+:is(a.pr, a.mockbtn, a.asanabtn, a.mocklink)::after { content: "↗" / ""; margin-left: 2px; font-size: .9em; opacity: .75; }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release, .fms, .fepic, .ocollapse):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fdots i[data-story] { transition: transform .12s ease; }
 .fdots i[data-story]:hover { transform: scale(1.4); }
@@ -638,6 +638,9 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .dep-sum b { color: var(--text); font-weight: 600; }
 a.link-chip, a.file { color: inherit; text-decoration: none; }
 a.file { display: block; border-radius: 6px; padding: 1px 4px; margin: 0 -4px; cursor: pointer; }
+a.mocklink, a.file.mocklink { color: var(--accent); text-decoration: none; }
+a.mocklink::before { content: "🎨" / ""; margin-right: 4px; }
+a.mocklink:hover code { text-decoration: underline; }
 a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-soft); }
 .sec h3 a { float: right; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-3); text-decoration: none; border-radius: 6px; padding: 0 6px; }
 .md { font-size: 14px; }
@@ -1706,6 +1709,13 @@ function specOf(s) {
   try { return t && JSON.parse(t); } catch { return null; }
 }
 
+/* a mock named by its path from the run dir, which this server hosts; a path from someone's checkout keeps only that part */
+const MOCK_REF = /^(?:\/(?:[^\s/]+\/)*?|[\w.-]+\/)?(mock\/(?:[\w.-]+\/)*(?:[\w.-]+\.(?:html?|png|jpe?g|gif|svg|webp))?)(#[\w.-]*)?$/i;
+function mockRef(ref) {
+  const m = String(ref).match(MOCK_REF);
+  return m && !m[1].split("/").includes("..") ? runHref(m[1]) + (m[2] || "") : null;
+}
+const mockLink = (ref, inner, cls = "mocklink") => ((h) => (h ? `<a class="${cls}" href="${esc(h)}" target="_blank" rel="noopener" title="Open the mock in a new tab">${inner}</a>` : ""))(mockRef(ref));
 const mockBtn = (x) => ((m) => (m ? `<a class="mockbtn" href="${esc(m.href)}" target="_blank" rel="noopener" title="Open the UI mock in a new tab"><span>🎨</span>Mock</a>` : ""))(mockOf(x));
 
 
@@ -2210,7 +2220,7 @@ const briefSec = (path, title = "Brief", base = "runDir", key = path) => {
   const text = S.briefs[key];
   return `<div class="sec"><h3>${title}${vsc(path, base) ? `<a href="${esc(vsc(path, base))}">Open in VS Code ↗</a>` : ""}</h3>${text ? `<div class="md">${md(text)}</div>` : text === null ? `<div class="muted">${unreadable(path)}</div>` : path ? `<div class="muted">Loading…</div>` : `<div class="muted">No brief</div>`}</div>`;
 };
-const fileLink = (p, base = "runDir") => (vsc(p, base) ? `<a class="file mono" data-doc="${esc(p)}" data-base="${esc(base)}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
+const fileLink = (p, base = "runDir") => mockLink(p, esc(p), "file mono mocklink") || (vsc(p, base) ? `<a class="file mono" data-doc="${esc(p)}" data-base="${esc(base)}">${esc(p)}</a>` : `<span class="mono">${esc(p)}</span>`);
 function shaLink(sha, repo = null) {
   if (sha == null || sha === "") return "—";
   sha = String(sha);
@@ -2502,7 +2512,7 @@ function iconSheetHeads() {
 }
 
 function md(src) {
-  const inline = (t) => esc(t).replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (_, label, href) => `<a href="${reachable(href)}" target="_blank" rel="noopener">${label} ↗</a>`).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\W)_([^_]+)_(?=\W|$)/g, "$1<i>$2</i>");
+  const inline = (t) => esc(t).replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (_, label, href) => `<a href="${reachable(href)}" target="_blank" rel="noopener">${label} ↗</a>`).replace(/`([^`]+)`/g, (_, c) => mockLink(c, `<code>${c}</code>`) || `<code>${c}</code>`).replace(/(^|[\s(])([\w./-]*mock\/[\w./#-]*[\w/])/g, (all, pre, ref) => ((a) => (a ? pre + a : all))(mockLink(ref, ref))).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|\W)_([^_]+)_(?=\W|$)/g, "$1<i>$2</i>");
   const out = [];
   let list = null, code = null, indent = "", inList = false;
   const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
