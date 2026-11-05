@@ -101,6 +101,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .share { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; color: var(--text); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .share i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
 .share.on i { background: var(--green-dot); opacity: 1; }
+.share[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--card); }
 .crew { display: inline-flex; align-items: center; }
 .crew .av { position: relative; width: 26px; height: 26px; margin-left: -6px; border-radius: 50%; border: 2px solid var(--card); display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; color: #fff; cursor: default; }
 .crew .av:first-child { margin-left: 0; }
@@ -261,6 +262,13 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms .fid { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; flex: 1 1 auto; }
 .fms .fidrow { display: flex; align-items: baseline; gap: 6px; }
 .fms .fid .owner { max-width: 100%; }
+.full[data-collapsed] .fms:not(.open) { flex-direction: row; align-items: center; gap: 8px; padding: 6px 10px; margin: 3px 0; border-radius: 10px; }
+.full[data-collapsed] .fms:not(.open) .ftop, .full[data-collapsed] .fms:not(.open) .fid { display: contents; }
+.full[data-collapsed] .fms:not(.open) .fidrow { order: 1; flex: none; align-items: center; }
+.full[data-collapsed] .fms:not(.open) > .title { order: 2; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.full[data-collapsed] .fms:not(.open) .owner, .full[data-collapsed] .fms:not(.open) .claim { order: 3; flex: 0 1 auto; max-width: 120px; }
+.full[data-collapsed] .fms:not(.open) .ftools, .full[data-collapsed] .fms:not(.open) .ms-repos, .full[data-collapsed] .fms:not(.open) .foot, .full[data-collapsed] .fms:not(.open) .fincl, .full[data-collapsed] .fms:not(.open) .fdots, .full[data-collapsed] .fepic .fsub { display: none; }
+.full[data-collapsed] .fepic { margin-bottom: 10px; }
 .prio { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 7px 0 5px; border-radius: 9px; font-size: 10.5px; font-weight: 700; line-height: 1; letter-spacing: 0; text-transform: none; align-self: center; flex: none; }
 .prio b { font-size: 12px; }
 .prio.must { background: var(--star); color: var(--star-ink); box-shadow: 0 1px 4px rgba(200,130,0,.35); }
@@ -371,7 +379,7 @@ a.wchip { color: inherit; text-decoration: none; }
 @container (max-width: 190px) { .node.compact .badge .more { display: none; } }
 .node.compact .title { font-size: 12.5px; }
 .node.compact .foot { min-height: 22px; gap: 4px 6px; font-size: 11px; flex-wrap: wrap; }
-.node.compact .badge { padding: 2px 7px; font-size: 10.5px; }
+.node.compact .badge { padding: 2px 7px; font-size: 10.5px; white-space: normal; }
 .node.compact .foot .btn { margin-left: 0; padding: 3px 10px; font-size: 11.5px; }
 .node.compact .agentlink { font-size: 11px; }
 .kv .doing { display: flex; align-items: center; gap: 8px; }
@@ -739,7 +747,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <div class="map-head">
         <h2 id="map-title">Topology</h2>
         <div class="map-tools">
-          <span id="hide-finished"></span>
+          <span id="hide-finished"></span><span id="collapse-map"></span>
           <div class="legend">
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
@@ -810,6 +818,11 @@ function setHideFinished(on) {
   try { localStorage.setItem("podium-hide-finished", on ? "1" : "0"); } catch { /* private mode */ }
 }
 S.hideFinished = readHideFinished();
+function setCollapsed(on) {
+  S.collapsed = on;
+  try { localStorage.setItem("podium-collapsed", on ? "1" : "0"); } catch { /* private mode */ }
+}
+S.collapsed = (() => { try { return localStorage.getItem("podium-collapsed") === "1"; } catch { return false; } })();
 setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (n) => Number(n) || 0;
@@ -1178,7 +1191,8 @@ function dotSummary(words) {
   for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
   return [...counts].map(([w, n]) => `${n} ${w}`).join(", ");
 }
-const COL = 320, COL_ACTIVE = 380;
+const COL = 320, COL_ACTIVE = 380, COL_OPEN = 560;
+const colOf = (E) => ((E.milestones || []).some((x) => x.id === S.open) && canExpand(openMs()) ? [COL_OPEN, 2] : E.id === S.project.active?.epic ? [COL_ACTIVE, 1.7] : [COL, 1]);
 const PRIO = { __proto__: null, must: "Must", should: "Should" };
 const prioPill = (x) => (PRIO[x?.priority] ? `<span class="prio ${x.priority}" title="${PRIO[x.priority]} have"><b>★</b>${PRIO[x.priority]}</span>` : "");
 function prioControl(ref, x) {
@@ -1299,7 +1313,7 @@ function renderFull() {
   const lane = dict(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
   const listed = runOrder(Object.values(all).filter((x) => x.status !== "dropped"));
   const order = listed.filter((x) => !isResearch(x)), research = listed.filter(isResearch);
-  const cols = `34px ${P.epics.map((E) => (E.id === P.active?.epic ? `minmax(${COL_ACTIVE}px, 1.7fr)` : `minmax(${COL}px, 1fr)`)).join(" ")}`;
+  const cols = `34px ${P.epics.map((E) => `minmax(${colOf(E)[0]}px, ${colOf(E)[1]}fr)`).join(" ")}`;
   const head = `<div></div>${P.epics.map((E) => {
     const kept = (E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status)), ms = kept.filter((x) => !isResearch(x)), landed = ms.filter((x) => x.status === "done").length;
     const rs = kept.filter(isResearch), answered = rs.filter((x) => x.status === "done").length;
@@ -1307,6 +1321,7 @@ function renderFull() {
     return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}${prioPill(E)}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
   const om = openMs();
+  renderCollapsed();
   renderHideFinished(listed.filter(hidesMs).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
   const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
@@ -1316,8 +1331,8 @@ function renderFull() {
   const drow = strips.some(Boolean) ? `<div class="ford" title="Decisions">D</div>${strips.map((x) => `<div>${x}</div>`).join("")}` : "";
   const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hidesMs(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
   const rows = order.map((x, i) => hidesMs(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
-  const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? COL_ACTIVE : COL) + 20, 0);
-  m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
+  const min = 34 + P.epics.reduce((n, E) => n + colOf(E)[0] + 20, 0);
+  m.innerHTML = `<div class="full"${S.collapsed ? " data-collapsed" : ""} style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
   requestAnimationFrame(drawLines);
   applyFilter();
 }
@@ -1870,6 +1885,10 @@ function renderShare() {
   el.innerHTML = `<button class="share ${on ? "on" : ""}" data-act="share" title="${esc(tip)}"><i></i>${on ? "Shared" : "Share"}</button>`;
 }
 const FETCH_TIP = "Pull your colleagues' latest changes to this run. The Podium also pulls every minute on its own";
+function renderCollapsed() {
+  const on = S.collapsed;
+  $("collapse-map").innerHTML = `<button class="share ${on ? "on" : ""}" data-collapse-map aria-pressed="${on}" title="${on ? "Show milestones in full again" : "Show each milestone as one line: id, priority, title and owner"}">Collapsed</button>`;
+}
 function renderHideFinished(hidden) {
   const on = S.hideFinished;
   $("hide-finished").innerHTML = `<button class="share ${on ? "on" : ""}" data-hide-finished aria-pressed="${on}" title="${on ? "Show finished work again" : "Hide finished work from the map. Whatever is open or needs you stays"}">${on ? `Show all${hidden ? ` · ${hidden} hidden` : ""}` : "Hide finished"}</button>`;
@@ -2526,6 +2545,7 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-restart]")) { restartServer(); return; }
   const hideBtn = ev.target.closest("[data-hide-finished]");
   if (hideBtn) { setHideFinished(!S.hideFinished); render(); return; }
+  if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
   if (ev.target.closest("[data-fetch]")) { fetchShared(); return; }
   if (ev.target.closest("[data-ds-back]")) { closeDs(); return; }
   const dt = ev.target.closest("[data-ds-tab]");

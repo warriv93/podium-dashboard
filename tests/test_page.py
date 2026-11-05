@@ -565,6 +565,29 @@ class HostileRun(unittest.TestCase):
         labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "1"})
         self.assertIn("Show all · 3 hidden", labels)
 
+    def collapse_button(self, html):
+        return re.search(r'<button class="share ?(on)?" data-collapse-map aria-pressed="(\w+)"[^>]*>Collapsed</button>', html)
+
+    def test_a_collapsed_button_sits_beside_hide_finished_and_is_off_by_default(self):
+        self.assertIn('<span id="hide-finished"></span><span id="collapse-map"></span>', open(PAGE).read())
+        maps, _ = self.maps()
+        self.assertEqual(self.collapse_button("".join(self.html)).group(2), "false")
+        self.assertNotIn("data-collapsed", maps[-1])
+
+    def test_collapsed_is_kept_in_podium_collapsed_and_marks_the_map(self):
+        maps, _ = self.maps(localStorage={"podium-collapsed": "1"})
+        self.assertEqual(self.collapse_button("".join(self.html)).groups(), ("on", "true"))
+        self.assertIn('<div class="full" data-collapsed style=', maps[0])
+
+    def test_pressing_collapsed_flips_it_and_an_open_milestone_stays_in_full(self):
+        maps, _ = self.maps(probe='(setCollapsed(true), render(), expand("M2"), S.collapsed)')
+        self.assertTrue(self.probe())
+        self.assertIn("data-collapsed", maps[-1])
+        self.assertIn('<div class="ohead">', self.open_card(maps[-1]))
+        css = open(PAGE).read()
+        for hidden in (".ftools", ".ms-repos", ".foot", ".fdots"):
+            self.assertRegex(css, r"\.full\[data-collapsed\] \.fms:not\(\.open\) " + re.escape(hidden) + r"\b[^{]*\{ display: none")
+
     def test_a_stored_podium_hide_finished_stories_changes_nothing_and_the_page_no_longer_names_it(self):
         labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished-stories": "1"})
         self.assertEqual(set(labels), {"Hide finished"})
@@ -866,6 +889,11 @@ class HostileRun(unittest.TestCase):
         maps, _ = self.maps()
         self.assertIn('grid-template-columns:34px minmax(320px, 1fr) minmax(380px, 1.7fr);min-width:774px', maps[0])
         self.assertRegex(open(PAGE).read(), r"\.ms-repos \.repo-line \{[^}]*flex-wrap: wrap")
+
+    def test_the_open_milestones_epic_column_widens_so_its_story_cards_keep_their_contents(self):
+        maps, _ = self.maps(probe='expand("M2")')
+        self.assertIn('grid-template-columns:34px minmax(320px, 1fr) minmax(560px, 2fr);min-width:954px', maps[-1])
+        self.assertRegex(open(PAGE).read(), r"\.node\.compact \.badge \{[^}]*white-space: normal")
 
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
