@@ -2674,7 +2674,12 @@ document.addEventListener("click", (ev) => {
   if (rl) { ev.stopPropagation(); release(rl.dataset.release); return; }
   if (ev.target.closest("[data-restart]")) { restartServer(); return; }
   const hideBtn = ev.target.closest("[data-hide-finished]");
-  if (hideBtn) { setHideFinished(!S.hideFinished); render(); return; }
+  if (hideBtn) {
+    const inCard = hideBtn.closest(".mtree[data-ms]");
+    setHideFinished(!S.hideFinished); render();
+    if (inCard) scrollToMs(inCard.dataset.ms);
+    return;
+  }
   if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
   if (ev.target.closest("[data-prio-menu]")) { setPrioMenu(!S.prioMenu); return; }
   const tier = ev.target.closest("[data-prio-tier]");

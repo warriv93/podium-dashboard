@@ -1456,6 +1456,16 @@ class HostileRun(unittest.TestCase):
             self.assertEqual(row in card, shown)
             self.assertEqual("node compact" in card, not shown)
 
+    def test_show_on_an_open_milestone_scrolls_back_to_it_and_the_header_button_does_not(self):
+        run = json.loads(json.dumps(FINISHED_RUN))
+        run["epics"][0]["milestones"][0]["stories"] = [{"id": "S1", "title": "a", "status": "done"}]
+        self.maps(run, localStorage={"podium-hide-finished": "1"},
+                  probe='(() => { const scrolls = []; scrollTo = (o) => scrolls.push(o.behavior); reveal("M1"); scrolls.length = 0;'
+                        ' const click = (...hits) => { const target = { dataset: { ms: "M1" }, closest: (s) => (hits.includes(s) ? target : null) };'
+                        ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return [S.hideFinished, scrolls.splice(0)]; };'
+                        ' return [click("[data-hide-finished]", ".mtree[data-ms]"), click("[data-hide-finished]")]; })()')
+        self.assertEqual(self.probe(), [[False, ["smooth"]], [True, []]])
+
     def test_cards_in_a_wave_sit_under_the_stories_they_depend_on(self):
         self.maps(TREE_RUN, probe='treeRows(msOf("M2")).map((w) => w.map((s) => s.id))')
         self.assertEqual(self.probe(), [["A1", "A2", "A3"], ["B2", "B3", "B1"], ["C2", "C1"]])
