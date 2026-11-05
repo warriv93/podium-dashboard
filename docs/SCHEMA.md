@@ -45,7 +45,7 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 
 | Key | Meaning |
 |---|---|
-| `project` | `title`, `summary`; `asana` when linked; `quest` when an orchestrator shows a research quest |
+| `project` | `title`, `summary`; `asana` when linked; `quest` when an orchestrator shows a research quest, with its cycle in `start` (`YYYY-MM-DD`, the Monday of week 1), `weeks` (6 when absent) and `openWeeks` (2 when absent) |
 | `epics` | list of epics, see below |
 | `active` | `{epic, milestone}`: the milestone `milestone:` and a bare story id refer to |
 | `needsYou` | `{reason, story?}` or null: what is waiting for the user |

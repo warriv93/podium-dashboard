@@ -317,6 +317,22 @@ a.wchip { color: inherit; text-decoration: none; }
 .quest .gist { font-size: 13px; color: var(--text-2); max-width: 90ch; }
 .quest .qfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 11.5px; color: var(--text-2); }
 .quest .qfoot .asana-meta { margin: 0; }
+.qtime { margin-top: 4px; }
+.qtime-lbl { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--text-2); margin-bottom: 6px; }
+.qtime-lbl b { color: var(--text); font-weight: 650; }
+.qtime .pace { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-weight: 650; font-size: 11px; white-space: nowrap; }
+.qtime .pace.ok { background: var(--green-soft); color: var(--green); }
+.qcells, .qticks { display: grid; gap: 3px; }
+.qcell { position: relative; height: 10px; border-radius: 3px; background: rgba(91,110,225,.2); }
+.qcell.past { background: #5b6ee1; }
+.qcell.now { background: linear-gradient(90deg, #5b6ee1 var(--fill), rgba(91,110,225,.2) var(--fill)); }
+.qcell.open { background: rgba(48,176,130,.22); }
+.qcell.open.past { background: #30b082; }
+.qcell.open.now { background: linear-gradient(90deg, #30b082 var(--fill), rgba(48,176,130,.22) var(--fill)); }
+.qneedle { position: absolute; top: -4px; bottom: -4px; left: var(--fill); width: 2px; margin-left: -1px; border-radius: 1px; background: var(--red); }
+.qneedle::after { content: ""; position: absolute; top: -3px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+.qticks { margin-top: 3px; font-size: 10px; color: var(--text-3); }
+.qticks .now { color: var(--red); font-weight: 700; }
 .qlinks { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
 .qlinks a, .qlinks-sheet a { color: var(--text-2); text-decoration: none; }
 .applink { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
@@ -2392,12 +2408,47 @@ function appLink(l) {
   return url ? `<a class="applink" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(name ? `${name}: ${label}` : l.label)}">${ico || ""}${esc(label)} ↗</a>` : `<span class="applink">${esc(label)}</span>`;
 }
 const questLinks = (q) => (q.links || []).map(appLink).join("");
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const dayMonth = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+const weeksOr = (v, fallback, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : fallback);
+function questTimeline(q, ms, now) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof q?.start === "string" ? q.start : "");
+  const start = m && new Date(+m[1], m[2] - 1, +m[3]);
+  if (!start || start.getMonth() !== m[2] - 1 || start.getDate() !== +m[3]) return "";
+  const weeks = weeksOr(q.weeks, 6, 1, 26), open = weeksOr(q.openWeeks, 2, 0, 8), questDays = weeks * 7, allDays = questDays + open * 7;
+  const at = (n) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + n);
+  const today = Math.round((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) / 864e5);
+  const left = (end) => `${end - today - 1} ${end - today - 1 === 1 ? "day" : "days"} left`;
+  const label = today < 0 ? `<b>Quest starts ${dayMonth(start)}</b> · in ${-today} ${today === -1 ? "day" : "days"}`
+    : today < questDays ? `<b>Week ${Math.floor(today / 7) + 1} of ${weeks}</b> · ${left(questDays)}`
+    : today < allDays ? `<b>Open week ${Math.floor((today - questDays) / 7) + 1} of ${open}</b> · ${left(allDays)}`
+    : `<b>Quest ended ${dayMonth(at(questDays - 1))}</b>`;
+  const side = open ? `Open weeks ${dayMonth(at(questDays))} – ${dayMonth(at(allDays - 1))}` : `Ends ${dayMonth(at(questDays - 1))}`;
+  const share = today < 0 ? null : Math.min(1, today / questDays);
+  const pace = (word, list) => {
+    const landed = list.filter((x) => x.status === "done").length, behind = Math.round(list.length * share) - landed;
+    const how = share === 1 ? `${list.length - landed} left` : behind >= 1 ? `≈ ${behind} behind${word ? "" : " pace"}` : "on pace";
+    return `<span class="pace${behind >= 1 ? "" : " ok"}">${word ? `★ ${word} ${landed} of ${list.length}` : `${landed} of ${list.length} landed`}, ${how}</span>`;
+  };
+  const tiers = share === null || !ms.length ? "" : [pace("", ms), ...[["must", "Must"], ["should", "Should"]].map(([t, w]) => ((list) => (list.length ? pace(w, list) : ""))(ms.filter((x) => x.priority === t)))].join(" ");
+  const cell = (i, kind) => {
+    const from = i * 7, state = today >= from + 7 ? "past" : today >= from ? "now" : "";
+    const cls = [kind, state].filter(Boolean).join(" ");
+    return state === "now" ? `<span class="qcell ${cls}" style="--fill:${Math.round((((today - from) + 1) / 7) * 100)}%"><i class="qneedle"></i></span>` : `<span class="qcell${cls ? ` ${cls}` : ""}"></span>`;
+  };
+  const index = [...Array(weeks + open).keys()];
+  const cols = `grid-template-columns:repeat(${weeks}, 1fr)${open ? ` repeat(${open}, .7fr)` : ""}`;
+  const name = (i) => (i < weeks ? `W${i + 1}` : `Open ${i - weeks + 1}`);
+  return `<div class="qtime"><div class="qtime-lbl"><span>${label}${tiers ? ` · ${tiers}` : ""}</span><span>${side}</span></div>`
+    + `<div class="qcells" style="${cols}">${index.map((i) => cell(i, i < weeks ? "" : "open")).join("")}</div>`
+    + `<div class="qticks" style="${cols}">${index.map((i) => `<span${today >= i * 7 && today < i * 7 + 7 ? ' class="now"' : ""}>${name(i)}</span>`).join("")}</div></div>`;
+}
 function questTile(P) {
   const q = P.project.quest, all = P.epics.flatMap((E) => E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status));
   const rs = all.filter(isResearch), ms = all.filter((x) => !isResearch(x)), open = (q.tasks || []).filter((t) => !t.asana?.completed).length;
   const counts = [`${P.epics.length} epics`, rs.length && `${rs.filter((x) => x.status === "done").length} of ${rs.length} research answered`,
     `${ms.filter((x) => x.status === "done").length} of ${ms.length} milestones landed`, open && `${open} open quest ${open === 1 ? "task" : "tasks"}`].filter(Boolean);
-  return `<div class="quest" data-quest tabindex="0"><span class="eyebrow">Quest<span class="ftools">${asanaBtn(P.project, true)}${syncBtn(P.project)}</span></span><span class="title">${esc(P.project.title)}</span>${P.project.summary ? `<span class="gist">${esc(P.project.summary)}</span>` : ""}<div class="qfoot">${counts.map((c) => `<span>${c}</span>`).join("")}${asanaMeta(P.project)}<span class="qlinks">${questLinks(q)}</span></div></div>`;
+  return `<div class="quest" data-quest tabindex="0"><span class="eyebrow">Quest<span class="ftools">${asanaBtn(P.project, true)}${syncBtn(P.project)}</span></span><span class="title">${esc(P.project.title)}</span>${P.project.summary ? `<span class="gist">${esc(P.project.summary)}</span>` : ""}<div class="qfoot">${counts.map((c) => `<span>${c}</span>`).join("")}${asanaMeta(P.project)}<span class="qlinks">${questLinks(q)}</span></div>${questTimeline(q, ms, new Date())}</div>`;
 }
 function syncBtn(x) {
   if (!x.asana?.url) return "";

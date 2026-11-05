@@ -936,6 +936,59 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn('class="prio', cards["M1"])
         self.assertNotIn("data-prio", maps[0])
 
+    QUEST_MS = ('[..."must must must must should should should nice nice nice".split(" ").map((t, i) => ({ id: `M${i}`, priority: t === "nice" ? undefined : t,'
+                ' status: [0, 4, 5, 7].includes(i) ? "done" : "todo" }))]')
+
+    def timeline(self, quest, y, m, d):
+        self.maps(probe=f"questTimeline({json.dumps(quest)}, {self.QUEST_MS}, new Date({y}, {m - 1}, {d}, 12))")
+        return self.probe()
+
+    def test_the_quest_timeline_shows_the_week_today_and_the_open_weeks_after(self):
+        t = self.timeline({"start": "2026-10-12"}, 2026, 11, 5)
+        self.assertIn('<span><b>Week 4 of 6</b> · 17 days left', t)
+        self.assertIn('<span>Open weeks 23 Nov – 6 Dec</span>', t)
+        self.assertIn('style="grid-template-columns:repeat(6, 1fr) repeat(2, .7fr)"', t)
+        self.assertEqual(re.findall(r'<span class="qcell( [a-z ]+)?"', t), [" past", " past", " past", " now", "", "", " open", " open"])
+        self.assertIn('<span class="qcell now" style="--fill:57%"><i class="qneedle"></i></span>', t)
+        self.assertEqual(re.findall(r'<span( class="now")?>((?:W|Open )\d)</span>', t),
+                         [("", "W1"), ("", "W2"), ("", "W3"), (' class="now"', "W4"), ("", "W5"), ("", "W6"), ("", "Open 1"), ("", "Open 2")])
+
+    def test_the_pace_weighs_landed_milestones_against_the_time_gone_overall_and_per_priority(self):
+        t = self.timeline({"start": "2026-10-12"}, 2026, 11, 5)
+        self.assertIn('<span class="pace">4 of 10 landed, ≈ 2 behind pace</span>', t)
+        self.assertIn('<span class="pace">★ Must 1 of 4, ≈ 1 behind</span>', t)
+        self.assertIn('<span class="pace ok">★ Should 2 of 3, on pace</span>', t)
+        self.assertNotIn("Nice", t)
+
+    def test_before_the_quest_starts_the_timeline_counts_down_without_pace(self):
+        t = self.timeline({"start": "2026-10-12"}, 2026, 10, 5)
+        self.assertIn('<span><b>Quest starts 12 Oct</b> · in 7 days', t)
+        self.assertNotIn("pace", t)
+        self.assertNotIn("qneedle", t)
+
+    def test_in_the_open_weeks_and_after_them_the_pace_counts_what_is_left(self):
+        t = self.timeline({"start": "2026-10-12"}, 2026, 11, 25)
+        self.assertIn('<span><b>Open week 1 of 2</b> · 11 days left', t)
+        self.assertEqual(re.findall(r'<span class="qcell( [a-z ]+)?"', t)[5:], [" past", " open now", " open"])
+        self.assertIn('<span class="pace">4 of 10 landed, 6 left</span>', t)
+        t = self.timeline({"start": "2026-10-12"}, 2026, 12, 10)
+        self.assertIn('<span><b>Quest ended 22 Nov</b>', t)
+        self.assertNotIn("qneedle", t)
+
+    def test_the_quest_length_and_open_weeks_can_be_set_and_bad_values_fall_back(self):
+        t = self.timeline({"start": "2026-10-12", "weeks": 4, "openWeeks": 0}, 2026, 10, 20)
+        self.assertIn('<span><b>Week 2 of 4</b>', t)
+        self.assertIn('<span>Ends 8 Nov</span>', t)
+        self.assertIn("repeat(4, 1fr)", t)
+        t = self.timeline({"start": "2026-10-12", "weeks": "<b>", "openWeeks": -3}, 2026, 11, 5)
+        self.assertIn("repeat(6, 1fr) repeat(2, .7fr)", t)
+        for quest in ({}, {"start": "<script>"}, {"start": "2026-13-45"}, {"start": 20261012}, None):
+            self.assertEqual(self.timeline(quest, 2026, 11, 5), "", quest)
+
+    def test_the_quest_tile_carries_the_timeline_when_the_quest_has_a_start(self):
+        page = open(PAGE).read()
+        self.assertRegex(page, r"\$\{questTimeline\(q, ms, new Date\(\)\)\}")
+
     def test_a_quests_us_tiles_carry_the_same_pills(self):
         maps, _ = self.maps(self.priority_run())
         tiles = re.findall(r'<div class="fepic"[^>]*><span class="eyebrow">(.*?)<span class="ftools">', maps[0])
