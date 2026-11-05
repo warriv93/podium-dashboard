@@ -887,12 +887,18 @@ class HostileRun(unittest.TestCase):
 
     def test_epic_columns_keep_a_width_their_cards_fit_in_and_the_map_scrolls_sideways_past_it(self):
         maps, _ = self.maps()
-        self.assertIn('grid-template-columns:34px minmax(320px, 1fr) minmax(380px, 1.7fr);min-width:774px', maps[0])
+        self.assertIn('grid-template-columns:minmax(320px, 1fr) minmax(380px, 1.7fr);min-width:752px', maps[0])
         self.assertRegex(open(PAGE).read(), r"\.ms-repos \.repo-line \{[^}]*flex-wrap: wrap")
+
+    def test_the_map_has_no_row_number_gutter(self):
+        maps, _ = self.maps()
+        self.assertNotIn('class="ford"', maps[0])
+        self.assertNotRegex(maps[0], r">#\d+<")
+        self.assertIn('<div class="full" style="grid-template-columns:minmax(', maps[0])
 
     def test_the_open_milestones_epic_column_widens_so_its_story_cards_keep_their_contents(self):
         maps, _ = self.maps(probe='expand("M2")')
-        self.assertIn('grid-template-columns:34px minmax(320px, 1fr) minmax(560px, 2fr);min-width:954px', maps[-1])
+        self.assertIn('grid-template-columns:minmax(320px, 1fr) minmax(560px, 2fr);min-width:932px', maps[-1])
         self.assertRegex(open(PAGE).read(), r"\.node\.compact \.badge \{[^}]*white-space: normal")
 
     def test_a_click_on_the_open_cards_padding_or_the_maps_empty_space_collapses_it(self):
@@ -1156,9 +1162,9 @@ class HostileRun(unittest.TestCase):
     def test_the_open_card_sits_in_its_epics_column_like_a_closed_card(self):
         maps, _ = self.maps(probe='(expand("M2"), collapse())')
         opened = next(m for m in maps if self.open_cards(m) == ["M2"])
-        self.assertRegex(opened, r'<div class="ford">#\d+</div><div></div><div class="fms open ')
+        self.assertRegex(opened, r'</div><div></div><div class="fms open ')
         self.assertNotIn("grid-column", self.open_card(opened))
-        self.assertRegex(maps[-1], r'<div class="ford">#\d+</div><div></div><div class="fms working')
+        self.assertRegex(maps[-1], r'</div><div></div><div class="fms working')
 
     def test_each_story_shows_once_on_the_map(self):
         maps, _ = self.maps()
@@ -1491,12 +1497,11 @@ class HostileRun(unittest.TestCase):
                  {"id": "e2", "title": "F", "milestones": [{"id": "M20", "title": "Upload", "status": "todo"}]}]
         self.rendered({**CYCLIC_RUN, "epics": epics, "decisions": decisions}, [], PROGRESS, (), info={"me": "ann"})
         full = [h for h in self.html if 'class="full"' in h][-1]
-        if '<div class="ford" title="Decisions">D</div>' not in full:
+        if '<div class="fdrow">' not in full:
             return None
-        row = re.split(r'<div class="(?:ford|fnext)"', full.split('<div class="ford" title="Decisions">D</div>', 1)[1])[0]
-        cells = re.findall(r'<div></div>|<div><div class="fdecs">.*?(?=<div></div>|<div><div class="fdecs">|$)', row, re.S)
+        cells = full.split('<div class="fdrow">')[1:]
         self.assertEqual(len(cells), len(epics))
-        return [None if c == "<div></div>" else c for c in cells]
+        return [None if c.startswith("</div>") else c for c in cells]
 
     def test_an_epic_without_decisions_has_no_strip_and_a_run_without_any_no_row(self):
         self.assertIsNone(self.strips([]))

@@ -248,7 +248,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fplan { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
 .fproj { display: inline-flex; gap: 10px; align-items: center; font-size: 12.5px; font-weight: 400; }
 .map-tools { display: flex; align-items: center; gap: 14px; flex: none; align-self: center; }
-.full { position: relative; display: grid; column-gap: 20px; align-items: start; padding: 4px 4px 24px; }
+.full { position: relative; display: grid; column-gap: 20px; align-items: start; padding: 4px 16px 24px; }
 .full > * { min-width: 0; }
 .full > svg.edges { z-index: 0; }
 .fepic, .fms { position: relative; z-index: 1; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; cursor: pointer; text-align: left; box-shadow: var(--shadow-tile); }
@@ -261,7 +261,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .fbar i.d { background: var(--green-dot); }
 .fbar i.w { background: var(--accent); }
 .fsub { font-size: 11.5px; color: var(--text-2); }
-.ford { font-size: 11px; font-weight: 700; color: var(--text-3); text-align: right; align-self: center; letter-spacing: .04em; }
 .fms { margin: 7px 0; display: flex; flex-direction: column; gap: 6px; }
 .fms:hover, .fepic:hover { border-color: var(--line-2); }
 .fms .ftop { display: flex; align-items: flex-start; gap: 6px; min-height: 22px; }
@@ -1219,7 +1218,7 @@ function dotSummary(words) {
   for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
   return [...counts].map(([w, n]) => `${n} ${w}`).join(", ");
 }
-const BACKDROP = "#map, .map-scroll, .map-wrap, .map-card, .full, .full > div:empty, .ford, .fnext, .fms.open, .fms.open .ohead, .fms.open .fid, .fms.open .oside, .fms.open .mtree, .fms.open .mrow, .fms.open .mwave, .fms.open .mwl";
+const BACKDROP = "#map, .map-scroll, .map-wrap, .map-card, .full, .full > div:empty, .fnext, .fres, .fms.open, .fms.open .ohead, .fms.open .fid, .fms.open .oside, .fms.open .mtree, .fms.open .mrow, .fms.open .mwave, .fms.open .mwl";
 function onBackdrop(el) {
   if (S.open && el?.matches?.(BACKDROP) && !String(window.getSelection?.() ?? "")) collapse();
 }
@@ -1345,8 +1344,8 @@ function renderFull() {
   const lane = dict(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
   const listed = runOrder(Object.values(all).filter((x) => x.status !== "dropped"));
   const order = listed.filter((x) => !isResearch(x)), research = listed.filter(isResearch);
-  const cols = `34px ${P.epics.map((E) => `minmax(${colOf(E)[0]}px, ${colOf(E)[1]}fr)`).join(" ")}`;
-  const head = `<div></div>${P.epics.map((E) => {
+  const cols = `${P.epics.map((E) => `minmax(${colOf(E)[0]}px, ${colOf(E)[1]}fr)`).join(" ")}`;
+  const head = `${P.epics.map((E) => {
     const kept = (E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status)), ms = kept.filter((x) => !isResearch(x)), landed = ms.filter((x) => x.status === "done").length;
     const rs = kept.filter(isResearch), answered = rs.filter((x) => x.status === "done").length;
     const now = ms.find((x) => x.status === "working"), going = ms.filter((x) => x.status === "working").length;
@@ -1361,10 +1360,10 @@ function renderFull() {
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
   const decs = dict((Array.isArray(P.decisions) ? P.decisions : []).filter((d) => d && typeof d === "object" && typeof d.id === "string").map((d) => [d.id, d]));
   const strips = P.epics.map((E) => decisionStrip(E, decs, all));
-  const drow = strips.some(Boolean) ? `<div class="ford" title="Decisions">D</div>${strips.map((x) => `<div>${x}</div>`).join("")}` : "";
-  const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hidesMs(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
-  const rows = order.map((x, i) => hidesMs(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
-  const min = 34 + P.epics.reduce((n, E) => n + colOf(E)[0] + 20, 0);
+  const drow = strips.some(Boolean) ? strips.map((x) => `<div class="fdrow">${x}</div>`).join("") : "";
+  const rrow = research.length ? `${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hidesMs(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
+  const rows = order.map((x, i) => hidesMs(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
+  const min = 12 + P.epics.reduce((n, E) => n + colOf(E)[0] + 20, 0);
   m.innerHTML = `<div class="full"${S.collapsed ? " data-collapsed" : ""} style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
   requestAnimationFrame(drawLines);
   applyFilter();
