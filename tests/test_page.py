@@ -910,6 +910,16 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(self.probe(), [["M2", None], None])
         self.assertEqual(self.open_cards(maps[-1]), [])
 
+    def test_collapse_has_its_own_corner_of_the_open_cards_head_so_no_button_lands_on_it(self):
+        maps, _ = self.maps(probe='expand("M2")')
+        self.assertIn('<div class="ohead"><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button><span class="fid">', self.open_card(maps[-1]))
+        css = open(PAGE).read()
+        self.assertIn(".ohead { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr; gap: 6px 14px; align-items: start; container-type: inline-size; }", css)
+        self.assertIn(".ohead > .ocollapse { grid-column: 2; grid-row: 1; justify-self: end; }", css)
+        self.assertIn(".ohead > .oside { grid-column: 2; grid-row: 2; }", css)
+        self.assertIn("@container (max-width: 560px) { .ohead > .fid { grid-row: 1; } .ohead > .oside { grid-column: 1 / -1; } }", css)
+        self.assertNotIn("position: absolute; top: 0; right: 0", css)
+
     def test_the_open_card_has_a_collapse_button_and_a_title_that_opens_the_milestone_sheet(self):
         maps, _ = self.maps(probe='expand("M2")')
         card = self.open_card(maps[-1])

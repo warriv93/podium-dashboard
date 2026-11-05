@@ -383,12 +383,12 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms.open:not(.working):not(.waits):not(.waitfor):not(.failed) { background: var(--card); box-shadow: var(--shadow-hi); }
 .fms.flash { animation: flash 1.2s ease-out; }
 @keyframes flash { 0%, 35% { outline: 3px solid var(--accent); outline-offset: 3px; } 100% { outline: 3px solid transparent; outline-offset: 3px; } }
-.ohead { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; }
-.ohead .fidrow { flex-wrap: wrap; align-items: center; padding-right: 76px; }
-.ohead { position: relative; }
-.ohead .ocollapse[data-collapse] { position: absolute; top: 0; right: 0; }
-.ohead { container-type: inline-size; }
-@container (min-width: 640px) { .ohead .oside { margin-top: 26px; } }
+.ohead { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto 1fr; gap: 6px 14px; align-items: start; container-type: inline-size; }
+.ohead .fidrow { flex-wrap: wrap; align-items: center; }
+.ohead > .ocollapse { grid-column: 2; grid-row: 1; justify-self: end; }
+.ohead > .fid { grid-column: 1; grid-row: 1 / span 2; }
+.ohead > .oside { grid-column: 2; grid-row: 2; }
+@container (max-width: 560px) { .ohead > .fid { grid-row: 1; } .ohead > .oside { grid-column: 1 / -1; } }
 .oepic { font-size: 11.5px; color: var(--text-3); }
 .otitle { font-size: 15px; cursor: pointer; }
 .otitle:hover { color: var(--accent); }
@@ -1287,7 +1287,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}${ownerOrClaim(m, ownerPill)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${prioControl(m.id, m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
+  return `<div class="ohead"><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}${ownerOrClaim(m, ownerPill)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${prioControl(m.id, m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
