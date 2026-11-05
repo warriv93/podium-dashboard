@@ -104,6 +104,14 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .share { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; color: var(--text); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .share i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
 .share.on i { background: var(--green-dot); opacity: 1; }
+#prio-filter { position: relative; display: inline-flex; }
+#prio-filter .share::after { content: ""; width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .6; }
+#prio-filter .share.on { border-color: var(--text); font-weight: 600; }
+.prio-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; display: flex; flex-direction: column; gap: 2px; min-width: 160px; padding: 6px; background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-hi); }
+.prio-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.prio-menu label:hover { background: var(--gray-soft); }
+.prio-menu input { margin: 0; accent-color: var(--text); }
+.prio-menu label:has(input:disabled), .prio-menu input:disabled { cursor: default; }
 .share[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--card); }
 .crew { display: inline-flex; align-items: center; }
 .crew .av { position: relative; width: 26px; height: 26px; margin-left: -6px; border-radius: 50%; border: 2px solid var(--card); display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; color: #fff; cursor: default; }
@@ -774,7 +782,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <div class="map-head">
         <h2 id="map-title">Topology</h2>
         <div class="map-tools">
-          <span id="hide-finished"></span><span id="collapse-map"></span>
+          <span id="hide-finished"></span><span id="collapse-map"></span><span id="prio-filter"></span>
           <div class="legend">
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
@@ -850,6 +858,20 @@ function setCollapsed(on) {
   try { localStorage.setItem("podium-collapsed", on ? "1" : "0"); } catch { /* private mode */ }
 }
 S.collapsed = (() => { try { return localStorage.getItem("podium-collapsed") === "1"; } catch { return false; } })();
+const TIERS = [["must", "Must have"], ["should", "Should have"], ["nice", "Nice to have"]], EVERY_TIER = TIERS.map(([t]) => t);
+function readPrioShown() {
+  try {
+    const stored = JSON.parse(localStorage.getItem("podium-priority-filter")), shown = EVERY_TIER.filter((t) => Array.isArray(stored) && stored.includes(t));
+    return shown.length ? shown : EVERY_TIER;
+  } catch { return EVERY_TIER; }
+}
+function togglePrioTier(tier) {
+  const on = S.prioShown.includes(tier);
+  if (on && S.prioShown.length === 1) return;
+  S.prioShown = EVERY_TIER.filter((t) => (t === tier ? !on : S.prioShown.includes(t)));
+  try { localStorage.setItem("podium-priority-filter", JSON.stringify(S.prioShown)); } catch { /* private mode */ }
+}
+S.prioShown = readPrioShown();
 setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (n) => Number(n) || 0;
@@ -1256,7 +1278,9 @@ function keeps(ms, story) {
   if (story !== undefined) return isSel(ms, story) || (n.ms === ms && n.story === String(story));
   return S.sel?.ms === ms || S.open === ms || n.ms === ms || waitersOf(ms).length > 0;
 }
-const hidesMs = (x) => S.hideFinished && ["done", "moved"].includes(x.status) && !keeps(x.id);
+const hidesFinished = (x) => S.hideFinished && ["done", "moved"].includes(x.status) && !keeps(x.id);
+const tierOf = (x) => (PRIO[x?.priority] ? x.priority : "nice");
+const hidesMs = (x) => hidesFinished(x) || (!S.prioShown.includes(tierOf(x)) && !keeps(x.id));
 const hidesStory = (m, s) => S.hideFinished && ["done", "dropped"].includes(s.status) && !keeps(m.id, s.id);
 function treeRows(m) {
   const rows = wavesOf(m.stories || []), col = dict();
@@ -1355,7 +1379,8 @@ function renderFull() {
   }).join("")}`;
   const om = openMs();
   renderCollapsed();
-  renderHideFinished(listed.filter(hidesMs).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
+  renderPrioFilter();
+  renderHideFinished(listed.filter(hidesFinished).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
   const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
@@ -1921,6 +1946,16 @@ const FETCH_TIP = "Pull your colleagues' latest changes to this run. The Podium 
 function renderCollapsed() {
   const on = S.collapsed;
   $("collapse-map").innerHTML = `<button class="share ${on ? "on" : ""}" data-collapse-map aria-pressed="${on}" title="${on ? "Show milestones in full again" : "Show each milestone as one line: id, priority, title and owner"}">Collapsed</button>`;
+}
+function setPrioMenu(open) {
+  S.prioMenu = open;
+  renderPrioFilter();
+}
+function renderPrioFilter() {
+  const el = $("prio-filter"), shown = S.prioShown, some = shown.length < TIERS.length, had = document.activeElement?.closest?.("#prio-filter") && document.activeElement;
+  const box = ([t, label]) => `<label><input type="checkbox" data-prio-tier="${t}"${shown.includes(t) ? " checked" : ""}${shown.length === 1 && shown.includes(t) ? " disabled" : ""}>${label}</label>`;
+  el.innerHTML = `<button class="share ${some ? "on" : ""}" data-prio-menu aria-expanded="${!!S.prioMenu}" aria-controls="prio-menu" title="Show milestones by priority">${some ? `Priority · ${shown.length} of ${TIERS.length}` : "Priority"}</button>${S.prioMenu ? `<div class="prio-menu" id="prio-menu" role="group" aria-label="Show milestones that are">${TIERS.map(box).join("")}</div>` : ""}`;
+  if (had) el.querySelector(had.dataset.prioTier ? `[data-prio-tier="${had.dataset.prioTier}"]` : "[data-prio-menu]")?.focus();
 }
 function renderHideFinished(hidden) {
   const on = S.hideFinished;
@@ -2569,6 +2604,7 @@ let toastT;
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3200); }
 
 document.addEventListener("click", (ev) => {
+  if (S.prioMenu && !ev.target.closest("#prio-filter")) setPrioMenu(false);
   if (ev.target.closest("a[href]")) return;
   if (ev.target.closest("a.pr")) return;
   const th = ev.target.closest("[data-theme-set]");
@@ -2579,6 +2615,10 @@ document.addEventListener("click", (ev) => {
   const hideBtn = ev.target.closest("[data-hide-finished]");
   if (hideBtn) { setHideFinished(!S.hideFinished); render(); return; }
   if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
+  if (ev.target.closest("[data-prio-menu]")) { setPrioMenu(!S.prioMenu); return; }
+  const tier = ev.target.closest("[data-prio-tier]");
+  if (tier) { togglePrioTier(tier.dataset.prioTier); render(); return; }
+  if (ev.target.closest("#prio-filter")) return;
   if (ev.target.closest("[data-fetch]")) { fetchShared(); return; }
   if (ev.target.closest("[data-ds-back]")) { closeDs(); return; }
   const dt = ev.target.closest("[data-ds-tab]");
@@ -2646,7 +2686,8 @@ document.addEventListener("keydown", (ev) => {
   else if (ev.key === "Enter" && ev.target.matches(".node, .fchip, .fms, .otitle, .fepic, .quest")) ev.target.click();
 });
 function onEscape() {
-  if (S.sel) closeSheet();
+  if (S.prioMenu) { setPrioMenu(false); $("prio-filter").querySelector("[data-prio-menu]")?.focus(); }
+  else if (S.sel) closeSheet();
   else if (S.ds) closeDs();
   else if (document.activeElement === $("q")) { $("q").value = ""; S.query = ""; applyFilter(); $("q").blur(); }
   else if (S.open) collapse();

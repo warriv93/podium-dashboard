@@ -156,6 +156,7 @@ PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i,
 
 HARNESS = r"""
 const OUT = [];
+const LISTENERS = {};
 const SCROLLS = [];
 const els = {};
 function element() {
@@ -179,7 +180,7 @@ const FILES = JSON.parse(require("fs").readFileSync(process.argv[2], "utf8"));
 Object.assign(globalThis, {
   window: globalThis, location: { href: "http://127.0.0.1:8765/", hostname: "127.0.0.1", port: "8765", hash: "", ...FILES.location }, innerWidth: 1400, scrollY: 0,
   document: { getElementById: node, querySelector: (s) => node("query " + s), querySelectorAll: () => [], documentElement: element(),
-              addEventListener() {}, visibilityState: "visible", hidden: false, title: "", createElement: element },
+              addEventListener: (type, f) => (LISTENERS[type] ||= []).push(f), visibilityState: "visible", hidden: false, title: "", createElement: element },
   localStorage: { getItem: (k) => (FILES.localStorage || {})[k] ?? null, setItem() {}, removeItem() {} },
   addEventListener() {}, getComputedStyle: () => ({ position: "sticky" }), matchMedia: () => ({ matches: false }), scrollTo: (o) => SCROLLS.push(o), requestAnimationFrame: (f) => (f(), 0),
   setInterval: () => 0, setTimeout: () => 0, MutationObserver: class { observe() {} }, CSS: { escape: String }, Node: { TEXT_NODE: 3 },
@@ -587,6 +588,86 @@ class HostileRun(unittest.TestCase):
         css = open(PAGE).read()
         for hidden in (".ftools", ".ms-repos", ".foot", ".fdots"):
             self.assertRegex(css, r"\.full\[data-collapsed\] \.fms:not\(\.open\) " + re.escape(hidden) + r"\b[^{]*\{ display: none")
+
+    def prio_filter(self):
+        """The Priority pull-down as the last render put it: its label, aria-expanded, and each box as (tier, label, checked, disabled)."""
+        html = [h for h in self.html if "data-prio-menu" in h][-1]
+        button = re.search(r'<button class="share ?(?:on)?" data-prio-menu aria-expanded="(\w+)"[^>]*>(.*?)</button>', html)
+        boxes = re.findall(r'<label><input type="checkbox" data-prio-tier="(\w+)"( checked)?( disabled)?>(.*?)</label>', html)
+        return button.group(2), button.group(1), [(tier, label, bool(on), bool(off)) for tier, on, off, label in boxes]
+
+    @staticmethod
+    def shown(full):
+        return re.findall(r'<div class="fms [^"]*" [^>]*?data-id="([^"]*)"', full)
+
+    def test_a_priority_pull_down_sits_after_collapsed_closed_and_showing_every_tier(self):
+        self.assertIn('<span id="collapse-map"></span><span id="prio-filter"></span>', open(PAGE).read())
+        maps, _ = self.maps(self.priority_run())
+        self.assertEqual(self.prio_filter(), ("Priority", "false", []))
+        self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
+
+    def test_opening_the_priority_menu_lists_must_should_and_nice_to_have_all_ticked(self):
+        self.maps(self.priority_run(), probe="(setPrioMenu(true), S.prioMenu)")
+        self.assertTrue(self.probe())
+        self.assertEqual(self.prio_filter(), ("Priority", "true", [("must", "Must have", True, False), ("should", "Should have", True, False),
+                                                                   ("nice", "Nice to have", True, False)]))
+
+    def test_unticking_a_tier_hides_its_milestones_says_how_many_tiers_show_and_keeps_the_choice(self):
+        maps, _ = self.maps(self.priority_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; };'
+                                                       ' closeSheet(); togglePrioTier("nice"); render(); return put["podium-priority-filter"]; })()')
+        self.assertEqual(json.loads(self.probe()), ["must", "should"])
+        self.assertEqual(self.shown(maps[-1]), ["M2", "M3"])
+        self.assertEqual(self.prio_filter()[0], "Priority · 2 of 3")
+
+    def test_the_priority_filter_is_read_from_podium_priority_filter(self):
+        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["should"]'})
+        self.assertEqual(self.shown(maps[0]), ["M3"])
+        self.assertEqual(self.prio_filter()[0], "Priority · 1 of 3")
+
+    def test_a_missing_broken_or_hostile_priority_filter_shows_every_tier(self):
+        for stored in ("", "{", '"must"', '{"0": "must", "length": 1}', "[]", "null", "[1, 2]", json.dumps(["__proto__", X]), json.dumps(X)):
+            with self.subTest(stored=stored):
+                maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": stored})
+                self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
+                self.assertEqual(self.prio_filter()[0], "Priority")
+                self.assertNotIn("pwn", "".join(h for h in self.html if "data-prio-menu" in h))
+
+    def test_the_last_ticked_tier_cannot_be_unticked(self):
+        self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["must"]'},
+                  probe='(togglePrioTier("must"), setPrioMenu(true), S.prioShown)')
+        self.assertEqual(self.probe(), ["must"])
+        self.assertEqual(self.prio_filter(), ("Priority · 1 of 3", "true", [("must", "Must have", True, True), ("should", "Should have", False, False),
+                                                                            ("nice", "Nice to have", False, False)]))
+
+    def test_the_open_milestone_stays_on_the_map_when_its_tier_is_unticked(self):
+        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["must"]'}, probe='(closeSheet(), expand("M3"))')
+        self.assertEqual(self.shown(maps[-1]), ["M2", "M3"])
+        self.assertEqual(self.open_cards(maps[-1]), ["M3"])
+
+    def test_epic_tiles_are_not_filtered_by_priority(self):
+        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["nice"]'})
+        self.assertEqual(re.findall(r'<div class="fepic" data-epic-sheet="(\w+)"', maps[0]), ["e1", "e2"])
+        self.assertEqual(sorted(self.shown(maps[0])), ["M1", "R1"])
+
+    def test_hide_finished_counts_only_the_finished_milestones_while_a_tier_is_unticked(self):
+        run = json.loads(json.dumps(HIDE_RUN))
+        run["epics"][0]["milestones"][2]["priority"] = "must"
+        shown, _, label = self.hidden_map({"podium-hide-finished": "1", "podium-priority-filter": '["must"]'}, run=run,
+                                          probe='(closeSheet(), expand("M3"), 0)')
+        self.assertEqual(shown, ["M3"])
+        self.assertEqual(label, "Show all · 5 hidden")
+
+    def test_escape_closes_the_priority_menu_before_the_open_milestone(self):
+        self.maps(self.priority_run(), probe='(() => { closeSheet(); expand("M2"); setPrioMenu(true); onEscape(); return [S.prioMenu, S.open]; })()')
+        self.assertEqual(self.probe(), [False, "M2"])
+        self.assertEqual(self.prio_filter()[1], "false")
+
+    def test_the_priority_menu_stays_open_while_ticking_and_a_click_outside_closes_it(self):
+        self.maps(self.priority_run(), probe='(() => { const click = (...hits) => { const target = { dataset: { prioTier: "should" }, closest: (s) => (hits.includes(s) ? target : null) };'
+                                             ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return S.prioMenu; };'
+                                             ' closeSheet(); const opened = click("#prio-filter", "[data-prio-menu]"); const ticked = click("#prio-filter", "[data-prio-tier]");'
+                                             ' const shown = [...S.prioShown]; return [opened, ticked, shown, click()]; })()')
+        self.assertEqual(self.probe(), [True, True, ["must", "nice"], False])
 
     def test_a_stored_podium_hide_finished_stories_changes_nothing_and_the_page_no_longer_names_it(self):
         labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished-stories": "1"})
