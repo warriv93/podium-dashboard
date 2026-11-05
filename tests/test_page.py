@@ -736,6 +736,17 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("fsc", card)
         self.assertEqual([d["class"] for d in cards["M2"][1]], ["approval"])
 
+    def test_a_card_with_more_stories_than_its_row_holds_shows_the_first_dots_and_a_count_of_the_rest(self):
+        many = [{"id": f"S{i}", "title": f"s{i}", "status": "done" if i <= 30 else "todo"} for i in range(1, 34)]
+        cards = self.card_dots([{"id": "M1", "title": "a", "status": "done", "stories": many},
+                                {"id": "M2", "title": "b", "status": "done", "stories": many[:16]}])
+        _, dots, card = cards["M1"]
+        self.assertEqual([d["data-story"] for d in dots], [f"S{i}" for i in range(1, 15)])
+        self.assertIn('<b class="fmore" title="19 more: 16 merged, 3 to do">+19</b></span>', card)
+        self.assertIn('aria-label="30 merged, 3 to do"', card)
+        self.assertEqual(len(cards["M2"][1]), 16)
+        self.assertNotIn("fmore", cards["M2"][2])
+
     def test_a_milestone_card_without_stories_has_no_dots(self):
         cards = self.card_dots([{"id": "M1", "title": "a", "status": "parked"}, {"id": "M2", "title": "b", "status": "working", "stories": []}])
         self.assertEqual([cards["M1"][1], cards["M2"][1]], [None, None])

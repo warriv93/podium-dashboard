@@ -309,6 +309,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fdots i.approval { background: var(--amber-dot); }
 .fdots i.failed, .fdots i.blocked { background: var(--red); }
 .fdots i.dim { opacity: .28; }
+.fdots .fmore { font-size: 10px; font-weight: 650; line-height: 8px; color: var(--text-3); margin-left: 2px; }
 .fms.dim, .fepic.dim { opacity: .28; }
 .fms.open { cursor: default; gap: 12px; padding: 12px 14px 14px; border-radius: 16px; }
 .fms.open:not(.working):not(.waits):not(.waitfor):not(.failed) { background: var(--card); box-shadow: var(--shadow-hi); }
@@ -1149,13 +1150,16 @@ function fullMs(m, all) {
   if (S.open === m.id && canExpand(m)) return `<div class="fms open ${cls}" data-id="${esc(m.id)}">${openHead(m, st === "working" && !msWaits(m) && stories.length ? msPrPills(m) : foot)}${msBody(m)}</div>`;
   const map = storyIndex(m);
   const dotted = wavesOf(stories).flat().map((s) => [s, viewStatus(s, map, m.id)]);
-  const dots = stories.length ? `<span class="fdots" role="img" aria-label="${esc(dotSummary(dotted.map(([, st]) => dotWord(st))))}">${dotted.map(([s, st]) => `<i class="${esc(st)}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title} · ${dotWord(st)}`)}"></i>`).join("")}</span>` : "";
+  const shown = dotted.length > DOT_ROOM ? dotted.slice(0, DOT_ROOM - 2) : dotted, rest = dotted.slice(shown.length);
+  const more = rest.length ? `<b class="fmore" title="${esc(`${rest.length} more: ${dotSummary(rest.map(([, st]) => dotWord(st)))}`)}">+${rest.length}</b>` : "";
+  const dots = stories.length ? `<span class="fdots" role="img" aria-label="${esc(dotSummary(dotted.map(([, st]) => dotWord(st))))}">${shown.map(([s, st]) => `<i class="${esc(st)}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title} · ${dotWord(st)}`)}"></i>`).join("")}${more}</span>` : "";
   const expands = canExpand(m) && hasBody(m);
   const go = expands ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
   const title = expands ? `<button class="title" aria-expanded="false">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
   return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
 }
 const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", parked: "not started", later: "not started" };
+const DOT_ROOM = 16;
 const dotWord = (st) => DOT_WORDS[st] || st;
 function dotSummary(words) {
   const counts = new Map();
