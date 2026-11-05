@@ -119,7 +119,7 @@ Every side sheet has a **Copy link** button left of its close button: the link (
 
 The **Hide finished** button in the map header drops landed and moved milestones from the map and, inside the open milestone, merged or dropped stories (a finished item that is open or needs you stays, and the button counts what it hides); the choice is kept in the browser under `podium-hide-finished`.
 
-A milestone marked must have carries a gold **★ Must** pill on the map. Mark it with the **Must have** switch on its open card (`POST /priority/<milestone>?must=1`, or `must=0` to clear; written to `podium.json` at once, with no watcher needed), or with `podium set milestone:<id> priority=must` (`priority=null` clears it).
+A milestone or epic marked must have carries a gold **★ Must** pill on the map, one marked should have a soft gold **★ Should** pill; anything unmarked is nice to have. Set a milestone's with the **Nice to have / Should / Must** control on its open card, an epic's (a quest's US tiles) in its sheet (`POST /priority/<milestone>?level=must|should|nice`, or `/priority/epic/<epic>?level=...`; written to `podium.json` at once, with no watcher needed), or with `podium set milestone:<id> priority=must` (`priority=should`, `epic:<id>` for an epic, `priority=null` clears it).
 
 Beside it, a run with two or more people shows one avatar each (everyone in `podium.json`'s `people` or the `by` of an event; yours has a ring; past five people it shows four and a `+N` chip). A green dot means an event of theirs is under 15 minutes old: recent activity, not live presence. The tooltip names the milestones they own, the one they're on with its phase, and when they were last active.
 

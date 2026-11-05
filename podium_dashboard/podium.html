@@ -17,7 +17,7 @@
   --purple: #8250df; --purple-soft: rgba(130,80,223,.12);
   --fold-ink: #6f42c1; --fold-link: #0062cc;
   --gray-soft: rgba(142,142,147,.14);
-  --star: #f5a800; --star-ink: #3a2600;
+  --star: #f5a800; --star-ink: #3a2600; --star-soft: rgba(245,168,0,.2); --should-ink: #7a4f00;
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.06);
   --shadow-hi: 0 2px 4px rgba(0,0,0,.06), 0 14px 36px rgba(0,0,0,.12);
   --radius: 18px;
@@ -33,7 +33,7 @@
     --red: #ff6961; --red-soft: rgba(255,69,58,.16);
     --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
     --fold-ink: #b392f0; --fold-link: #4da6ff;
-    --gray-soft: rgba(142,142,147,.20);
+    --gray-soft: rgba(142,142,147,.20); --should-ink: #ffcf66;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
     --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
   }
@@ -48,7 +48,7 @@
   --red: #ff6961; --red-soft: rgba(255,69,58,.16);
   --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
   --fold-ink: #b392f0; --fold-link: #4da6ff;
-  --gray-soft: rgba(142,142,147,.20);
+  --gray-soft: rgba(142,142,147,.20); --should-ink: #ffcf66;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
   --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
 }
@@ -261,15 +261,17 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms .fid { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; flex: 1 1 auto; }
 .fms .fidrow { display: flex; align-items: baseline; gap: 6px; }
 .fms .fid .owner { max-width: 100%; }
-.mustpill { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 7px 0 5px; border-radius: 9px; font-size: 10.5px; font-weight: 700; line-height: 1; background: var(--star); color: var(--star-ink); box-shadow: 0 1px 4px rgba(200,130,0,.35); align-self: center; flex: none; }
-.mustpill b { font-size: 12px; }
-.mustsw { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); font: inherit; font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; }
-.mustsw b { color: var(--text-3); font-size: 13px; }
-.mustsw i { position: relative; width: 30px; height: 18px; margin-left: 4px; border-radius: 9px; background: var(--line-2); }
-.mustsw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: left .15s; }
-.mustsw[aria-checked="true"] b { color: var(--star); }
-.mustsw[aria-checked="true"] i { background: var(--star); }
-.mustsw[aria-checked="true"] i::after { left: 14px; }
+.prio { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 7px 0 5px; border-radius: 9px; font-size: 10.5px; font-weight: 700; line-height: 1; letter-spacing: 0; text-transform: none; align-self: center; flex: none; }
+.prio b { font-size: 12px; }
+.prio.must { background: var(--star); color: var(--star-ink); box-shadow: 0 1px 4px rgba(200,130,0,.35); }
+.prio.should { background: var(--star-soft); color: var(--should-ink); box-shadow: inset 0 0 0 1px rgba(245,168,0,.5); }
+.prio.should b { color: var(--star); }
+.fepic .eyebrow .prio, .sheet-head .prio { margin-left: 8px; }
+.prioseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--gray-soft); }
+.prioseg button { border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--text-2); padding: 4px 10px; border-radius: 7px; cursor: pointer; }
+.prioseg button[aria-checked="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.prioseg button[data-prio="should"][aria-checked="true"] { background: var(--star-soft); color: var(--should-ink); box-shadow: inset 0 0 0 1px rgba(245,168,0,.5); }
+.prioseg button[data-prio="must"][aria-checked="true"] { background: var(--star); color: var(--star-ink); }
 .fms .ftools { flex: 0 1 auto; }
 .fms .title { font-weight: 620; font-size: 13.5px; }
 .fms button.title { border: 0; background: none; padding: 0; font-family: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; text-align: left; cursor: inherit; }
@@ -643,7 +645,7 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .repos { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .repo-line { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; min-width: 0; }
 .ms-repos { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; min-width: 0; }
-.ms-repos .repo-line { overflow: visible; }
+.ms-repos .repo-line { overflow: visible; flex-wrap: wrap; row-gap: 4px; max-width: 100%; }
 .repo { font-size: 11px; font-weight: 600; color: var(--text-2); background: var(--gray-soft); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
 .pr { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 1px 7px; white-space: nowrap; text-decoration: none; border: 1px solid transparent; }
 a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
@@ -1166,7 +1168,7 @@ function fullMs(m, all) {
   const expands = canExpand(m) && hasBody(m);
   const go = expands ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
   const title = expands ? `<button class="title" aria-expanded="false">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
-  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${mustPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
+  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
 }
 const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", parked: "not started", later: "not started" };
 const DOT_ROOM = 16;
@@ -1176,15 +1178,21 @@ function dotSummary(words) {
   for (const w of words) counts.set(w, (counts.get(w) || 0) + 1);
   return [...counts].map(([w, n]) => `${n} ${w}`).join(", ");
 }
-const mustPill = (m) => (m.priority === "must" ? `<span class="mustpill" title="Must have"><b>★</b>Must</span>` : "");
-const mustSwitch = (m) => `<button class="mustsw" role="switch" aria-checked="${m.priority === "must"}" data-must="${esc(m.id)}"><b>★</b>Must have<i></i></button>`;
-async function setMust(id, on) {
+const COL = 320, COL_ACTIVE = 380;
+const PRIO = { __proto__: null, must: "Must", should: "Should" };
+const prioPill = (x) => (PRIO[x?.priority] ? `<span class="prio ${x.priority}" title="${PRIO[x.priority]} have"><b>★</b>${PRIO[x.priority]}</span>` : "");
+function prioControl(ref, x) {
+  const now = PRIO[x?.priority] ? x.priority : "";
+  return `<span class="prioseg" role="radiogroup" aria-label="Priority">${[["", "Nice to have"], ["should", "★ Should"], ["must", "★ Must"]].map(([v, label]) => `<button role="radio" aria-checked="${now === v}" data-prio="${v}" data-prio-of="${esc(ref)}">${label}</button>`).join("")}</span>`;
+}
+async function setPriority(ref, level) {
+  const epic = ref.startsWith("epic/") ? ref.slice(5) : null, id = epic ?? ref;
   if (refuseDotted(id)) return;
-  const r = await fetch(`/priority/${idPath(id)}?must=${on ? 1 : 0}`, { method: "POST" }).catch(() => null);
-  if (!r?.ok) return toast(r ? `Couldn't mark ${id}: ${r.status}` : SERVER_DOWN);
-  const m = msOf(id);
-  if (m && on) m.priority = "must";
-  else if (m) delete m.priority;
+  const r = await fetch(`/priority/${epic ? "epic/" : ""}${idPath(id)}?level=${level || "nice"}`, { method: "POST" }).catch(() => null);
+  if (!r?.ok) return toast(r ? `Couldn't set ${id}'s priority: ${r.status}` : SERVER_DOWN);
+  const x = epic ? S.project.epics.find((E) => E.id === epic) : msOf(id);
+  if (x && level) x.priority = level;
+  else if (x) delete x.priority;
   render();
 }
 function openHead(m, foot) {
@@ -1195,7 +1203,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${mustPill(m)}${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${mustSwitch(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
+  return `<div class="ohead"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}${ownerOrClaim(m)}<span class="oepic">${esc(E?.title || "")}</span><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${prioControl(m.id, m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
@@ -1291,12 +1299,12 @@ function renderFull() {
   const lane = dict(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
   const listed = runOrder(Object.values(all).filter((x) => x.status !== "dropped"));
   const order = listed.filter((x) => !isResearch(x)), research = listed.filter(isResearch);
-  const cols = `34px ${P.epics.map((E) => (E.id === P.active?.epic ? "minmax(300px, 1.7fr)" : "minmax(200px, 1fr)")).join(" ")}`;
+  const cols = `34px ${P.epics.map((E) => (E.id === P.active?.epic ? `minmax(${COL_ACTIVE}px, 1.7fr)` : `minmax(${COL}px, 1fr)`)).join(" ")}`;
   const head = `<div></div>${P.epics.map((E) => {
     const kept = (E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status)), ms = kept.filter((x) => !isResearch(x)), landed = ms.filter((x) => x.status === "done").length;
     const rs = kept.filter(isResearch), answered = rs.filter((x) => x.status === "done").length;
     const now = ms.find((x) => x.status === "working");
-    return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
+    return `<div class="fepic" data-epic-sheet="${esc(E.id)}" tabindex="0"><span class="eyebrow">${E.quest ? esc(E.quest) : "Epic"}${prioPill(E)}<span class="ftools">${mockBtn(E)}${dsBtn(E)}${asanaBtn(E, true) || (E.quest ? "" : linkBtn(E.id))}</span></span><span class="title">${esc(E.title)}</span><div class="fbar"><i style="width:${ms.length ? (100 * landed) / ms.length : 0}%"></i></div><span class="fsub">${ms.length ? `${landed} of ${ms.length} landed` : "Nothing planned yet"}${rs.length ? ` · ${answered} of ${rs.length} research answered` : ""}${now ? ` · ${esc(now.id)} ${esc(phaseLabel(now.phase))}` : ""}</span></div>`;
   }).join("")}`;
   const om = openMs();
   renderHideFinished(listed.filter(hidesMs).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
@@ -1308,7 +1316,7 @@ function renderFull() {
   const drow = strips.some(Boolean) ? `<div class="ford" title="Decisions">D</div>${strips.map((x) => `<div>${x}</div>`).join("")}` : "";
   const rrow = research.length ? `<div class="ford" title="Research">R</div>${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hidesMs(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
   const rows = order.map((x, i) => hidesMs(x) ? "" : `${i === next && i > 0 ? `<div class="fnext">Up next</div>` : ""}<div class="ford">#${i + 1}</div>${P.epics.map((E, c) => (c === lane[x.id] ? fullMs(x, all) : "<div></div>")).join("")}`).join("");
-  const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? 300 : 200) + 20, 0);
+  const min = 34 + P.epics.reduce((n, E) => n + (E.id === P.active?.epic ? COL_ACTIVE : COL) + 20, 0);
   m.innerHTML = `<div class="full" style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
   requestAnimationFrame(drawLines);
   applyFilter();
@@ -2271,7 +2279,7 @@ function milestoneSheet(m) {
 
 function epicSheet() {
   const e = S.epic, map = msById();
-  $("sheet-head").innerHTML = `<span class="sid">Epic</span><h2>${esc(e.epic.title)}</h2><div class="muted">${esc(e.epic.summary || "")}</div>`;
+  $("sheet-head").innerHTML = `<span class="sid">Epic</span>${prioPill(e.epic)}<h2>${esc(e.epic.title)}</h2><div class="muted">${esc(e.epic.summary || "")}</div><div style="margin-top:12px">${prioControl(`epic/${e.epic.id}`, e.epic)}</div>`;
   $("sheet-body").innerHTML = `
     <div class="sec"><h3>Milestones</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-reveal="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${esc(viewStatus(m, map))}">${esc(m.status)}</span></div>`).join("")}</div>
     ${epicRepoRows(e.milestones).length ? `<div class="sec"><h3>Repos touched</h3>${repoLines(epicRepoRows(e.milestones))}</div>` : ""}
@@ -2541,8 +2549,8 @@ document.addEventListener("click", (ev) => {
     keep(); requestAnimationFrame(keep);
     return;
   }
-  const nd = ev.target.closest("[data-must]");
-  if (nd) { ev.stopPropagation(); setMust(nd.dataset.must, nd.getAttribute("aria-checked") !== "true"); return; }
+  const pr = ev.target.closest("[data-prio-of]");
+  if (pr) { ev.stopPropagation(); setPriority(pr.dataset.prioOf, pr.dataset.prio); return; }
   const lk = ev.target.closest("[data-looked]");
   if (lk) { const pr = prsToReview().find((x) => prKey(x.ms, x.repo, x.number) === lk.dataset.looked); if (pr) markLooked(pr); return; }
   const st = ev.target.closest("[data-settle]");

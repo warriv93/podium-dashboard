@@ -509,7 +509,7 @@ def make_handler(root):
             if first == "reviewed":
                 return self.reviewed(urllib.parse.unquote(url.path[len("/reviewed/"):]), parse_qs(url.query))
             if first == "priority":
-                return self.priority(urllib.parse.unquote(url.path[len("/priority/"):]), parse_qs(url.query).get("must", [""])[0])
+                return self.priority(urllib.parse.unquote(url.path[len("/priority/"):]), parse_qs(url.query).get("level", [""])[0])
             if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
                 return self.reply(409, {"error": "no orchestrator is watching"})
             if url.path.startswith("/handoff/"):
@@ -653,21 +653,23 @@ def make_handler(root):
             threading.Thread(target=sync.autosave, args=(p,), daemon=True).start()
             self.reply(202, {"reviewed": p.new_events[-1]})
 
-        def priority(self, mid, must):
-            """POST /priority/<milestone>?must=1|0: mark the milestone must have, or clear the mark. Written to
-            podium.json at once; it needs no watcher."""
-            if must not in ("1", "0"):
-                return self.reply(400, {"error": "must is 1 or 0"})
+        def priority(self, target, level):
+            """POST /priority/<milestone>?level=must|should|nice, or /priority/epic/<epic>?level=...: set its
+            priority (nice to have clears it). Written to podium.json at once; it needs no watcher."""
+            if level not in ("must", "should", "nice"):
+                return self.reply(400, {"error": "level is must, should or nice"})
             p = load_podium(root)
-            m = next((x for x in p.milestones() if x.get("id") == mid), None) if p else None
-            if not m:
-                return self.reply(404, {"error": "unknown milestone"})
-            if must == "1":
-                m["priority"] = "must"
+            epic = target[len("epic/"):] if target.startswith("epic/") else None
+            pool = (p.epics() if epic is not None else p.milestones()) if p else []
+            x = next((x for x in pool if x.get("id") == (target if epic is None else epic)), None)
+            if not x:
+                return self.reply(404, {"error": "unknown epic" if epic is not None else "unknown milestone"})
+            if level == "nice":
+                x.pop("priority", None)
             else:
-                m.pop("priority", None)
+                x["priority"] = level
             p.save()
-            self.reply(200, {"milestone": mid, "priority": m.get("priority")})
+            self.reply(200, {"id": x["id"], "priority": x.get("priority")})
 
         def queue(self, line):
             os.makedirs(podium_dir(root), exist_ok=True)

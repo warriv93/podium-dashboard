@@ -533,20 +533,32 @@ class Reviewed(Server):
 
 
 class Priority(Server):
-    def milestone(self, mid):
+    def podium(self):
         with open(os.path.join(self.pod, "podium.json")) as f:
-            return next(m for E in json.load(f)["epics"] for m in E["milestones"] if m["id"] == mid)
+            return json.load(f)
 
-    def test_marks_and_unmarks_a_milestone_must_have_with_no_watcher(self):
+    def milestone(self, mid):
+        return next(m for E in self.podium()["epics"] for m in E["milestones"] if m["id"] == mid)
+
+    def test_sets_a_milestone_must_or_should_have_and_clears_it_with_no_watcher(self):
         self.serve()
-        self.assertEqual(self.call("POST", "/priority/M9?must=1")[0], 404)
-        self.assertEqual(self.call("POST", "/priority/M2?must=maybe")[0], 400)
-        self.assertEqual(self.call("POST", "/priority/M2?must=1"), (200, {"milestone": "M2", "priority": "must"}))
+        self.assertEqual(self.call("POST", "/priority/M9?level=must")[0], 404)
+        self.assertEqual(self.call("POST", "/priority/M2?level=maybe")[0], 400)
+        self.assertEqual(self.call("POST", "/priority/M2?level=must"), (200, {"id": "M2", "priority": "must"}))
         self.assertEqual(self.milestone("M2")["priority"], "must")
-        self.assertEqual(self.call("POST", "/priority/M2?must=0"), (200, {"milestone": "M2", "priority": None}))
+        self.assertEqual(self.call("POST", "/priority/M2?level=should"), (200, {"id": "M2", "priority": "should"}))
+        self.assertEqual(self.milestone("M2")["priority"], "should")
+        self.assertEqual(self.call("POST", "/priority/M2?level=nice"), (200, {"id": "M2", "priority": None}))
         self.assertNotIn("priority", self.milestone("M2"))
         self.assertEqual(self.milestone("M1")["stories"][0]["status"], "todo")
         self.assertEqual(self.requests(), [])
+
+    def test_sets_an_epics_priority_under_epic(self):
+        self.serve()
+        self.assertEqual(self.call("POST", "/priority/epic/e9?level=must")[0], 404)
+        self.assertEqual(self.call("POST", "/priority/epic/e?level=should"), (200, {"id": "e", "priority": "should"}))
+        self.assertEqual(self.podium()["epics"][0]["priority"], "should")
+        self.assertNotIn("priority", self.milestone("M2"))
 
 
 class Prompts(Server):

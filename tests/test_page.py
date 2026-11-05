@@ -816,31 +816,56 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("data-expand-ms", card.split(">")[0])
 
     @staticmethod
-    def must_run():
+    def priority_run():
         run = json.loads(json.dumps(OPEN_RUN))
-        run["epics"][1]["milestones"][0]["priority"] = "must"
+        m2, m3 = run["epics"][1]["milestones"][:2]
+        m2["priority"], m3["priority"] = "must", "should"
+        run["epics"][0].update(quest="US1", priority="must")
+        run["epics"][1].update(quest="US2", priority="should")
         return run
 
-    def test_a_must_have_milestone_shows_a_must_pill_after_its_id_and_others_show_none(self):
-        maps, _ = self.maps(self.must_run())
+    def test_must_and_should_have_milestones_show_their_pill_after_the_id_and_the_rest_none(self):
+        maps, _ = self.maps(self.priority_run())
         cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
-        self.assertIn('<span class="sid">M2</span><span class="mustpill" title="Must have"><b>★</b>Must</span>', cards["M2"])
-        self.assertNotIn("mustpill", cards["M3"])
-        self.assertNotIn("data-must", maps[0])
+        self.assertIn('<span class="sid">M2</span><span class="prio must" title="Must have"><b>★</b>Must</span>', cards["M2"])
+        self.assertIn('<span class="sid">M3</span><span class="prio should" title="Should have"><b>★</b>Should</span>', cards["M3"])
+        self.assertNotIn('class="prio', cards["M1"])
+        self.assertNotIn("data-prio", maps[0])
 
-    def test_only_the_open_card_has_the_must_have_switch(self):
-        maps, _ = self.maps(self.must_run(), probe='(expand("M2"), expand("M3"))')
+    def test_a_quests_us_tiles_carry_the_same_pills(self):
+        maps, _ = self.maps(self.priority_run())
+        tiles = re.findall(r'<div class="fepic"[^>]*><span class="eyebrow">(.*?)<span class="ftools">', maps[0])
+        self.assertEqual(tiles, ['US1<span class="prio must" title="Must have"><b>★</b>Must</span>',
+                                 'US2<span class="prio should" title="Should have"><b>★</b>Should</span>'])
+
+    def test_only_the_open_card_has_the_priority_control_with_its_level_checked(self):
+        maps, _ = self.maps(self.priority_run(), probe='(expand("M2"), expand("M3"))')
         opened = {self.open_cards(m)[0]: self.open_card(m) for m in maps if self.open_cards(m)}
-        self.assertIn('<button class="mustsw" role="switch" aria-checked="true" data-must="M2">', opened["M2"])
-        self.assertIn('<span class="sid">M2</span><span class="mustpill"', opened["M2"])
-        self.assertIn('<button class="mustsw" role="switch" aria-checked="false" data-must="M3">', opened["M3"])
+        control = re.search(r'<span class="prioseg" role="radiogroup" aria-label="Priority">(.*?)</span>', opened["M2"]).group(1)
+        self.assertEqual(re.findall(r'<button role="radio" aria-checked="(\w+)" data-prio="(\w*)" data-prio-of="M2"[^>]*>', control),
+                         [("false", ""), ("false", "should"), ("true", "must")])
+        self.assertIn('<span class="sid">M2</span><span class="prio must"', opened["M2"])
+        self.assertIn('aria-checked="true" data-prio="should" data-prio-of="M3"', opened["M3"])
 
-    def test_flipping_the_switch_posts_the_priority_and_shows_it_at_once(self):
+    def test_the_epic_sheet_has_the_priority_control(self):
+        self.maps(self.priority_run(), probe='(openSheet({ epic: "e2" }), document.getElementById("sheet-head").innerHTML)')
+        head = self.probe()
+        self.assertIn('<span class="prio should" title="Should have"><b>★</b>Should</span>', head)
+        self.assertIn('aria-checked="true" data-prio="should" data-prio-of="epic/e2"', head)
+
+    def test_picking_a_level_posts_it_and_shows_it_at_once(self):
         self.maps(probe='(async () => { const calls = [];'
                         ' globalThis.fetch = async (p, o) => (calls.push([p, o && o.method]), { ok: true, status: 200, json: async () => ({}) });'
-                        ' await setMust("M2", true); const on = msOf("M2").priority; await setMust("M2", false);'
-                        ' return [calls, on, msOf("M2").priority ?? null]; })()')
-        self.assertEqual(self.probe(), [[["/priority/M2?must=1", "POST"], ["/priority/M2?must=0", "POST"]], "must", None])
+                        ' await setPriority("M2", "must"); const must = msOf("M2").priority; await setPriority("epic/e1", "should");'
+                        ' const epic = S.project.epics.find((E) => E.id === "e1").priority; await setPriority("M2", "");'
+                        ' return [calls, must, epic, msOf("M2").priority ?? null]; })()')
+        self.assertEqual(self.probe(), [[["/priority/M2?level=must", "POST"], ["/priority/epic/e1?level=should", "POST"], ["/priority/M2?level=nice", "POST"]],
+                                        "must", "should", None])
+
+    def test_epic_columns_keep_a_width_their_cards_fit_in_and_the_map_scrolls_sideways_past_it(self):
+        maps, _ = self.maps()
+        self.assertIn('grid-template-columns:34px minmax(320px, 1fr) minmax(380px, 1.7fr);min-width:774px', maps[0])
+        self.assertRegex(open(PAGE).read(), r"\.ms-repos \.repo-line \{[^}]*flex-wrap: wrap")
 
     def test_a_research_card_opens_its_sheet_and_never_expands(self):
         maps, _ = self.maps(probe='(expand("M2"), expand("R1"), reveal("R1"), [S.open, S.sel])')
