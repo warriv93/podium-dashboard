@@ -1034,20 +1034,40 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(tiles, ['US1<span class="prio must" title="Must have"><b>★</b>Must</span>',
                                  'US2<span class="prio should" title="Should have"><b>★</b>Should</span>'])
 
-    def test_only_the_open_card_has_the_priority_control_with_its_level_checked(self):
-        maps, _ = self.maps(self.priority_run(), probe='(expand("M2"), expand("M3"))')
-        opened = {self.open_cards(m)[0]: self.open_card(m) for m in maps if self.open_cards(m)}
-        control = re.search(r'<span class="prioseg" role="radiogroup" aria-label="Priority">(.*?)</span>', opened["M2"]).group(1)
-        self.assertEqual(re.findall(r'<button role="radio" aria-checked="(\w+)" data-prio="(\w*)" data-prio-of="M2"[^>]*>', control),
-                         [("false", ""), ("false", "should"), ("true", "must")])
-        self.assertIn('<span class="sid">M2</span><span class="prio must"', opened["M2"])
-        self.assertIn('aria-checked="true" data-prio="should" data-prio-of="M3"', opened["M3"])
+    def test_the_open_card_has_no_priority_slider_and_its_badge_opens_the_choices(self):
+        maps, _ = self.maps(self.priority_run(), probe='(expand("M2"), S.prioPick = "M2", render(), $("map").innerHTML)')
+        card = self.open_card(self.probe())
+        self.assertNotIn("prioseg", card)
+        self.assertIn('<span class="sid">M2</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="true" title="Change the priority">'
+                      '<span class="prio must" title="Must have"><b>★</b>Must</span></button>', card)
+        menu = re.search(r'<div class="prio-pick-menu" role="menu" aria-label="Priority of M2">(.*?)</div>', card).group(1)
+        self.assertEqual(re.findall(r'aria-checked="(\w+)" data-prio="(\w*)" data-prio-of="M2">', menu),
+                         [("true", "must"), ("false", "should"), ("false", "")])
 
-    def test_the_epic_sheet_has_the_priority_control(self):
-        self.maps(self.priority_run(), probe='(openSheet({ epic: "e2" }), document.getElementById("sheet-head").innerHTML)')
+    def test_an_open_nice_to_have_milestone_shows_a_nice_to_have_badge_and_a_closed_one_none(self):
+        maps, _ = self.maps(self.priority_run(), probe='(delete msOf("M2").priority, expand("M2"), $("map").innerHTML)')
+        html = self.probe()
+        self.assertIn('<button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="false" title="Change the priority">'
+                      '<span class="prio nice" title="Nice to have">Nice to have</span></button>', self.open_card(html))
+        self.assertNotIn("prio nice", html.replace(self.open_card(html), ""))
+        self.assertNotIn('class="prio-pick-menu"', html)
+
+    def test_the_epic_sheet_has_the_same_badge_pulldown(self):
+        self.maps(self.priority_run(), probe='(openSheet({ epic: "e2" }), S.prioPick = "epic/e2", renderSheet(), document.getElementById("sheet-head").innerHTML)')
         head = self.probe()
-        self.assertIn('<span class="prio should" title="Should have"><b>★</b>Should</span>', head)
+        self.assertNotIn("prioseg", head)
+        self.assertIn('data-prio-pick="epic/e2" aria-haspopup="menu" aria-expanded="true" title="Change the priority"><span class="prio should" title="Should have"><b>★</b>Should</span>', head)
         self.assertIn('aria-checked="true" data-prio="should" data-prio-of="epic/e2"', head)
+
+    def test_a_click_outside_either_pulldown_closes_it(self):
+        self.maps(probe='(() => { const click = () => { const target = { dataset: {}, closest: () => null }; LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); };'
+                        ' S.prioPick = "M2"; click(); const prio = S.prioPick; S.ownerMenu = "M3"; click(); return [prio, S.ownerMenu]; })()')
+        self.assertEqual(self.probe(), [None, None])
+
+    def test_picking_from_the_pulldown_closes_it(self):
+        self.maps(probe='(async () => { globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });'
+                        ' S.prioPick = "M2"; await setPriority("M2", "must"); return S.prioPick; })()')
+        self.assertIsNone(self.probe())
 
     def test_picking_a_level_posts_it_and_shows_it_at_once(self):
         self.maps(probe='(async () => { const calls = [];'
@@ -1085,7 +1105,7 @@ class HostileRun(unittest.TestCase):
     def test_what_can_be_clicked_grows_a_little_on_hover_and_info_badges_stay_still(self):
         css = open(PAGE).read()
         grows = re.search(r":is\(([^)]*(?:\([^)]*\))?[^)]*)\):hover \{ transform: scale\(1\.06\)", css).group(1).split(", ")
-        for clickable in ("a.pr", ".dsbtn", ".mockbtn", ".asanabtn", ".fchip", ".wchip:not(.pr-chip)", ".btn", ".share", ".prioseg button"):
+        for clickable in ("a.pr", ".dsbtn", ".mockbtn", ".asanabtn", ".fchip", ".wchip:not(.pr-chip)", ".btn", ".share", ".prio-pick"):
             self.assertIn(clickable, grows)
         for still in (".repo", ".badge", ".sid", ".prio", ".owner"):
             self.assertNotIn(still, grows)
@@ -1126,7 +1146,7 @@ class HostileRun(unittest.TestCase):
     def test_what_can_be_clicked_shows_a_focus_ring_when_tabbed_to(self):
         css = open(PAGE).read()
         ringed = re.search(r":is\(([^)]*(?:\([^)]*\))?[^)]*)\):focus-visible \{ outline: 2px solid var\(--accent\)", css).group(1).split(", ")
-        for clickable in ("a.pr", ".dsbtn", ".mockbtn", ".asanabtn", ".btn", ".share", ".prioseg button", ".fms", ".fepic"):
+        for clickable in ("a.pr", ".dsbtn", ".mockbtn", ".asanabtn", ".btn", ".share", ".prio-pick", ".fms", ".fepic"):
             self.assertIn(clickable, ringed)
 
     def test_a_closed_milestone_shows_its_owner_as_initials_and_the_open_one_by_name(self):
@@ -1139,6 +1159,45 @@ class HostileRun(unittest.TestCase):
         css = open(PAGE).read()
         self.assertIn(".owner.dot { width: 22px; height: 22px; padding: 0; justify-content: center;", css)
         self.assertIn(".owner.dot.me { box-shadow: 0 0 0 2px var(--accent); }", css)
+
+    OWNED = 'S.project.people = { "ann": {}, "bo.berg": {}, "cy": {} }, msOf("M2").owner = msOf("M3").owner = "bo.berg", render()'
+
+    def owner_menu(self, mid):
+        self.maps(probe=f'({self.OWNED}, setOwnerMenu("{mid}"), $("map").innerHTML)')
+        html = self.probe()
+        card = re.search(r'<div class="fms [^"]*" [^>]*?data-id="%s"[^>]*>(.*?)(?=<div class="fms |$)' % mid, html, re.S).group(1)
+        menu = re.search(r'<div class="owner-menu" role="menu" aria-label="Owner of %s">(.*?)</div></span>' % mid, card, re.S)
+        return card, menu and menu.group(1)
+
+    def test_the_owner_badge_opens_a_menu_of_the_runs_people_with_the_owner_ticked_and_unassign(self):
+        card, menu = self.owner_menu("M3")
+        self.assertIn('<button class="ownbtn" data-owner-menu="M3" aria-haspopup="menu" aria-expanded="true" title="Change who owns M3">', card)
+        self.assertEqual(re.findall(r'aria-checked="(\w+)" data-give="M3" data-to="([^"]*)">', menu),
+                         [("false", "ann"), ("true", "bo.berg"), ("false", "cy"), ("false", "")])
+        self.assertIn("<span>ann (you)</span>", menu)
+        self.assertIn("<span>Unassign</span>", menu)
+        self.assertNotIn("disabled", menu)
+
+    def test_an_owner_missing_from_the_runs_people_is_still_listed_and_ticked(self):
+        self.maps(probe=f'({self.OWNED}, msOf("M3").owner = "dee", setOwnerMenu("M3"), $("map").innerHTML)')
+        self.assertIn('aria-checked="true" data-give="M3" data-to="dee">', self.probe())
+
+    def test_a_milestone_being_built_cannot_change_hands(self):
+        _, menu = self.owner_menu("M2")
+        self.assertIn('<div class="owner-note">M2 is building: stop it first</div>', menu)
+        self.assertEqual(menu.count(" disabled>"), 4)
+
+    def test_a_closed_menu_shows_only_the_badge_button(self):
+        self.maps(probe=f'({self.OWNED}, $("map").innerHTML)')
+        self.assertIn('data-owner-menu="M3" aria-haspopup="menu" aria-expanded="false"', self.probe())
+        self.assertNotIn('class="owner-menu"', self.probe())
+
+    def test_picking_a_person_posts_the_new_owner_and_unassign_posts_nobody(self):
+        self.maps(probe=f'(async () => {{ {self.OWNED}; const calls = []; poll = () => {{}};'
+                        ' fetch = async (u, o) => (calls.push([u, o?.method]), { ok: true, json: async () => ({}) });'
+                        ' setOwnerMenu("M3"); await giveMs("M3", "cy"); const closed = S.ownerMenu; await giveMs("M3", "");'
+                        ' return [calls, closed]; })()')
+        self.assertEqual(self.probe(), [[["/owner/M3?to=cy", "POST"], ["/owner/M3?to=", "POST"]], None])
 
     def test_every_tile_on_the_map_sits_white_on_a_deeper_shadow_landed_ones_too(self):
         css = open(PAGE).read()

@@ -111,6 +111,16 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .prio-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .prio-menu label:hover { background: var(--gray-soft); }
 .prio-menu input { margin: 0; accent-color: var(--text); }
+.fms:has(:is(.owner-menu, .prio-pick-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }
+.ownwrap { position: relative; display: inline-flex; flex: none; }
+.ownbtn { display: inline-flex; padding: 0; border: 0; background: none; font: inherit; color: inherit; border-radius: 999px; cursor: pointer; }
+:is(.owner-menu, .prio-pick-menu) { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; display: flex; flex-direction: column; gap: 2px; min-width: 190px; padding: 6px; background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-hi); text-align: left; }
+:is(.owner-menu, .prio-pick-menu) button { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+:is(.owner-menu, .prio-pick-menu) button:hover:not(:disabled) { background: var(--gray-soft); }
+:is(.owner-menu, .prio-pick-menu) button:disabled { opacity: .45; cursor: default; }
+:is(.owner-menu, .prio-pick-menu) .tick { margin-left: auto; color: var(--accent); }
+.owner-menu .owner.dot.none { background: var(--gray-soft); color: var(--text-3); }
+.owner-note { padding: 4px 8px 6px; font-size: 12px; color: var(--amber); white-space: nowrap; }
 .prio-menu label:has(input:disabled), .prio-menu input:disabled { cursor: default; }
 .share[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--card); }
 .crew { display: inline-flex; align-items: center; }
@@ -280,28 +290,28 @@ a.wchip { color: inherit; text-decoration: none; }
 .full[data-collapsed] .fms:not(.open) .ftop, .full[data-collapsed] .fms:not(.open) .fid { display: contents; }
 .full[data-collapsed] .fms:not(.open) .fidrow { order: 1; flex: none; align-items: center; }
 .full[data-collapsed] .fms:not(.open) > .title { order: 2; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
-.full[data-collapsed] .fms:not(.open) .owner, .full[data-collapsed] .fms:not(.open) .claim { order: 3; flex: 0 1 auto; max-width: 120px; }
+.full[data-collapsed] .fms:not(.open) .ownwrap, .full[data-collapsed] .fms:not(.open) .claim { order: 3; flex: 0 1 auto; max-width: 120px; }
 .full[data-collapsed] .fms:not(.open) .ftools, .full[data-collapsed] .fms:not(.open) .ms-repos, .full[data-collapsed] .fms:not(.open) .foot, .full[data-collapsed] .fms:not(.open) .fincl, .full[data-collapsed] .fms:not(.open) .fdots, .full[data-collapsed] .fepic .fsub { display: none; }
 .full[data-collapsed] .fepic { margin-bottom: 10px; }
-:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release) { transition: transform .12s ease; }
-:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release):hover { transform: scale(1.06); }
-:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release):active { transform: scale(.97); }
+:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prio-pick, .copy, .release) { transition: transform .12s ease; }
+:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prio-pick, .copy, .release):hover { transform: scale(1.06); }
+:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prio-pick, .copy, .release):active { transform: scale(.97); }
 :is(a.pr, a.mockbtn, a.asanabtn, a.mocklink)::after { content: "↗" / ""; margin-left: 2px; font-size: .9em; opacity: .75; }
-:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release, .fms, .fepic, .ocollapse):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prio-pick, .copy, .release, .fms, .fepic, .ocollapse):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fdots i[data-story] { transition: transform .12s ease; }
 .fdots i[data-story]:hover { transform: scale(1.4); }
-@media (prefers-reduced-motion: reduce) { :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prioseg button, .copy, .release), .fdots i[data-story] { transition: none; transform: none !important; } }
+@media (prefers-reduced-motion: reduce) { :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prio-pick, .copy, .release), .fdots i[data-story] { transition: none; transform: none !important; } }
 .prio { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 7px 0 5px; border-radius: 9px; font-size: 10.5px; font-weight: 700; line-height: 1; letter-spacing: 0; text-transform: none; align-self: center; flex: none; }
 .prio b { font-size: 12px; }
 .prio.must { background: var(--star); color: var(--star-ink); box-shadow: 0 1px 4px rgba(200,130,0,.35); }
 .prio.should { background: var(--star-soft); color: var(--should-ink); box-shadow: inset 0 0 0 1px rgba(245,168,0,.5); }
 .prio.should b { color: var(--star); }
 .fepic .eyebrow .prio, .sheet-head .prio { margin-left: 8px; }
-.prioseg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--gray-soft); }
-.prioseg button { border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--text-2); padding: 4px 10px; border-radius: 7px; cursor: pointer; }
-.prioseg button[aria-checked="true"] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-.prioseg button[data-prio="should"][aria-checked="true"] { background: var(--star-soft); color: var(--should-ink); box-shadow: inset 0 0 0 1px rgba(245,168,0,.5); }
-.prioseg button[data-prio="must"][aria-checked="true"] { background: var(--star); color: var(--star-ink); }
+.prio-wrap { position: relative; display: inline-flex; flex: none; }
+.prio-pick { display: inline-flex; padding: 0; border: 0; background: none; font: inherit; border-radius: 9px; cursor: pointer; }
+.prio.nice { background: var(--gray-soft); color: var(--text-2); padding: 0 7px; }
+.prio-pick-menu { left: 0; right: auto; min-width: 150px; }
+.prio-pick-menu button { padding: 6px 8px; }
 .fms .ftools { flex: 0 1 auto; }
 .fms .title { font-weight: 620; font-size: 13.5px; }
 .fms button.title { border: 0; background: none; padding: 0; font-family: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; text-align: left; cursor: inherit; }
@@ -1136,7 +1146,28 @@ const ownerDot = (who, title) => `<span class="owner dot${isMe(who) ? " me" : ""
 const ownerChip = (m, chip = ownerDot) => (m?.owner ? chip(m.owner, isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`) : "");
 const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
 const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
-const ownerOrClaim = (m, chip) => ownerChip(m, chip) || claimBtn(m);
+const runPeople = () => [...new Set([...Object.keys(S.project?.people || {}), S.info?.me].filter(Boolean))].sort();
+const stillBuilding = (m) => (m.stories || []).some((s) => ["working", "approval"].includes(s.status));
+function ownerMenu(m) {
+  const busy = stillBuilding(m), owner = m.owner || "";
+  const row = (who, label) => `<button role="menuitemradio" aria-checked="${owner === who}" data-give="${esc(m.id)}" data-to="${esc(who)}"${busy ? " disabled" : ""}>${who ? ownerDot(who, who) : `<span class="owner dot none">–</span>`}<span>${esc(label)}</span>${owner === who ? `<b class="tick">✓</b>` : ""}</button>`;
+  return `<div class="owner-menu" role="menu" aria-label="Owner of ${esc(m.id)}">${busy ? `<div class="owner-note">${esc(m.id)} is building: stop it first</div>` : ""}${[...new Set([...runPeople(), owner].filter(Boolean))].sort().map((who) => row(who, isMe(who) ? `${who} (you)` : who)).join("")}${owner ? row("", "Unassign") : ""}</div>`;
+}
+const ownerMenuBtn = (m, chip) => `<span class="ownwrap"><button class="ownbtn" data-owner-menu="${esc(m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === m.id}" title="Change who owns ${esc(m.id)}">${chip}</button>${S.ownerMenu === m.id ? ownerMenu(m) : ""}</span>`;
+const ownerOrClaim = (m, chip) => ((c) => (c ? ownerMenuBtn(m, c) : claimBtn(m)))(ownerChip(m, chip));
+function setOwnerMenu(id) { S.ownerMenu = id; render(); }
+async function giveMs(id, to) {
+  setOwnerMenu(null);
+  try {
+    const r = await fetch(`/owner/${encodeURIComponent(id)}?to=${encodeURIComponent(to)}`, { method: "POST" });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) return toast(body.error ? `Couldn't move ${id}: ${body.error}` : "This Podium server predates reassigning — restart it");
+    toast(to ? `${id} is now ${isMe(to) ? "yours" : `${to}'s`}` : `${id} is up for Claim again`);
+    poll();
+  } catch {
+    toast("Couldn't reach the Podium server — start it with podium server --detach");
+  }
+}
 function renderPeople() {
   const el = $("people"), people = Object.entries(S.info?.people || {});
   el.hidden = people.length < 2;
@@ -1268,13 +1299,18 @@ const COL = 320, COL_ACTIVE = 380, COL_OPEN = 560;
 const colOf = (E) => ((E.milestones || []).some((x) => x.id === S.open) && canExpand(openMs()) ? [COL_OPEN, 2] : E.id === S.project.active?.epic ? [COL_ACTIVE, 1.7] : [COL, 1]);
 const PRIO = { __proto__: null, must: "Must", should: "Should" };
 const prioPill = (x) => (PRIO[x?.priority] ? `<span class="prio ${x.priority}" title="${PRIO[x.priority]} have"><b>★</b>${PRIO[x.priority]}</span>` : "");
-function prioControl(ref, x) {
-  const now = PRIO[x?.priority] ? x.priority : "";
-  return `<span class="prioseg" role="radiogroup" aria-label="Priority">${[["", "Nice to have"], ["should", "★ Should"], ["must", "★ Must"]].map(([v, label]) => `<button role="radio" aria-checked="${now === v}" data-prio="${v}" data-prio-of="${esc(ref)}">${label}</button>`).join("")}</span>`;
+const PICKS = [["must", "★ Must"], ["should", "★ Should"], ["", "Nice to have"]];
+function prioPick(ref, x) {
+  const now = PRIO[x?.priority] ? x.priority : "", open = S.prioPick === ref;
+  const pill = (v) => prioPill({ priority: v }) || `<span class="prio nice" title="Nice to have">Nice to have</span>`;
+  const menu = `<div class="prio-pick-menu" role="menu" aria-label="Priority of ${esc(ref.replace(/^epic\//, ""))}">${PICKS.map(([v]) => `<button role="menuitemradio" aria-checked="${now === v}" data-prio="${v}" data-prio-of="${esc(ref)}">${pill(v)}${now === v ? `<b class="tick">✓</b>` : ""}</button>`).join("")}</div>`;
+  return `<span class="prio-wrap"><button class="prio-pick" data-prio-pick="${esc(ref)}" aria-haspopup="menu" aria-expanded="${open}" title="Change the priority">${pill(now)}</button>${open ? menu : ""}</span>`;
 }
+function setPrioPick(ref) { S.prioPick = ref; render(); }
 async function setPriority(ref, level) {
   const epic = ref.startsWith("epic/") ? ref.slice(5) : null, id = epic ?? ref;
   if (refuseDotted(id)) return;
+  S.prioPick = null;
   const r = await fetch(`/priority/${epic ? "epic/" : ""}${idPath(id)}?level=${level || "nice"}`, { method: "POST" }).catch(() => null);
   if (!r?.ok) return toast(r ? `Couldn't set ${id}'s priority: ${r.status}` : SERVER_DOWN);
   const x = epic ? S.project.epics.find((E) => E.id === epic) : msOf(id);
@@ -1290,7 +1326,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}${ownerOrClaim(m, ownerPill)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}${prioControl(m.id, m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
+  return `<div class="ohead"><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${infraTag(m)}${ownerOrClaim(m, ownerPill)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
@@ -2397,7 +2433,7 @@ function milestoneSheet(m) {
 
 function epicSheet() {
   const e = S.epic, map = msById();
-  $("sheet-head").innerHTML = `<span class="sid">Epic</span>${prioPill(e.epic)}<h2>${esc(e.epic.title)}</h2><div class="muted">${esc(e.epic.summary || "")}</div><div style="margin-top:12px">${prioControl(`epic/${e.epic.id}`, e.epic)}</div>`;
+  $("sheet-head").innerHTML = `<span class="sid">Epic</span>${prioPick(`epic/${e.epic.id}`, e.epic)}<h2>${esc(e.epic.title)}</h2><div class="muted">${esc(e.epic.summary || "")}</div>`;
   $("sheet-body").innerHTML = `
     <div class="sec"><h3>Milestones</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-reveal="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${esc(viewStatus(m, map))}">${esc(m.status)}</span></div>`).join("")}</div>
     ${epicRepoRows(e.milestones).length ? `<div class="sec"><h3>Repos touched</h3>${repoLines(epicRepoRows(e.milestones))}</div>` : ""}
@@ -2671,6 +2707,13 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 
 document.addEventListener("click", (ev) => {
   if (S.prioMenu && !ev.target.closest("#prio-filter")) setPrioMenu(false);
+  const om = ev.target.closest("[data-owner-menu]"), give = ev.target.closest("[data-give]");
+  if (om) { setOwnerMenu(S.ownerMenu === om.dataset.ownerMenu ? null : om.dataset.ownerMenu); return; }
+  if (give) { if (!give.disabled) giveMs(give.dataset.give, give.dataset.to); return; }
+  if (S.ownerMenu && !ev.target.closest(".owner-menu")) setOwnerMenu(null);
+  const pp = ev.target.closest("[data-prio-pick]");
+  if (pp) { setPrioPick(S.prioPick === pp.dataset.prioPick ? null : pp.dataset.prioPick); return; }
+  if (S.prioPick && !ev.target.closest(".prio-pick-menu")) setPrioPick(null);
   if (ev.target.closest("a[href]")) return;
   if (ev.target.closest("a.pr")) return;
   const th = ev.target.closest("[data-theme-set]");
@@ -2758,6 +2801,8 @@ document.addEventListener("keydown", (ev) => {
 });
 function onEscape() {
   if (S.prioMenu) { setPrioMenu(false); $("prio-filter").querySelector("[data-prio-menu]")?.focus(); }
+  else if (S.ownerMenu) setOwnerMenu(null);
+  else if (S.prioPick) setPrioPick(null);
   else if (S.sel) closeSheet();
   else if (S.ds) closeDs();
   else if (document.activeElement === $("q")) { $("q").value = ""; S.query = ""; applyFilter(); $("q").blur(); }

@@ -361,6 +361,38 @@ def claim_milestone(p, milestone_id, force=False):
     return mid
 
 
+
+class Building(Exception):
+    pass
+
+
+def give_milestone(p, milestone_id, to):
+    """Make `to` the owner of the milestone (None: nobody), as anyone in the run may from the Podium, with a `handover`
+    event from its owner before and an `owner` event; pulled first and pushed after in a synced run. Raises Building
+    while any of its stories is building or awaits approval. Returns its owner before."""
+    if p.synced():
+        sync.pull(p)
+    m = p.milestone(milestone_id)
+    if any(s.get("status") in ("working", "approval") for s in m.get("stories") or []):
+        raise Building(f"{m['id']} is building: stop it first")
+    owner = m.get("owner")
+    if owner == to:
+        return owner
+    if to:
+        m["owner"] = to
+        if owner:
+            p.event("handover", m["id"], **{"from": owner, "to": to})
+    else:
+        del m["owner"]
+    p.event("owner", m["id"], owner=to)
+    p.save()
+    if p.synced():
+        out = sync.save(p, f"{m['id']} given to {to or 'nobody'} by {p.me}")
+        if out == "BEHIND":
+            sync.pull(p)
+            sync.save(p, f"{m['id']} given to {to or 'nobody'} by {p.me}")
+    return owner
+
 def cmd_claim(p, args):
     force, rest = "--force" in args, [a for a in args if a != "--force"]
     if len(rest) != 1:

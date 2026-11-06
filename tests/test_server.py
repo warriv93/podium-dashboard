@@ -576,6 +576,43 @@ class Priority(Server):
         self.assertNotIn("priority", self.milestone("M2"))
 
 
+
+class Owner(Server):
+    podium, milestone = Priority.podium, Priority.milestone
+
+    def events(self):
+        with open(os.path.join(self.pod, "events.jsonl")) as f:
+            return [{k: e[k] for k in ("type", "milestone", "from", "to", "owner", "by") if k in e} for e in map(json.loads, f)]
+
+    def run_with(self, **m2):
+        data = json.loads(json.dumps(DATA))
+        data["epics"][0]["milestones"][1].update(m2)
+        self.serve({**data, "people": {"ann": {}, "bob": {}, "cy": {}}})
+
+    def test_gives_a_milestone_to_a_colleague_and_back_to_nobody_with_no_watcher(self):
+        self.run_with(owner="bob")
+        self.assertEqual(self.call("POST", "/owner/M9?to=cy")[0], 404)
+        self.assertEqual(self.call("POST", "/owner/M2?to=zed"), (400, {"error": "zed is not in this run's people"}))
+        self.assertEqual(self.call("POST", "/owner/M2?to=cy"), (200, {"id": "M2", "owner": "cy"}))
+        self.assertEqual(self.milestone("M2")["owner"], "cy")
+        self.assertEqual(self.call("POST", "/owner/M2?to="), (200, {"id": "M2", "owner": None}))
+        self.assertNotIn("owner", self.milestone("M2"))
+        self.assertEqual(self.events()[-3:], [{"type": "handover", "milestone": "M2", "from": "bob", "to": "cy", "by": "ann"},
+                                              {"type": "owner", "milestone": "M2", "owner": "cy", "by": "ann"},
+                                              {"type": "owner", "milestone": "M2", "owner": None, "by": "ann"}])
+        self.assertEqual(self.requests(), [])
+
+    def test_giving_an_unowned_milestone_records_only_its_new_owner_and_the_same_owner_changes_nothing(self):
+        self.run_with()
+        self.assertEqual(self.call("POST", "/owner/M2?to=bob"), (200, {"id": "M2", "owner": "bob"}))
+        self.assertEqual(self.call("POST", "/owner/M2?to=bob"), (200, {"id": "M2", "owner": "bob"}))
+        self.assertEqual([e for e in self.events() if e.get("milestone") == "M2"], [{"type": "owner", "milestone": "M2", "owner": "bob", "by": "ann"}])
+
+    def test_refuses_while_the_milestones_stories_are_being_built(self):
+        self.run_with(owner="bob", stories=[{"id": "S9", "status": "working", "deps": []}])
+        self.assertEqual(self.call("POST", "/owner/M2?to=cy"), (409, {"error": "M2 is building: stop it first"}))
+        self.assertEqual(self.milestone("M2")["owner"], "bob")
+
 class Prompts(Server):
     def test_takes_prompts_and_actions_from_the_extension(self):
         self.serve(extension=EXTENSION)

@@ -99,6 +99,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
 from podium_dashboard import extension, sync
+from podium_dashboard.commands import Building, give_milestone
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
 from podium_dashboard.plugins import paseo
@@ -521,6 +522,8 @@ def make_handler(root):
                 return self.reply(200, pull_run(root) or {"result": "OFF"})
             if first == "reviewed":
                 return self.reviewed(urllib.parse.unquote(url.path[len("/reviewed/"):]), parse_qs(url.query))
+            if first == "owner":
+                return self.give(urllib.parse.unquote(url.path[len("/owner/"):]), parse_qs(url.query, keep_blank_values=True).get("to", [None])[0])
             if first == "priority":
                 return self.priority(urllib.parse.unquote(url.path[len("/priority/"):]), parse_qs(url.query).get("level", [""])[0])
             if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
@@ -683,6 +686,23 @@ def make_handler(root):
                 x["priority"] = level
             p.save()
             self.reply(200, {"id": x["id"], "priority": x.get("priority")})
+
+        def give(self, mid, to):
+            """POST /owner/<milestone>?to=<person>, or ?to= for nobody: anyone may reassign a milestone to someone in the
+            run's people, refused while it is building. Written to podium.json at once; it needs no watcher."""
+            p = load_podium(root)
+            if to is None:
+                return self.reply(400, {"error": "to is a person, or empty for nobody"})
+            if not p or not any(m.get("id") == mid for m in p.milestones()):
+                return self.reply(404, {"error": "unknown milestone"})
+            people = p.data.get("people") if isinstance(p.data.get("people"), dict) else {}
+            if to and to not in people and to != p.me:
+                return self.reply(400, {"error": f"{to} is not in this run's people"})
+            try:
+                give_milestone(p, mid, to or None)
+            except Building as e:
+                return self.reply(409, {"error": str(e)})
+            self.reply(200, {"id": mid, "owner": to or None})
 
         def queue(self, line):
             os.makedirs(podium_dir(root), exist_ok=True)
