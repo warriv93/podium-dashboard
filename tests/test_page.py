@@ -1521,9 +1521,21 @@ class HostileRun(unittest.TestCase):
     def test_the_open_card_sits_in_its_epics_column_like_a_closed_card(self):
         maps, _ = self.maps(probe='(expand("M2"), collapse())')
         opened = next(m for m in maps if self.open_cards(m) == ["M2"])
-        self.assertRegex(opened, r'</div><div></div><div class="fms open ')
+        self.assertRegex(opened, r'<div class="fcol" data-lane="1"><div class="fms open ')
         self.assertNotIn("grid-column", self.open_card(opened))
-        self.assertRegex(maps[-1], r'</div><div></div><div class="fms working')
+        self.assertRegex(maps[-1], r'<div class="fcol" data-lane="1"><div class="fms working')
+
+    def test_each_epic_stacks_its_milestones_in_its_own_column_from_the_top(self):
+        maps, _ = self.maps(probe="(closeSheet(), render(), 0)")
+        cols = re.findall(r'<div class="fcol" data-lane="(\d)">(.*?)</div><!--fcol-->', maps[-1], re.S)
+        self.assertEqual([(lane, re.findall(r'<div class="fms [^"]*"[^>]* data-id="(\w+)"', html)) for lane, html in cols],
+                         [("0", ["M1"]), ("1", ["M2", "M3"])])
+        self.assertNotIn("<div></div>", maps[-1])
+
+    def test_queue_lines_join_cards_within_a_column_and_cross_epic_deps_cross(self):
+        self.maps(probe='queuePairs([{ id: "A", lane: "0", deps: [] }, { id: "U1", lane: "1", deps: ["B"] }, { id: "B", lane: "0", deps: ["A"] },'
+                        ' { id: "U2", lane: "1", deps: ["U1", "Z"] }, { id: "C", lane: "0", deps: ["U2"] }])')
+        self.assertEqual(self.probe(), [["A", "B", "queue"], ["B", "C", "queue"], ["U1", "U2", "queue"], ["B", "U1", "dep"], ["U2", "C", "dep"]])
 
     def test_each_story_shows_once_on_the_map(self):
         maps, _ = self.maps()
