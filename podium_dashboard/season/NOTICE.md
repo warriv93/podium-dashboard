@@ -30,3 +30,13 @@ SOFTWARE.
 
 "Rudolphchi" by Diego (https://lottiefiles.com/free-animation/rudolphchi-ijSjhYT4ub), under the Lottie Simple
 License (https://lottiefiles.com/page/license), unmodified.
+
+## pumpkin.json
+
+"Cute Halloween Flying Pumpkin" by edi, a free animation on LottieFiles (https://lottiefiles.com), under the Lottie
+Simple License (https://lottiefiles.com/page/license), unmodified.
+
+## bunny-chicks.json
+
+"Easter Bunny and Cute Chicks" by Brian, a free animation on LottieFiles (https://lottiefiles.com), under the Lottie
+Simple License (https://lottiefiles.com/page/license), unmodified.

@@ -652,6 +652,17 @@ a.file { display: block; border-radius: 6px; padding: 1px 4px; margin: 0 -4px; c
 a.mocklink, a.file.mocklink { color: var(--accent); text-decoration: none; }
 a.mocklink::before { content: "🎨" / ""; margin-right: 4px; }
 a.mocklink:hover code { text-decoration: underline; }
+.land-burst { position: fixed; left: 0; top: 0; z-index: 32; pointer-events: none; font-size: 14px; }
+.confetti { position: fixed; left: 0; top: 0; z-index: 33; width: 7px; height: 11px; border-radius: 2px; pointer-events: none; }
+.mocklink.missing { color: var(--text-3); cursor: help; }
+.mocklink.missing::after { content: "not built yet"; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--line); font-size: 10.5px; }
+.qwrap { margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-tile); font-size: 12px; }
+.qw-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--text-2); }
+.qw-head b { color: var(--text); }
+.qw-row { display: grid; grid-template-columns: 84px 1fr; gap: 8px; align-items: baseline; padding: 3px 0; }
+.qw-k { color: var(--text-3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+.qw-v { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.qwrap .pace { display: inline-block; padding: 1px 8px; border-radius: 999px; background: rgba(91,110,225,.14); color: var(--quest-ink); font-weight: 650; font-size: 11px; }
 a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-soft); }
 .sec h3 a { float: right; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-3); text-decoration: none; border-radius: 6px; padding: 0 6px; }
 .md { font-size: 14px; }
@@ -812,7 +823,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <div class="map-head">
         <h2 id="map-title">Topology</h2>
         <div class="map-tools">
-          <span id="hide-finished"></span><span id="collapse-map"></span><span id="prio-filter"></span>
+          <span id="hide-finished"></span><span id="collapse-map"></span><span id="prio-filter"></span><span id="mine-filter"></span>
           <div class="legend">
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
@@ -888,6 +899,11 @@ function setCollapsed(on) {
   try { localStorage.setItem("podium-collapsed", on ? "1" : "0"); } catch { /* private mode */ }
 }
 S.collapsed = (() => { try { return localStorage.getItem("podium-collapsed") === "1"; } catch { return false; } })();
+function setMine(on) {
+  S.mine = on;
+  try { localStorage.setItem("podium-mine", on ? "1" : "0"); } catch { /* private mode */ }
+}
+S.mine = (() => { try { return localStorage.getItem("podium-mine") === "1"; } catch { return false; } })();
 const TIERS = [["must", "Must have"], ["should", "Should have"], ["nice", "Nice to have"]], EVERY_TIER = TIERS.map(([t]) => t);
 function readPrioShown() {
   try {
@@ -1227,6 +1243,52 @@ function render() {
   renderFull();
   renderQuality();
   if (S.sel) renderSheet();
+  celebrate(landings(S.landedSeen, msList()));
+}
+
+S.landedSeen = new Map();
+function landings(seen, ms) {
+  const watched = seen.size > 0, landed = [];
+  for (const x of ms) {
+    const done = x.status === "done";
+    if (watched && done && seen.get(x.id) !== true) landed.push(x.id);
+    seen.set(x.id, done);
+  }
+  const musts = ms.filter((x) => x.priority === "must" && !["dropped", "moved"].includes(x.status));
+  return { landed, lastMust: musts.some((x) => landed.includes(x.id)) && musts.every((x) => x.status === "done") };
+}
+const QUIET_BURST = ["✓", "✨", "🎉"];
+function celebrate({ landed, lastMust }) {
+  if (!landed.length || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const look = window.podiumSeason?.burst?.();
+  requestAnimationFrame(() => {
+    for (const id of landed) {
+      const r = document.querySelector(`#map .fms[data-id="${CSS.escape(id)}"]`)?.getBoundingClientRect();
+      if (r?.width) burst(r.left + 24, r.top + r.height / 2, look || QUIET_BURST, look ? 18 : 10);
+    }
+    if (lastMust) confetti();
+  });
+}
+function burst(x, y, marks, n) {
+  for (let k = 0; k < n; k++) {
+    const el = Object.assign(document.createElement("span"), { className: "land-burst", textContent: marks[k % marks.length] });
+    document.body.append(el);
+    const a = Math.random() * 6.28, d = 30 + Math.random() * 60;
+    el.animate([{ transform: `translate(${x}px, ${y}px) scale(.6)`, opacity: 1 }, { transform: `translate(${x + Math.cos(a) * d}px, ${y + Math.sin(a) * d - 30}px) scale(1)`, opacity: 1, offset: 0.6 },
+      { transform: `translate(${x + Math.cos(a) * d * 1.2}px, ${y + Math.sin(a) * d + 30}px) scale(.8)`, opacity: 0 }], { duration: 1200 + Math.random() * 500, easing: "cubic-bezier(.2,.7,.3,1)" }).onfinish = () => el.remove();
+  }
+}
+const CONFETTI = ["#ff3b30", "#ff9500", "#ffcc00", "#34c759", "#5ac8fa", "#5b6ee1", "#af52de"];
+function confetti() {
+  for (let k = 0; k < 120; k++) {
+    const el = Object.assign(document.createElement("i"), { className: "confetti" });
+    el.style.background = CONFETTI[k % CONFETTI.length];
+    document.body.append(el);
+    const x = Math.random() * innerWidth, drift = (Math.random() - 0.5) * 240, spin = (Math.random() - 0.5) * 1440;
+    el.animate([{ transform: `translate(${x}px, -20px) rotate(0deg)` }, { transform: `translate(${x + drift}px, ${innerHeight + 20}px) rotate(${spin}deg)` }],
+      { duration: 2600 + Math.random() * 2200, delay: Math.random() * 600, easing: "cubic-bezier(.3,.4,.6,1)" }).onfinish = () => el.remove();
+  }
+  toast("Every Must of the quest has landed 🎉");
 }
 
 function projectChrome() {
@@ -1351,7 +1413,9 @@ function keeps(ms, story) {
 }
 const hidesFinished = (x) => S.hideFinished && ["done", "moved"].includes(x.status) && !keeps(x.id);
 const tierOf = (x) => (PRIO[x?.priority] ? x.priority : "nice");
-const hidesMs = (x) => hidesFinished(x) || (!S.prioShown.includes(tierOf(x)) && !keeps(x.id));
+const mine = (x) => isMe(x.owner) || prsToReview().some((pr) => pr.ms === x.id);
+const hidesForMine = (x) => S.mine && !mine(x) && !keeps(x.id);
+const hidesMs = (x) => hidesFinished(x) || hidesForMine(x) || (!S.prioShown.includes(tierOf(x)) && !keeps(x.id));
 const hidesStory = (m, s) => S.hideFinished && ["done", "dropped"].includes(s.status) && !keeps(m.id, s.id);
 function treeRows(m) {
   const rows = wavesOf(m.stories || []), col = dict();
@@ -1434,7 +1498,7 @@ function renderFull() {
   projectChrome();
   S.epic = open;
   $("map-title").innerHTML = P.project.quest ? "Epics" : P.project.asana?.url ? `<span class="fproj">${asanaBtn(P.project)}${asanaMeta(P.project)}</span>` : linkBtn("");
-  $("page-title").innerHTML = P.project.quest ? questTile(P) : "";
+  $("page-title").innerHTML = P.project.quest ? questTile(P) + questWrap(P.project.quest, wrapMs(P), new Date()) : "";
   const m = $("map");
   const all = dict(P.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const lane = dict(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
@@ -1451,6 +1515,7 @@ function renderFull() {
   const om = openMs();
   renderCollapsed();
   renderPrioFilter();
+  renderMine(listed.filter(hidesForMine).length);
   renderHideFinished(listed.filter(hidesFinished).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
   const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
@@ -1767,7 +1832,18 @@ function mockRef(ref) {
   const m = String(ref).match(MOCK_REF);
   return m && !m[1].split("/").includes("..") ? runHref(m[1]) + (m[2] || "") : null;
 }
-const mockLink = (ref, inner, cls = "mocklink") => ((h) => (h ? `<a class="${cls}" href="${esc(h)}" target="_blank" rel="noopener" title="Open the mock in a new tab">${inner}</a>` : ""))(mockRef(ref));
+S.mockFound = dict();
+function checkMock(h) {
+  S.mockFound[h] = null;
+  fetch(h.replace(/#.*$/, ""), { cache: "no-store" }).then((r) => { S.mockFound[h] = r.ok; if (!r.ok && $("sheet").classList.contains("on")) renderSheet(); }).catch(() => {});
+}
+function mockLink(ref, inner, cls = "mocklink") {
+  const h = mockRef(ref);
+  if (!h) return "";
+  if (S.mockFound[h] === undefined) checkMock(h);
+  return S.mockFound[h] === false ? `<span class="${cls} missing" title="Not built yet: this run has no such mock">${inner}</span>`
+    : `<a class="${cls}" href="${esc(h)}" target="_blank" rel="noopener" title="Open the mock in a new tab">${inner}</a>`;
+}
 const mockBtn = (x) => ((m) => (m ? `<a class="mockbtn" href="${esc(m.href)}" target="_blank" rel="noopener" title="Open the UI mock in a new tab"><span>🎨</span>Mock</a>` : ""))(mockOf(x));
 
 
@@ -2040,6 +2116,10 @@ function renderPrioFilter() {
   const box = ([t, label]) => `<label><input type="checkbox" data-prio-tier="${t}"${shown.includes(t) ? " checked" : ""}${shown.length === 1 && shown.includes(t) ? " disabled" : ""}>${label}</label>`;
   el.innerHTML = `<button class="share ${some ? "on" : ""}" data-prio-menu aria-expanded="${!!S.prioMenu}" aria-controls="prio-menu" title="Show milestones by priority">${some ? `Priority · ${shown.length} of ${TIERS.length}` : "Priority"}</button>${S.prioMenu ? `<div class="prio-menu" id="prio-menu" role="group" aria-label="Show milestones that are">${TIERS.map(box).join("")}</div>` : ""}`;
   if (had) el.querySelector(had.dataset.prioTier ? `[data-prio-tier="${had.dataset.prioTier}"]` : "[data-prio-menu]")?.focus();
+}
+function renderMine(hidden) {
+  const on = S.mine;
+  $("mine-filter").innerHTML = `<button class="share ${on ? "on" : ""}" data-mine aria-pressed="${on}" title="${on ? "Show everyone's milestones again" : "Show only your milestones and what waits on you"}">${on && hidden ? `Mine · ${hidden} hidden` : "Mine"}</button>`;
 }
 function renderHideFinished(hidden) {
   const on = S.hideFinished;
@@ -2487,14 +2567,22 @@ const questLinks = (q) => (q.links || []).map(appLink).join("");
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const dayMonth = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 const weeksOr = (v, fallback, min, max) => (Number.isInteger(v) && v >= min && v <= max ? v : fallback);
-function questTimeline(q, ms, now) {
+function questClock(q, now) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof q?.start === "string" ? q.start : "");
   const start = m && new Date(+m[1], m[2] - 1, +m[3]);
-  if (!start || start.getMonth() !== m[2] - 1 || start.getDate() !== +m[3]) return "";
+  if (!start || start.getMonth() !== m[2] - 1 || start.getDate() !== +m[3]) return null;
   const weeks = weeksOr(q.weeks, 6, 1, 26), open = weeksOr(q.openWeeks, 2, 0, 8), questDays = weeks * 7, allDays = questDays + open * 7;
   const at = (n) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + n);
   const today = Math.round((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) / 864e5);
   const left = (end) => `${end - today - 1} ${end - today - 1 === 1 ? "day" : "days"} left`;
+  return { start, weeks, open, questDays, allDays, at, today, left };
+}
+const tally = (list) => `${list.filter((x) => x.status === "done").length} of ${list.length}`;
+const TALLIED = [["must", "Must"], ["should", "Should"]];
+function questTimeline(q, ms, now) {
+  const c = questClock(q, now);
+  if (!c) return "";
+  const { start, weeks, open, questDays, allDays, at, today, left } = c;
   const label = today < 0 ? `<b>Quest starts ${dayMonth(start)}</b> · in ${-today} ${today === -1 ? "day" : "days"}`
     : today < questDays ? `<b>Week ${Math.floor(today / 7) + 1} of ${weeks}</b> · ${left(questDays)}`
     : today < allDays ? `<b>Open week ${Math.floor((today - questDays) / 7) + 1} of ${open}</b> · ${left(allDays)}`
@@ -2506,7 +2594,7 @@ function questTimeline(q, ms, now) {
     const rate = !word && togo && weeksLeft >= 1 ? `, ≈ ${Math.ceil(togo / weeksLeft)} a week` : "";
     return `<span class="pace${togo ? "" : " ok"}">${word ? `★ ${word} ${landed} of ${list.length}` : `${landed} of ${list.length} landed`} · ${togo ? `${togo} to go${rate}` : "all landed"}</span>`;
   };
-  const tiers = today < 0 || !ms.length ? "" : [pace("", ms), ...[["must", "Must"], ["should", "Should"]].map(([t, w]) => ((list) => (list.length ? pace(w, list) : ""))(ms.filter((x) => x.priority === t)))].join(" ");
+  const tiers = today < 0 || !ms.length ? "" : [pace("", ms), ...TALLIED.map(([t, w]) => ((list) => (list.length ? pace(w, list) : ""))(ms.filter((x) => x.priority === t)))].join(" ");
   const cell = (i, kind) => {
     const from = i * 7, state = today >= from + 7 ? "past" : today >= from ? "now" : "";
     const cls = [kind, state].filter(Boolean).join(" ");
@@ -2519,6 +2607,33 @@ function questTimeline(q, ms, now) {
     + `<div class="qcells" style="${cols}">${index.map((i) => cell(i, i < weeks ? "" : "open")).join("")}</div>`
     + `<div class="qticks" style="${cols}">${index.map((i) => `<span${today >= i * 7 && today < i * 7 + 7 ? ' class="now"' : ""}>${name(i)}</span>`).join("")}</div></div>`;
 }
+function wrapUp(ms) {
+  const kept = ms.filter((x) => !["dropped", "moved"].includes(x.status)), landed = kept.filter((x) => x.status === "done");
+  const by = new Map();
+  for (const x of landed) by.set(x.owner || "", (by.get(x.owner || "") || 0) + 1);
+  return {
+    tally: [`${landed.length} of ${kept.length} landed`, ...TALLIED.map(([t, w]) => ((list) => (list.length ? `★ ${w} ${tally(list)}` : ""))(kept.filter((x) => x.priority === t)))].filter(Boolean),
+    landed, open: kept.filter((x) => x.status !== "done" && PRIO[x.priority]), moved: ms.filter((x) => x.status === "moved"),
+    by: [...by].sort((a, b) => b[1] - a[1] || !a[0] - !b[0]),
+  };
+}
+const WRAP_ROWS = [["Landed", "landed"], ["Still open", "open"], ["Moved", "moved"]];
+function questWrap(q, ms, now) {
+  const c = questClock(q, now);
+  if (!c || c.today < c.questDays - 7 || c.today >= c.allDays) return "";
+  const w = wrapUp(ms), chip = (x) => `<span class="wchip" data-reveal="${esc(x.id)}"><b>${esc(x.id)}</b> ${esc(x.title || "")}</span>`;
+  const row = (k, v) => (v ? `<div class="qw-row"><span class="qw-k">${k}</span><span class="qw-v">${v}</span></div>` : "");
+  const when = c.today < c.questDays ? `last week, ${c.left(c.questDays)}` : `open weeks, ${c.left(c.allDays)}`;
+  return `<div class="qwrap"><div class="qw-head"><span><b>Quest wrap-up</b> · ${when}</span><button class="share" data-quest-copy title="Copy the wrap-up as text, for the presentation">Copy as text</button></div>`
+    + row("Tally", w.tally.map((t) => `<span class="pace">${esc(t)}</span>`).join(""))
+    + WRAP_ROWS.map(([k, f]) => row(k, w[f].map(chip).join(""))).join("")
+    + row("Landed by", w.by.map(([who, n]) => `${who ? personName(who) : "no owner"} ${n}`).join(" · ")) + `</div>`;
+}
+function wrapText(ms) {
+  const w = wrapUp(ms), line = (k, list) => (list.length ? `${k}: ${list.map((x) => `${x.id} ${x.title || ""}`.trim()).join(", ")}` : "");
+  return [w.tally.join(" · "), ...WRAP_ROWS.map(([k, f]) => line(k, w[f])), w.by.length ? `Landed by: ${w.by.map(([who, n]) => `${who || "no owner"} ${n}`).join(" · ")}` : ""].filter(Boolean).join("\n");
+}
+const wrapMs = (P) => P.epics.flatMap((E) => E.milestones || []).filter((x) => !isResearch(x) && x.status !== "dropped");
 function questTile(P) {
   const q = P.project.quest, all = P.epics.flatMap((E) => E.milestones || []).filter((x) => !["dropped", "moved"].includes(x.status));
   const rs = all.filter(isResearch), ms = all.filter((x) => !isResearch(x)), open = (q.tasks || []).filter((t) => !t.asana?.completed).length;
@@ -2598,6 +2713,7 @@ function md(src) {
     else if ((m = line.match(/^\s*[-*]\s+(.*)/))) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(m[1])}</li>`); }
     else if ((m = line.match(/^\s*(\d+)\.\s+(.*)/))) { if (list !== "ol") { closeList(); out.push(`<ol start="${Number(m[1])}">`); list = "ol"; } out.push(`<li>${inline(m[2])}</li>`); }
     else if (!line.trim()) { if (list !== "ol") closeList(); }
+    else if (list && /^\s+\S/.test(line) && /<\/li>$/.test(out.at(-1) || "")) out[out.length - 1] = out.at(-1).replace(/(<\/span>)?<\/li>$/, (end) => ` ${inline(line.trim())}${end}`);
     else { closeList(); out.push(`<p>${inline(line)}</p>`); }
   }
   if (code !== null) flush();
@@ -2688,15 +2804,18 @@ async function copyLink() {
   const r = sheetRoute();
   if (!r) return toast("Nothing to link to on this sheet");
   const url = (S.info?.run ? `http://127.0.0.1:${LINK_PORT}/open?run=${S.info.run}` : `${location.origin}/`) + r.hash;
-  try { await navigator.clipboard.writeText(url); } catch {
-    const t = Object.assign(document.createElement("textarea"), { value: url });
+  toast(await copied(url) ? `Link copied — opens ${r.label} in their Podium` : "Couldn't copy the link");
+}
+async function copied(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch {
+    const t = Object.assign(document.createElement("textarea"), { value: text });
     document.body.append(t); t.select();
     const ok = document.execCommand("copy");
     t.remove();
-    if (!ok) return toast("Couldn't copy the link");
+    return ok;
   }
-  toast(`Link copied — opens ${r.label} in their Podium`);
 }
+async function copyText(text, done) { toast(await copied(text) ? done : "Couldn't copy"); }
 function parseRoute() {
   const segs = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (!segs.length) return null;
@@ -2754,6 +2873,7 @@ document.addEventListener("click", (ev) => {
     return;
   }
   if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
+  if (ev.target.closest("[data-mine]")) { setMine(!S.mine); render(); return; }
   if (ev.target.closest("[data-prio-menu]")) { setPrioMenu(!S.prioMenu); return; }
   const tier = ev.target.closest("[data-prio-tier]");
   if (tier) { togglePrioTier(tier.dataset.prioTier); render(); return; }
@@ -2800,6 +2920,7 @@ document.addEventListener("click", (ev) => {
   if (la) { linkAsana(la.dataset.linkAsana || null); return; }
   if (ev.target.closest("[data-digest-done]")) { S.digestSince = null; render(); return; }
   if (ev.target.closest("[data-handed-done]")) { seeHanded(); render(); return; }
+  if (ev.target.closest("[data-quest-copy]")) { copyText(wrapText(wrapMs(S.project)), "Copied the quest wrap-up"); return; }
   if (ev.target.closest("[data-quest]")) { openSheet({ quest: true }); return; }
   const es = ev.target.closest("[data-epic-sheet]");
   if (es) { openSheet({ epic: es.dataset.epicSheet }); return; }

@@ -1000,6 +1000,98 @@ class HostileRun(unittest.TestCase):
         page = open(PAGE).read()
         self.assertRegex(page, r"\$\{questTimeline\(q, ms, new Date\(\)\)\}")
 
+    WRAP_MS = ('[{ id: "M1", title: "Login", priority: "must", status: "done", owner: "ann" }, { id: "M2", title: "Pay", priority: "must", status: "done", owner: "bo" },'
+               ' { id: "M3", title: "Receipt", priority: "must", status: "working", owner: "bo" }, { id: "M4", title: "Badge", priority: "should", status: "done", owner: "ann" },'
+               ' { id: "M5", title: "Theme", priority: "should", status: "todo" }, { id: "M6", title: "Old flow", status: "moved", owner: "cy" },'
+               ' { id: "M7", title: "Confetti", status: "done" }]')
+
+    def wrap(self, y, m, d, quest=None):
+        self.maps(probe=f"questWrap({json.dumps({'start': '2026-10-12'} if quest is None else quest)}, {self.WRAP_MS}, new Date({y}, {m - 1}, {d}, 12))")
+        return self.probe()
+
+    def test_the_quest_wrap_up_shows_from_the_last_quest_week_until_the_open_weeks_end(self):
+        self.assertEqual(self.wrap(2026, 11, 15), "")
+        self.assertIn("Quest wrap-up", self.wrap(2026, 11, 16))
+        self.assertIn("Quest wrap-up", self.wrap(2026, 12, 6))
+        self.assertEqual(self.wrap(2026, 12, 7), "")
+        self.assertIn("Quest wrap-up", self.wrap(2026, 11, 2, {"start": "2026-10-12", "weeks": 4, "openWeeks": 0}))
+        self.assertEqual(self.wrap(2026, 11, 9, {"start": "2026-10-12", "weeks": 4, "openWeeks": 0}), "")
+        self.assertEqual(self.wrap(2026, 11, 20, {}), "")
+
+    def test_the_quest_wrap_up_tallies_what_landed_moved_is_still_open_and_who_landed_it(self):
+        w = self.wrap(2026, 11, 18)
+        self.assertIn('<b>Quest wrap-up</b> · last week, 4 days left', w)
+        rows = dict(re.findall(r'<div class="qw-row"><span class="qw-k">([^<]*)</span><span class="qw-v">(.*?)</span></div>', w))
+        chips = lambda k: re.findall(r'<span class="wchip" data-reveal="(M\d)"><b>M\d</b> ([^<]*)</span>', rows[k])
+        self.assertEqual(chips("Landed"), [("M1", "Login"), ("M2", "Pay"), ("M4", "Badge"), ("M7", "Confetti")])
+        self.assertEqual(chips("Still open"), [("M3", "Receipt"), ("M5", "Theme")])
+        self.assertEqual(chips("Moved"), [("M6", "Old flow")])
+        self.assertEqual(rows["Landed by"], "you 2 · bo 1 · no owner 1")
+        self.assertIn("★ Must 2 of 3", rows["Tally"])
+        self.assertIn("★ Should 1 of 2", rows["Tally"])
+        self.assertIn("4 of 6 landed", rows["Tally"])
+        self.assertIn("data-quest-copy", w)
+
+    def test_in_the_open_weeks_the_wrap_up_says_so_and_copies_as_text(self):
+        self.assertIn('<b>Quest wrap-up</b> · open weeks, 11 days left', self.wrap(2026, 11, 25))
+        self.maps(probe=f"wrapText({self.WRAP_MS})")
+        self.assertEqual(self.probe().splitlines(), [
+            "4 of 6 landed · ★ Must 2 of 3 · ★ Should 1 of 2",
+            "Landed: M1 Login, M2 Pay, M4 Badge, M7 Confetti",
+            "Still open: M3 Receipt, M5 Theme",
+            "Moved: M6 Old flow",
+            "Landed by: ann 2 · bo 1 · no owner 1"])
+
+    def test_the_wrap_up_sits_beside_the_quest_tile_not_inside_it(self):
+        self.assertRegex(open(PAGE).read(), r'questTile\(P\) \+ questWrap\(')
+
+    def test_a_landing_is_noticed_between_renders_and_the_last_must_is_called_out(self):
+        self.maps(probe='(() => { const seen = new Map(), ms = [{ id: "A", priority: "must", status: "done" }, { id: "B", priority: "must", status: "working" },'
+                        ' { id: "C", status: "todo" }, { id: "D", priority: "must", status: "todo" }];'
+                        ' const out = [landings(seen, ms)]; ms[1].status = "done"; ms[2].status = "done"; out.push(landings(seen, ms)); out.push(landings(seen, ms));'
+                        ' ms[3].status = "moved"; ms.push({ id: "E", priority: "must", status: "done" }); out.push(landings(seen, ms)); return out; })()')
+        self.assertEqual(self.probe(), [{"landed": [], "lastMust": False}, {"landed": ["B", "C"], "lastMust": False},
+                                        {"landed": [], "lastMust": False}, {"landed": ["E"], "lastMust": True}])
+
+    def test_every_render_looks_for_landings_to_celebrate(self):
+        self.assertRegex(open(PAGE).read(), r"celebrate\(landings\(S\.landedSeen, msList\(\)\)\)")
+
+    def mine_run(self):
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["active"] = {}
+        e1, e2 = run["epics"]
+        e1["milestones"][0]["owner"] = "ann"
+        e2["milestones"][0]["owner"] = e2["milestones"][1]["owner"] = "bo"
+        return run
+
+    def mine_button(self):
+        html = [h for h in self.html if "data-mine" in h][-1]
+        return re.search(r'<button class="share ?(on)?" data-mine aria-pressed="(\w+)"[^>]*>(.*?)</button>', html).groups()
+
+    def test_a_mine_toggle_sits_beside_priority_and_starts_off(self):
+        self.assertIn('<span id="prio-filter"></span><span id="mine-filter"></span>', open(PAGE).read())
+        maps, _ = self.maps(self.mine_run(), probe="(closeSheet(), render(), 0)")
+        self.assertEqual(self.mine_button(), (None, "false", "Mine"))
+        self.assertEqual(sorted(self.shown(maps[-1])), ["M1", "M2", "M3", "R1"])
+
+    def test_mine_shows_your_milestones_and_what_waits_on_you_and_is_kept(self):
+        maps, _ = self.maps(self.mine_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; }; closeSheet();'
+                                                    ' S.project.needsYou = { reason: "look", story: "M3/S6" }; setMine(true); render(); return put["podium-mine"]; })()')
+        self.assertEqual(self.probe(), "1")
+        self.assertEqual(self.shown(maps[-1]), ["M1", "M3"])
+        self.assertEqual(self.mine_button(), ("on", "true", "Mine · 2 hidden"))
+        maps, _ = self.maps(self.mine_run(), localStorage={"podium-mine": "1"}, probe="(closeSheet(), render(), 0)")
+        self.assertEqual(self.shown(maps[-1]), ["M1"])
+
+    def test_a_bullet_that_wraps_onto_the_next_line_stays_one_bullet(self):
+        self.maps(probe=r'md("- Copy (P1\n  P2; copy and shots) last\n- two\n  - nested\n\nafter")')
+        self.assertEqual(self.probe(), "<ul><li>Copy (P1 P2; copy and shots) last</li><li>two</li><li>nested</li></ul><p>after</p>")
+
+    def test_a_mock_that_is_not_built_yet_says_so_instead_of_linking(self):
+        self.maps(probe='(S.mockFound["/mock/r6/"] = false, md("See `mock/r6/` and mock/m4/a.html"))')
+        self.assertEqual(self.probe(), '<p>See <span class="mocklink missing" title="Not built yet: this run has no such mock"><code>mock/r6/</code></span>'
+                                       ' and <a class="mocklink" href="/mock/m4/a.html" target="_blank" rel="noopener" title="Open the mock in a new tab">mock/m4/a.html</a></p>')
+
     def test_a_mock_a_brief_names_opens_from_this_podium_in_a_new_tab(self):
         refs = ["mock/m10/auth-screens.html#proposed", "mock/m12/", "/Users/someone/plans/run/mock/m2/shots/a.png", "feature-folder/mock/r6/"]
         self.maps(probe="md(%s)" % json.dumps("\n".join(f"- `{r}`" for r in refs)))

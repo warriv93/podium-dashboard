@@ -40,5 +40,32 @@ class Calendar(unittest.TestCase):
         self.assertEqual(got, ["xmas", None, "xmas", "xmas", None])
 
 
+    def test_halloween_easter_fettisdagen_and_valborg_fall_on_their_days(self):
+        days = [(2026, 10, 23), (2026, 10, 24), (2026, 10, 31), (2026, 11, 1), (2026, 11, 2),
+                (2026, 3, 28), (2026, 3, 29), (2026, 4, 5), (2026, 4, 6), (2026, 4, 7), (2027, 3, 21), (2027, 3, 29), (2027, 3, 30),
+                (2026, 2, 14), (2026, 2, 15), (2026, 2, 17), (2026, 2, 18), (2027, 2, 9), (2027, 2, 10),
+                (2026, 4, 27), (2026, 4, 28), (2026, 4, 30), (2026, 5, 1)]
+        got = ask("[" + ", ".join(f"S.seasonOn(day({y}, {m}, {d}))" for y, m, d in days) + "]")
+        self.assertEqual(got, [None, "halloween", "halloween", "halloween", None,
+                               None, "easter", "easter", "easter", None, "easter", "easter", None,
+                               None, "fettisdagen", "fettisdagen", None, "fettisdagen", None,
+                               None, "valborg", "valborg", None])
+
+    def test_the_new_seasons_count_down_then_greet(self):
+        days = [("halloween", 2026, 10, 24), ("halloween", 2026, 10, 30), ("halloween", 2026, 10, 31), ("halloween", 2026, 11, 1),
+                ("easter", 2026, 3, 29), ("easter", 2026, 4, 3), ("easter", 2026, 4, 4), ("easter", 2026, 4, 6),
+                ("fettisdagen", 2026, 2, 15), ("fettisdagen", 2026, 2, 16), ("fettisdagen", 2026, 2, 17),
+                ("valborg", 2026, 4, 28), ("valborg", 2026, 4, 29), ("valborg", 2026, 4, 30)]
+        got = ask("[" + ", ".join(f'S.chipFor("{k}", day({y}, {m}, {d}))' for k, y, m, d in days) + "]")
+        self.assertEqual(got, ["🎃 7 days to Halloween", "🎃 Halloween tomorrow", "🎃 Happy Halloween", "🎃 Happy Halloween",
+                               "🐣 7 days to Easter", "🐣 2 days to Easter", "🐣 Glad påsk!", "🐣 Glad påsk!",
+                               "🧁 2 days to Fettisdagen", "🧁 1 day to Fettisdagen", "🧁 Glad fettisdag!",
+                               "🔥 2 days to Valborg", "🔥 1 day to Valborg", "🔥 Glad Valborg!"])
+
+    def test_landings_are_celebrated_by_the_page_which_asks_the_season_for_its_marks(self):
+        code = open(SEASON).read()
+        self.assertIn("window.podiumSeason = { burst: () => (snoozed() ? null : season.burst) };", code)
+        self.assertNotIn("watchLandings", code)
+
 if __name__ == "__main__":
     unittest.main()
