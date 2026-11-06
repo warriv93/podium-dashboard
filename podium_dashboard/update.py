@@ -1,4 +1,5 @@
 """`podium self-update`: bring a pip install from git up to its remote's HEAD, at most once per 6 hours per machine."""
+import importlib
 import json
 import os
 import subprocess
@@ -29,6 +30,11 @@ def direct_url():
         return json.loads(text) if text else None
     except ValueError:
         return None
+
+
+def installed_commit():
+    importlib.invalidate_caches()
+    return ((direct_url() or {}).get("vcs_info") or {}).get("commit_id")
 
 
 def run(argv, timeout):
@@ -138,9 +144,13 @@ def self_update(check=False, force=False, now=None):
         if check:
             return [f"BEHIND podium {old[:7]}→{new[:7]}"]
         upgrade_old_pip()
-        install(f"git+{url}", what="pip install")
+        # every commit carries the same version number, so without --force-reinstall pip calls it already satisfied
+        install("--force-reinstall", "--no-deps", f"git+{url}@{new}", what="pip install")
     except Failed as e:
         return [f"WARN podium {e}"]
+    got = installed_commit()
+    if got != new:
+        return [f"WARN podium pip install left {(got or 'no commit')[:7]}, wanted {new[:7]}"]
     return [f"UPDATED podium {old[:7]}→{new[:7]}", "RESTART server"]
 
 

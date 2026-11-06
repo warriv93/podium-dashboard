@@ -29,6 +29,7 @@ class SelfUpdate(unittest.TestCase):
         self.head, self.pip_version, self.ls_remote_fails = NEW, "24.0", None
         self.dist = FROM_GIT
         self.venv = False
+        self.install_skipped = False
         for target, name, value in ((update, "in_venv", lambda: self.venv),
                                     (human, "HUMAN_FILE", os.path.join(self.tmp, "podium", "human.json")),
                                     (update, "run", self.fake_run),
@@ -48,6 +49,8 @@ class SelfUpdate(unittest.TestCase):
         if argv[1:3] == ["-m", "pip"]:
             if argv[-1] == "pip":
                 self.pip_version = "24.0"
+            if argv[-1].startswith("git+") and not self.install_skipped:
+                self.dist = {**self.dist, "vcs_info": {**self.dist["vcs_info"], "commit_id": argv[-1].rpartition("@")[2]}}
             return subprocess.CompletedProcess(argv, 0, "", "")
         raise AssertionError(f"unexpected command {argv}")
 
@@ -88,7 +91,7 @@ class SelfUpdate(unittest.TestCase):
 
     def test_an_install_behind_the_remote_head_is_upgraded_and_asks_for_a_server_restart(self):
         self.assertEqual(self.podium(), ["UPDATED podium aaaaaaa→bbbbbbb", "RESTART server"])
-        self.assertEqual(self.installs(), [["--user", "--quiet", "--upgrade", f"git+{URL}"]])
+        self.assertEqual(self.installs(), [["--user", "--quiet", "--upgrade", "--force-reinstall", "--no-deps", f"git+{URL}@{NEW}"]])
         self.assertEqual([t for argv, t in self.calls if "ls-remote" in argv], [20])
         self.assertTrue(all(t == 300 for argv, t in self.calls if "ls-remote" not in argv))
 
@@ -148,22 +151,26 @@ class SelfUpdate(unittest.TestCase):
         update.run = failing
         self.assertEqual(self.podium(), ["WARN podium pip install: ERROR: could not resolve host"])
 
+    def test_an_install_that_leaves_the_old_commit_warns_instead_of_claiming_an_update(self):
+        self.install_skipped = True
+        self.assertEqual(self.podium(), ["WARN podium pip install left aaaaaaa, wanted bbbbbbb"])
+
     def test_a_pip_before_22_is_upgraded_first(self):
         self.pip_version = "21.2.4"
         self.assertEqual(self.podium(), ["UPDATED podium aaaaaaa→bbbbbbb", "RESTART server"])
         self.assertEqual(self.installs(), [["--user", "--quiet", "--upgrade", "pip"],
-                                           ["--user", "--quiet", "--upgrade", f"git+{URL}"]])
+                                           ["--user", "--quiet", "--upgrade", "--force-reinstall", "--no-deps", f"git+{URL}@{NEW}"]])
 
     def test_a_current_pip_is_left_alone(self):
         self.pip_version = "22.0"
         self.podium()
-        self.assertEqual(self.installs(), [["--user", "--quiet", "--upgrade", f"git+{URL}"]])
+        self.assertEqual(self.installs(), [["--user", "--quiet", "--upgrade", "--force-reinstall", "--no-deps", f"git+{URL}@{NEW}"]])
 
     def test_a_venv_install_such_as_pipxs_upgrades_without_user(self):
         self.venv = True
         self.pip_version = "21.2.4"
         self.assertEqual(self.podium(), ["UPDATED podium aaaaaaa→bbbbbbb", "RESTART server"])
-        self.assertEqual(self.installs(), [["--quiet", "--upgrade", "pip"], ["--quiet", "--upgrade", f"git+{URL}"]])
+        self.assertEqual(self.installs(), [["--quiet", "--upgrade", "pip"], ["--quiet", "--upgrade", "--force-reinstall", "--no-deps", f"git+{URL}@{NEW}"]])
 
     def test_an_unknown_flag_is_refused(self):
         with self.assertRaises(SystemExit):
