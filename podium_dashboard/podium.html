@@ -15,7 +15,7 @@
   --amber: #c27c00; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.14);
   --red: #d70015; --red-soft: rgba(255,59,48,.10);
   --purple: #8250df; --purple-soft: rgba(130,80,223,.12);
-  --fold-ink: #6f42c1; --fold-link: #0062cc;
+  --fold-ink: #6f42c1; --fold-link: #0062cc; --quest-ink: #4a5bc4;
   --gray-soft: rgba(142,142,147,.14);
   --star: #f5a800; --star-ink: #3a2600; --star-soft: rgba(245,168,0,.2); --should-ink: #7a4f00;
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.06);
@@ -33,7 +33,7 @@
     --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
     --red: #ff6961; --red-soft: rgba(255,69,58,.16);
     --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
-    --fold-ink: #b392f0; --fold-link: #4da6ff;
+    --fold-ink: #b392f0; --fold-link: #4da6ff; --quest-ink: #9aa6f5;
     --gray-soft: rgba(142,142,147,.20); --should-ink: #ffcf66;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
     --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
@@ -49,7 +49,7 @@
   --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
   --red: #ff6961; --red-soft: rgba(255,69,58,.16);
   --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
-  --fold-ink: #b392f0; --fold-link: #4da6ff;
+  --fold-ink: #b392f0; --fold-link: #4da6ff; --quest-ink: #9aa6f5;
   --gray-soft: rgba(142,142,147,.20); --should-ink: #ffcf66;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
   --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
@@ -112,6 +112,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .prio-menu label:hover { background: var(--gray-soft); }
 .prio-menu input { margin: 0; accent-color: var(--text); }
 .fms:has(:is(.owner-menu, .prio-pick-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }
+.vhint { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 650; white-space: nowrap; cursor: help; align-self: center; }
 .ownwrap { position: relative; display: inline-flex; flex: none; }
 .ownbtn { display: inline-flex; padding: 0; border: 0; background: none; font: inherit; color: inherit; border-radius: 999px; cursor: pointer; }
 :is(.owner-menu, .prio-pick-menu) { position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; display: flex; flex-direction: column; gap: 2px; min-width: 190px; padding: 6px; background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-hi); text-align: left; }
@@ -330,7 +331,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .qtime { margin-top: 4px; }
 .qtime-lbl { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px 12px; font-size: 11.5px; color: var(--text-2); margin-bottom: 6px; }
 .qtime-lbl b { color: var(--text); font-weight: 650; }
-.qtime .pace { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-weight: 650; font-size: 11px; white-space: nowrap; }
+.qtime .pace { display: inline-block; padding: 1px 8px; border-radius: 999px; background: rgba(91,110,225,.14); color: var(--quest-ink); font-weight: 650; font-size: 11px; white-space: nowrap; }
 .qtime .pace.ok { background: var(--green-soft); color: var(--green); }
 .qcells, .qticks { display: grid; gap: 3px; }
 .qcell { position: relative; height: 10px; border-radius: 3px; background: rgba(91,110,225,.2); }
@@ -925,7 +926,7 @@ function setInfo(i) {
   const peopleChanged = first || JSON.stringify(i.people) !== JSON.stringify(S.info.people);
   S.info = i; S.watching = i.watching; S.stale = !!i.stale;
   if ((first || meChanged) && S.raw) loadProject();
-  if (peopleChanged || meChanged) renderPeople();
+  if (peopleChanged || meChanged) { renderPeople(); if (S.project) renderCrew(); }
   if (S.project) renderFetch();
   if ((first || meChanged || orchChanged) && S.project) render();
 }
@@ -1145,7 +1146,7 @@ const ownerPill = (who, title) => `<span class="owner" style="background:${perso
 const ownerDot = (who, title) => `<span class="owner dot${isMe(who) ? " me" : ""}" style="background:${personColor(who)}" title="${esc(title)}">${esc(initials(who))}</span>`;
 const ownerChip = (m, chip = ownerDot) => (m?.owner ? chip(m.owner, isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`) : "");
 const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
-const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<button class="claim" data-act="claim" data-id="${esc(m.id)}" title="Make this milestone yours: only its owner plans and builds it">Claim</button>` : "");
+const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<span class="ownwrap"><button class="claim" data-owner-menu="${esc(m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === m.id}" title="Claim it, or give it to a colleague">Claim</button>${S.ownerMenu === m.id ? ownerMenu(m) : ""}</span>` : "");
 const runPeople = () => [...new Set([...Object.keys(S.project?.people || {}), S.info?.me].filter(Boolean))].sort();
 const stillBuilding = (m) => (m.stories || []).some((s) => ["working", "approval"].includes(s.status));
 function ownerMenu(m) {
@@ -1156,6 +1157,21 @@ function ownerMenu(m) {
 const ownerMenuBtn = (m, chip) => `<span class="ownwrap"><button class="ownbtn" data-owner-menu="${esc(m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === m.id}" title="Change who owns ${esc(m.id)}">${chip}</button>${S.ownerMenu === m.id ? ownerMenu(m) : ""}</span>`;
 const ownerOrClaim = (m, chip) => ((c) => (c ? ownerMenuBtn(m, c) : claimBtn(m)))(ownerChip(m, chip));
 function setOwnerMenu(id) { S.ownerMenu = id; render(); }
+const HANDED_KEY = "podium-handed-seen";
+function handedToMe() {
+  const seen = S.handedSeen ?? Number(localStorage.getItem(HANDED_KEY) || 0), last = new Map();
+  for (const e of S.events || []) if (e.type === "owner" && e.milestone) last.set(e.milestone, e);
+  return [...last.values()].filter((e) => isMe(e.owner) && typeof e.by === "string" && !isMe(e.by) && Date.parse(e.at) > seen && isMe(msOf(e.milestone)?.owner));
+}
+function seeHanded() {
+  S.handedSeen = Date.now();
+  localStorage.setItem(HANDED_KEY, String(S.handedSeen));
+}
+function handedBanner() {
+  const list = handedToMe();
+  if (!list.length) return "";
+  return `<div class="banner needs handed"><span class="label"><span class="pulse amber"></span>Given to you</span><div class="chips">${list.map((e) => `<span class="wchip" data-reveal="${esc(e.milestone)}"><b>${esc(e.milestone)}</b> from ${esc(e.by)}</span>`).join("")}</div><button class="btn ghost" data-handed-done>Got it</button></div>`;
+}
 async function giveMs(id, to) {
   setOwnerMenu(null);
   try {
@@ -1223,7 +1239,7 @@ function projectChrome() {
   if (!actx) {
     $("stepper").hidden = true;
     const landed = P.epics.reduce((n, E) => n + (E.milestones || []).filter((m) => m.status === "done").length, 0);
-    $("banner").innerHTML = needsBanner() + waitBanner() + digestBanner() + assumedBanner() + `<div class="banner idle"><span class="label">Idle</span><span class="sub">${P.epics.length} epics · ${landed} milestones landed · open an epic to plan its next milestone</span></div>`;
+    $("banner").innerHTML = needsBanner() + handedBanner() + waitBanner() + digestBanner() + assumedBanner() + `<div class="banner idle"><span class="label">Idle</span><span class="sub">${P.epics.length} epics · ${landed} milestones landed · open an epic to plan its next milestone</span></div>`;
   }
 }
 
@@ -1582,7 +1598,7 @@ function renderBanner() {
     const next = ms.filter((m) => [...UNSTARTED, "todo"].includes(m.status)).sort((a, b) => Number(waitersOf(b.id).length > 0) - Number(waitersOf(a.id).length > 0));
     html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${ms.filter((m) => m.status === "done").length} milestones landed · next: pick one to plan</span><div class="chips">${next.map((m) => `<span class="wchip" data-open="${esc(m.id)}"><b>${esc(m.id)}</b> ${esc(m.title)} <span class="cycle">· ${esc(m.status)}</span></span>`).join("")}</div></div>`;
   }
-  $("banner").innerHTML = needsBanner() + waitBanner() + digestBanner() + assumedBanner() + html;
+  $("banner").innerHTML = needsBanner() + handedBanner() + waitBanner() + digestBanner() + assumedBanner() + html;
 }
 function draftPrs() {
   return S.project.epics.flatMap((E) => (E.milestones || []).flatMap((m) =>
@@ -1909,6 +1925,7 @@ function attention() {
   const P = S.project, out = [];
   if (!P) return out;
   if (P.needsYou) out.push([`needs:${P.needsYou.reason}`, `Needs you: ${P.needsYou.reason}`, "amber"]);
+  handedToMe().forEach((e) => out.push([`handed:${e.milestone}`, `${e.by} gave you ${e.milestone}`, "amber"]));
   msList().forEach((m) => { if (waitingOn(m).length) out.push([`wait:${m.id}`, `${m.id}'s planning recommends doing ${waitingOn(m).map((w) => w.id).join(", ")} first`, "amber"]); });
   prsToReview().forEach((pr) => {
     out.push([`pr:${prKey(pr.ms, pr.repo, pr.number)}`, `${pr.ms} draft PR #${pr.number} to review`, "amber"]);
@@ -2100,7 +2117,15 @@ function renderCrew() {
   el.hidden = all.length < 2;
   if (el.hidden) return void (el.innerHTML = "");
   const shown = all.length > CREW_MAX ? all.slice(0, CREW_MAX - 1) : all, rest = all.slice(shown.length);
-  el.innerHTML = shown.map(avatar).join("") + (rest.length ? `<span class="av more" title="${esc(rest.map((p) => p.name).join("\n"))}">+${rest.length}</span>` : "");
+  el.innerHTML = shown.map(avatar).join("") + (rest.length ? `<span class="av more" title="${esc(rest.map((p) => p.name).join("\n"))}">+${rest.length}</span>` : "") + versionHints();
+}
+function versionHints() {
+  return Object.entries(S.info?.people || {}).filter(([, p]) => p?.podium?.behind > 0).sort(([a], [b]) => isMe(b) - isMe(a) || a.localeCompare(b)).map(([who, p]) => {
+    const v = p.podium;
+    const tip = !isMe(who) ? `${who} runs an older Podium: their next /orchestrate-plan turn updates it, then they press Restart`
+      : v.restart ? "The latest Podium is installed: press Restart to run it" : "Your Podium is behind: run podium self-update, then press Restart";
+    return `<span class="vhint" title="${esc(tip)}">${esc(initials(who))} · ${esc(v.commit)}, ${num(v.behind)} behind</span>`;
+  }).join("");
 }
 
 function renderGit() {
@@ -2475,13 +2500,13 @@ function questTimeline(q, ms, now) {
     : today < allDays ? `<b>Open week ${Math.floor((today - questDays) / 7) + 1} of ${open}</b> · ${left(allDays)}`
     : `<b>Quest ended ${dayMonth(at(questDays - 1))}</b>`;
   const side = open ? `Open weeks ${dayMonth(at(questDays))} – ${dayMonth(at(allDays - 1))}` : `Ends ${dayMonth(at(questDays - 1))}`;
-  const share = today < 0 ? null : Math.min(1, today / questDays);
+  const weeksLeft = (questDays - today) / 7;
   const pace = (word, list) => {
-    const landed = list.filter((x) => x.status === "done").length, behind = Math.round(list.length * share) - landed;
-    const how = share === 1 ? `${list.length - landed} left` : behind >= 1 ? `≈ ${behind} behind${word ? "" : " pace"}` : "on pace";
-    return `<span class="pace${behind >= 1 ? "" : " ok"}">${word ? `★ ${word} ${landed} of ${list.length}` : `${landed} of ${list.length} landed`}, ${how}</span>`;
+    const landed = list.filter((x) => x.status === "done").length, togo = list.length - landed;
+    const rate = !word && togo && weeksLeft >= 1 ? `, ≈ ${Math.ceil(togo / weeksLeft)} a week` : "";
+    return `<span class="pace${togo ? "" : " ok"}">${word ? `★ ${word} ${landed} of ${list.length}` : `${landed} of ${list.length} landed`} · ${togo ? `${togo} to go${rate}` : "all landed"}</span>`;
   };
-  const tiers = share === null || !ms.length ? "" : [pace("", ms), ...[["must", "Must"], ["should", "Should"]].map(([t, w]) => ((list) => (list.length ? pace(w, list) : ""))(ms.filter((x) => x.priority === t)))].join(" ");
+  const tiers = today < 0 || !ms.length ? "" : [pace("", ms), ...[["must", "Must"], ["should", "Should"]].map(([t, w]) => ((list) => (list.length ? pace(w, list) : ""))(ms.filter((x) => x.priority === t)))].join(" ");
   const cell = (i, kind) => {
     const from = i * 7, state = today >= from + 7 ? "past" : today >= from ? "now" : "";
     const cls = [kind, state].filter(Boolean).join(" ");
@@ -2774,6 +2799,7 @@ document.addEventListener("click", (ev) => {
   const la = ev.target.closest("[data-link-asana]");
   if (la) { linkAsana(la.dataset.linkAsana || null); return; }
   if (ev.target.closest("[data-digest-done]")) { S.digestSince = null; render(); return; }
+  if (ev.target.closest("[data-handed-done]")) { seeHanded(); render(); return; }
   if (ev.target.closest("[data-quest]")) { openSheet({ quest: true }); return; }
   const es = ev.target.closest("[data-epic-sheet]");
   if (es) { openSheet({ epic: es.dataset.epicSheet }); return; }

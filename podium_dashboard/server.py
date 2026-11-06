@@ -83,6 +83,7 @@ pulls now, watcher or not: 200 {result, at}, or {"result": "OFF"} when the run d
 import argparse
 import glob
 import hmac
+import importlib
 import json
 import mimetypes
 import os
@@ -98,7 +99,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
-from podium_dashboard import extension, sync
+from podium_dashboard import extension, sync, version
 from podium_dashboard.commands import Building, give_milestone
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
@@ -205,7 +206,8 @@ def info(root):
     return {"runDir": root, "repoDir": repo_dir(root), "run": run_slug(p) if p else None, "watching": watcher_running(podium_dir(root)),
             "orchestrator": {**orchestrator_of(data), "shareSteps": extension.share_steps(module)},
             "me": p.me if p else None,
-            "people": {name: {"active": who.get("active")} for name, who in people.items() if isinstance(who, dict)},
+            "people": {name: {"active": who.get("active"), **({"podium": VERSIONS[name]} if name in VERSIONS else {})}
+                       for name, who in people.items() if isinstance(who, dict)},
             "paseoServer": paseo.server_id(),
             "lastUse": {"ago": round(time.time() - SEEN["at"]), "by": SEEN["by"]}, "stale": stale(),
             "pull": dict(PULL) if PULL["at"] else None}
@@ -293,6 +295,41 @@ def watch_git(root, minutes):
 
 
 PULL = {"at": None, "result": None}
+VERSIONS = {}
+SHA = re.compile(r"^[0-9a-f]{40}$")
+
+
+def check_versions(root, running):
+    """Fill VERSIONS: for each person whose people entry names the commit their server runs, {commit, behind} against the
+    repo's HEAD; this person's also says restart when the install already holds HEAD and only the server is older."""
+    commit, url = running
+    head, p = version.latest(url), load_podium(root)
+    if not head or not p:
+        return
+    people = p.data.get("people") if isinstance(p.data.get("people"), dict) else {}
+    found = {}
+    for name, who in people.items():
+        c = who.get("podium") if isinstance(who, dict) else None
+        if isinstance(c, str) and SHA.match(c):
+            found[name] = {"commit": c[:7], "behind": version.behind(url, c, head)}
+    if p.me in found and commit != head:
+        importlib.invalidate_caches()
+        found[p.me]["restart"] = version.running()[0] == head
+    VERSIONS.clear()
+    VERSIONS.update(found)
+
+
+def watch_versions(root, running, every):
+    try:
+        version.record(load_podium(root), running[0])
+    except Exception as e:
+        print(f"podium version not recorded: {e}", flush=True)
+    while True:
+        try:
+            check_versions(root, running)
+        except Exception as e:
+            print(f"podium versions not checked: {e}", flush=True)
+        time.sleep(every)
 PULLING = threading.Lock()
 PULL_EVERY = 60
 
@@ -801,6 +838,7 @@ def main(argv=None):
     ap.add_argument("--idle", type=float, default=60, help="minutes without activity before stopping; 0 = never")
     ap.add_argument("--detach", action="store_true", help="print the URL, then keep serving in the background")
     ap.add_argument("--git-every", type=float, default=5, help="minutes between fetches for GET /git; 0 = never")
+    ap.add_argument("--version-every", type=float, default=30, help="minutes between checks of who runs an old Podium; 0 = never")
     ap.add_argument("--lan", action="store_true", help="also serve the LAN, to whoever holds the printed lan URL's key")
     args = ap.parse_args(argv)
     root = run_dir(args.dir)
@@ -824,6 +862,8 @@ def main(argv=None):
     if args.git_every > 0:
         threading.Thread(target=watch_git, args=(root, args.git_every), daemon=True).start()
     threading.Thread(target=auto_pull, args=(root,), daemon=True).start()
+    if args.version_every > 0:
+        threading.Thread(target=watch_versions, args=(root, version.running(), args.version_every * 60), daemon=True).start()
     if args.idle > 0:
         threading.Thread(target=stop_when_idle, args=(server, root, args.idle), daemon=True).start()
     server.serve_forever()

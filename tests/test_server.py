@@ -84,7 +84,7 @@ class Server(unittest.TestCase):
             json.dump(data, f)
         self.port = free_port()
         proc = subprocess.Popen([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "server",
-                                 "--port", str(self.port), "--idle", "0", "--git-every", str(git_every),
+                                 "--port", str(self.port), "--idle", "0", "--git-every", str(git_every), "--version-every", "0",
                                  *(["--lan"] if lan else [])],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env, cwd=self.tmp)
         self.addCleanup(proc.wait)
@@ -136,6 +136,20 @@ class Info(Server):
         self.assertEqual(info["me"], "ann")
         self.assertEqual(info["people"], {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}})
         self.assertEqual((info["watching"], info["stale"], info["paseoServer"], info["pull"]), (False, False, None, None))
+
+    def test_each_persons_podium_version_and_how_far_behind_it_is_shows_when_checked(self):
+        old, new = "a" * 40, "b" * 40
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump({**DATA, "people": {"ann": {"podium": old}, "bob": {"podium": new}, "cy": {"podium": "<script>"}}}, f)
+        self.addCleanup(server.VERSIONS.clear)
+        with unittest.mock.patch.object(server.version, "latest", lambda url: new), \
+                unittest.mock.patch.object(server.version, "behind", lambda url, c, head: 0 if c == head else 4), \
+                unittest.mock.patch.object(server.version, "running", lambda: (new, "u")), \
+                unittest.mock.patch.dict(os.environ, {"PODIUM_ME": "ann"}):
+            server.check_versions(self.run_dir, (old, "u"))
+            people = server.info(self.run_dir)["people"]
+        self.assertEqual({k: v.get("podium") for k, v in people.items()},
+                         {"ann": {"commit": "aaaaaaa", "behind": 4, "restart": True}, "bob": {"commit": "bbbbbbb", "behind": 0}, "cy": None})
 
     def test_a_run_without_an_orchestrator_or_people_says_so(self):
         self.serve({k: v for k, v in DATA.items() if k != "orchestrator"})
@@ -236,7 +250,7 @@ class Hardening(Server):
         self.port = free_port()
         boot = "import sys; sys.path.insert(0, sys.argv[1]); from podium_dashboard import server; server.main(sys.argv[2:])"
         proc = subprocess.Popen([sys.executable, "-I", "-c", boot, ROOT, "--dir", os.path.relpath(self.run_dir, cwd),
-                                 "--port", str(self.port), "--idle", "0", "--git-every", "0"],
+                                 "--port", str(self.port), "--idle", "0", "--git-every", "0", "--version-every", "0"],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=self.env, cwd=cwd)
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)

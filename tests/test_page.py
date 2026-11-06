@@ -963,12 +963,13 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(re.findall(r'<span( class="now")?>((?:W|Open )\d)</span>', t),
                          [("", "W1"), ("", "W2"), ("", "W3"), (' class="now"', "W4"), ("", "W5"), ("", "W6"), ("", "Open 1"), ("", "Open 2")])
 
-    def test_the_pace_weighs_landed_milestones_against_the_time_gone_overall_and_per_priority(self):
+    def test_the_pills_count_what_is_left_to_reach_the_goal_overall_and_per_priority_never_behind(self):
         t = self.timeline({"start": "2026-10-12"}, 2026, 11, 5)
-        self.assertIn('<span class="pace">4 of 10 landed, ≈ 2 behind pace</span>', t)
-        self.assertIn('<span class="pace">★ Must 1 of 4, ≈ 1 behind</span>', t)
-        self.assertIn('<span class="pace ok">★ Should 2 of 3, on pace</span>', t)
+        self.assertIn('<span class="pace">4 of 10 landed · 6 to go, ≈ 3 a week</span>', t)
+        self.assertIn('<span class="pace">★ Must 1 of 4 · 3 to go</span>', t)
+        self.assertIn('<span class="pace">★ Should 2 of 3 · 1 to go</span>', t)
         self.assertNotIn("Nice", t)
+        self.assertNotIn("behind", t)
 
     def test_before_the_quest_starts_the_timeline_counts_down_without_pace(self):
         t = self.timeline({"start": "2026-10-12"}, 2026, 10, 5)
@@ -976,11 +977,11 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("pace", t)
         self.assertNotIn("qneedle", t)
 
-    def test_in_the_open_weeks_and_after_them_the_pace_counts_what_is_left(self):
+    def test_in_the_open_weeks_and_after_them_the_pills_count_what_is_left_without_a_weekly_rate(self):
         t = self.timeline({"start": "2026-10-12"}, 2026, 11, 25)
         self.assertIn('<span><b>Open week 1 of 2</b> · 11 days left', t)
         self.assertEqual(re.findall(r'<span class="qcell( [a-z ]+)?"', t)[5:], [" past", " open now", " open"])
-        self.assertIn('<span class="pace">4 of 10 landed, 6 left</span>', t)
+        self.assertIn('<span class="pace">4 of 10 landed · 6 to go</span>', t)
         t = self.timeline({"start": "2026-10-12"}, 2026, 12, 10)
         self.assertIn('<span><b>Quest ended 22 Nov</b>', t)
         self.assertNotIn("qneedle", t)
@@ -1198,6 +1199,36 @@ class HostileRun(unittest.TestCase):
                         ' setOwnerMenu("M3"); await giveMs("M3", "cy"); const closed = S.ownerMenu; await giveMs("M3", "");'
                         ' return [calls, closed]; })()')
         self.assertEqual(self.probe(), [[["/owner/M3?to=cy", "POST"], ["/owner/M3?to=", "POST"]], None])
+
+    def test_claim_opens_the_owner_menu_without_a_tick_or_unassign(self):
+        self.maps(probe=f'({self.OWNED}, delete msOf("M3").owner, setOwnerMenu("M3"), $("map").innerHTML)')
+        html = self.probe()
+        self.assertIn('<span class="ownwrap"><button class="claim" data-owner-menu="M3" aria-haspopup="menu" aria-expanded="true" title="Claim it, or give it to a colleague">Claim</button>', html)
+        menu = re.search(r'<div class="owner-menu" role="menu" aria-label="Owner of M3">(.*?)</div></span>', html, re.S).group(1)
+        self.assertEqual(re.findall(r'aria-checked="(\w+)" data-give="M3" data-to="([^"]*)">', menu), [("false", "ann"), ("false", "bo.berg"), ("false", "cy")])
+
+    HANDED = ('S.events = [{ type: "owner", milestone: "M3", owner: "ann", by: "bo.berg", at: "2026-11-06T10:00:00Z" },'
+              ' { type: "owner", milestone: "M2", owner: "ann", by: "bo.berg", at: "2026-11-06T09:00:00Z" },'
+              ' { type: "owner", milestone: "M1", owner: "ann", by: "ann", at: "2026-11-06T09:30:00Z" },'
+              ' { type: "owner", milestone: "M1", owner: "cy", by: "bo.berg", at: "2026-11-06T09:40:00Z" }];'
+              ' msOf("M3").owner = "ann"; msOf("M2").owner = "cy"; msOf("M1").owner = "ann"')
+
+    def test_a_milestone_someone_else_gave_you_shows_a_banner_until_you_say_got_it(self):
+        self.maps(probe=f'(() => {{ {self.HANDED}; const shown = handedBanner(), keys = attention().map((x) => x[0]).filter((k) => k.startsWith("handed"));'
+                        ' seeHanded(); return [shown, keys, handedBanner()]; })()')
+        shown, keys, after = self.probe()
+        self.assertIn('<div class="banner needs handed"><span class="label"><span class="pulse amber"></span>Given to you</span>', shown)
+        self.assertEqual(re.findall(r'<span class="wchip" data-reveal="(M\d)"><b>M\d</b> from ([^<]*)</span>', shown), [("M3", "bo.berg")])
+        self.assertIn("data-handed-done", shown)
+        self.assertEqual((keys, after), (["handed:M3"], ""))
+
+    def test_the_header_hints_who_runs_an_old_podium_and_only_them(self):
+        self.maps(probe='(S.project.people = { "ann": {}, "mo.leon": {}, "cy": {} }, S.info.people = { "ann": { podium: { commit: "aaaaaaa", behind: 2, restart: true } },'
+                        ' "mo.leon": { podium: { commit: "e6f6b8c", behind: 4 } }, "cy": { podium: { commit: "bbbbbbb", behind: 0 } } }, renderCrew(), $("crew").innerHTML)')
+        hints = re.findall(r'<span class="vhint" title="([^"]*)">([^<]*)</span>', self.probe())
+        self.assertEqual([h[1] for h in hints], ["AN · aaaaaaa, 2 behind", "ML · e6f6b8c, 4 behind"])
+        self.assertIn("press Restart", hints[0][0])
+        self.assertIn("/orchestrate-plan", hints[1][0])
 
     def test_every_tile_on_the_map_sits_white_on_a_deeper_shadow_landed_ones_too(self):
         css = open(PAGE).read()
