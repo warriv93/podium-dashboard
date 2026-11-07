@@ -188,6 +188,12 @@ class Add(Case):
         self.assertEqual([(e["type"], e["resolution"]) for e in self.events(run)],
                          [("finding-resolved", "resolved"), ("finding-resolved", "wontfix")])
 
+    def test_a_design_finding_about_a_repo_is_recorded(self):
+        run = self.run_at("api")
+        design = ["design" if a == "retro" else a for a in FINDING]
+        self.assertEqual(self.podium(run, "finding", "add", "--key", "design-api", *design), ["FINDING design-api recorded (pushed)"])
+        self.assertEqual(self.on_ref("api")[0]["kind"], "design")
+
     def test_a_malformed_finding_is_refused_and_records_nothing(self):
         run = self.run_at("api")
         self.podium(run, "finding", "add", "--key", "Not A Slug", *FINDING, code=1)

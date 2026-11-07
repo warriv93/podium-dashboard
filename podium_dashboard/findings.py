@@ -20,7 +20,7 @@ from podium_dashboard import extension, human, sync, update
 from podium_dashboard.commands import split_flags
 from podium_dashboard.files import NOW, write_atomic
 
-KINDS = ("retro", "tokens")
+KINDS = ("retro", "tokens", "design")
 FIXES = ("check", "pointer", "standard", "delete", "access", "script", "flag", "brief", "model", "tool")
 SEVERITIES = ("high", "normal")
 KEY = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")

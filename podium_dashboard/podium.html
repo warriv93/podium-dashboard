@@ -1072,7 +1072,7 @@ function progressLines(ms, id) {
 }
 const DOING = {
   __proto__: null, STARTED: ["Writing tests", 1], RED: ["Making them pass", 2], GREEN: ["Refactoring", 3], REFACTOR: ["Running checks", 3],
-  CONTRACT: ["Committing", 3], COMMITTED: ["Merging", 3], WAITING: ["Waiting for approval", 0], FAILED: ["Retrying", 1], FIX: ["Fixing", 2],
+  CONTRACT: ["Committing", 3], COMMITTED: ["Merging", 3], WAITING: ["Waiting for approval", 0], FAILED: ["Retrying", 1], FIX: ["Fixing", 2], NOTE: ["Extending shared code", 2],
 };
 const ownStages = () => Object.entries(S.project?.orchestrator?.stages || {}).filter(([, v]) => v && typeof v === "object");
 const doingMap = () => ({ __proto__: null, ...DOING, ...dict(ownStages().filter(([, v]) => v.doing).map(([k, v]) => [k, [String(v.doing), Number(v.step) || 0]])) });
@@ -2466,7 +2466,7 @@ function renderSheet() {
 const TW = [["tests", "Writing tests", "var(--purple)"], ["build", "Building the feature", "var(--accent)"], ["bug", "Fixing bugs", "var(--red)"],
   ["test", "Fixing tests", "var(--amber-dot)"], ["fix", "Fixing", "#ff6b81"], ["refactor", "Refactoring", "var(--green-dot)"],
   ["checks", "Running checks", "#8e8e93"], ["wait", "Waiting on you", "#c7c7cc"]];
-const TW_OF = { __proto__: null, STARTED: "tests", RED: "build", GREEN: "refactor", REFACTOR: "checks", CONTRACT: "checks", WAITING: "wait" };
+const TW_OF = { __proto__: null, STARTED: "tests", RED: "build", NOTE: "build", GREEN: "refactor", REFACTOR: "checks", CONTRACT: "checks", WAITING: "wait" };
 const TW_REPORTING_LINE = { __proto__: null, tests: "RED", build: "GREEN", refactor: "REFACTOR", checks: "CONTRACT" };
 const twOf = () => ({ __proto__: null, ...TW_OF, ...dict(ownStages().filter(([, v]) => v.time).map(([k, v]) => [k, String(v.time)])) });
 function timeWent(log, endAt) {

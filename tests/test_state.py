@@ -300,6 +300,10 @@ class Log(Run):
         self.assertEqual([l.split(" ", 1)[1] for l in self.progress()], ["REVIEW looks fine", "REVIEW again"])
         self.podium("log", "M1/S1", "DONE", "x", code=1)
 
+    def test_takes_a_note_without_the_orchestrator_declaring_it(self):
+        self.podium("log", "M1/S1", "NOTE", "out-of-scope src/shared/dates.ts: one parser for both")
+        self.assertEqual(self.progress()[0].split(" ", 1)[1], "NOTE out-of-scope src/shared/dates.ts: one parser for both")
+
     def test_rejects_an_unknown_stage(self):
         self.podium("log", "M1/S1", "DONE", "x", code=1)
 

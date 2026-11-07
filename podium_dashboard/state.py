@@ -25,7 +25,7 @@ from podium_dashboard.human import (DAYS, HOURS, HUMAN_FILE, availability, day_s
                                     human_line, human_state, in_hours, local, me, next_change, write_human)
 from podium_dashboard.merge import rebase
 
-STAGES = ("STARTED", "RED", "GREEN", "REFACTOR", "FIX", "CONTRACT", "COMMITTED", "FAILED")
+STAGES = ("STARTED", "RED", "GREEN", "REFACTOR", "FIX", "NOTE", "CONTRACT", "COMMITTED", "FAILED")
 ACT_ON = {"confirm", "reverse", "asana", "asana-done"}
 WATCHER_LIVE = 30
 ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
