@@ -155,7 +155,7 @@ async function build() {
       { text: desc, options: { color: GRAY } },
     ], { x: M + 4.7, y, w: CW - 4.7, h: 0.68, fontSize: 17, valign: "middle" });
   });
-  s.addNotes("Top to bottom: Podium is where I watch and steer. orchestrate-deep-plans plans a feature and fans out stories. deep-plan runs one feature end to end, and deep-app-plan sits above it for a whole new app. Leaf skills are small and swappable. The runtime decides how each agent is spawned and on which model: the subagent protocol, Paseo or Claude Code agents, Haiku/Sonnet/Opus, and a contract of commands that must pass. RTK sits under every shell command.");
+  s.addNotes("Top to bottom: Podium is where I watch and steer. orchestrate-deep-plans plans a feature and fans out stories. deep-plan runs one feature end to end, and deep-app-plan sits above it for a whole new app. Leaf skills are small and swappable; deep-improve and deep-garden sit beside them as weekly and monthly passes. The runtime decides how each agent is spawned and on which model: the subagent protocol, Paseo or Claude Code agents, Haiku/Sonnet/Opus, and a contract of commands that must pass. RTK sits under every shell command.");
 
   // parallel
   s = slide("LIGHT", "Many agents in parallel. One plan.", "How");
@@ -269,7 +269,7 @@ async function build() {
   };
   band(1.95, 0.7, HEX.accent1, "Podium CLI and extension · human modes · two milestones at once · epic decisions before the milestone cut", "cake shell");
   const planner = ["Reads earlier plan history", "deep-plan: recon, grill, mock, architecture, spec", "Splits tasks into stories", "Parallel story agents replace the serial build", "deep-plan: gate, verify, land", "A fresh subagent reads the milestone's friction"];
-  const leaf = [["Explore"], ["grilling", "research", "prototype", "domain-modeling", "codebase-design"], ["—"], ["tdd in every story prompt"], ["deep-qa", "code-review", "security-review", "diagnosing-bugs", "create-deep-pr"], ["retro rules", "podium tokens", "podium finding"]];
+  const leaf = [["Explore"], ["grilling", "research", "prototype", "domain-modeling", "codebase-design"], ["—"], ["tdd in every story prompt"], ["deep-qa", "code-review", "security-review", "diagnosing-bugs", "create-deep-pr"], ["retro rules", "podium tokens", "podium finding", "deep-improve", "deep-garden"]];
   planner.forEach((t, i) => {
     rounded(s, { x: col(i), y: 2.8, w: gw6, h: 1.2, r: 0.12, fill: HEX.accent2, transparency: i === 3 ? 94 : 88, name: "cake planner " + i });
     text(s, t, { x: col(i) + 0.12, y: 2.9, w: gw6 - 0.24, h: 1.0, fontSize: 12 });
@@ -279,7 +279,7 @@ async function build() {
     text(s, items.map((t, k) => ({ text: t, options: { breakLine: k < items.length - 1 } })), { x: col(i) + 0.12, y: 4.25, w: gw6 - 0.24, h: 1.35, fontSize: 12 });
   });
   band(5.85, 0.65, HEX.accent4, "subagent protocol · Paseo or Agent · Opus for critical work, Sonnet for the rest · a contract of commands per repo", "cake runtime");
-  s.addNotes("The same suite drawn as a layer cake: phases left to right, layers top to bottom. The shell owns the run and Podium. The planner/lander is the per-feature skill; only its plan and land halves are used, because P3 swaps its serial build for parallel story agents. Leaf skills are swappable one by one. The runtime sits under every spawn. A layer only calls the one beneath it, which is what makes each part replaceable.");
+  s.addNotes("The same suite drawn as a layer cake: phases left to right, layers top to bottom. The shell owns the run and Podium. The planner/lander is the per-feature skill; only its plan and land halves are used, because P3 swaps its serial build for parallel story agents. Leaf skills are swappable one by one; after the retro, deep-improve fixes the suite weekly and deep-garden tidies the codebases monthly. The runtime sits under every spawn. A layer only calls the one beneath it, which is what makes each part replaceable.");
 
   // ideas
   s = slide("LIGHT", "Built on ideas that work.", "How");
@@ -308,23 +308,42 @@ async function build() {
 
   // 5 — Podium
   s = slide("LIGHT_GRAY", "See every agent. Steer from one screen.", "How");
-  const shotW = 8.5, shotH = shotW * 900 / 1440;
-  s.addImage({ path: PODIUM_SHOT, x: M, y: 1.6, w: shotW, h: shotH, altText: "Podium dashboard: pipeline stepper, a Needs you panel, decisions made while away, stories in progress and the activity feed", objectName: "Podium screenshot", shadow: { type: "outer", color: "000000", opacity: 0.18, blur: 18, offset: 6, angle: 90 } });
+  const shotW = 7.2, shotH = shotW * 900 / 1440;
+  s.addImage({ path: PODIUM_SHOT, x: M, y: 1.6, w: shotW, h: shotH, altText: "Podium dashboard: the run switcher open in the header, the quest's weeks with its pace pills, and each epic's milestones in its own column", objectName: "Podium screenshot", shadow: { type: "outer", color: "000000", opacity: 0.18, blur: 18, offset: 6, angle: 90 } });
   const podiumPoints = [
     [HEX.accent4, "Needs you", "A draft PR or a story waiting for your approval."],
     [HEX.accent1, "Decided while away", "Assumptions the run made. Confirm or reverse."],
     [HEX.accent3, "Working now", "Every story agent and what it is doing."],
-    [GRAY, "Two Macs, one run", "State syncs through a git ref. Each claims milestones."],
+    [HEX.accent2, "Hand work over", "Claim opens the owner menu. Owner and priority pulldowns, Given to you, Mine."],
+    [GRAY, "Every run, one menu", "Each run keeps its port a week, so filters stick. Hints flag an older Podium."],
   ];
   podiumPoints.forEach(([hex, head, body], i) => {
-    const x = M + shotW + 0.45, y = 1.75 + i * 1.3;
-    dot(s, { x, y: y + 0.08, d: 0.2, fill: hex, name: "podium dot " + (i + 1) });
+    const x = M + shotW + 0.45, y = 1.6 + i * 1.02;
+    dot(s, { x, y: y + 0.07, d: 0.18, fill: hex, name: "podium dot " + (i + 1) });
     text(s, [
-      { text: head, options: { bold: true, fontSize: 17, breakLine: true } },
-      { text: body, options: { fontSize: 14, color: GRAY } },
-    ], { x: x + 0.38, y, w: CW - shotW - 0.85, h: 1.15 });
+      { text: head, options: { bold: true, fontSize: 16, breakLine: true } },
+      { text: body, options: { fontSize: 13, color: GRAY } },
+    ], { x: x + 0.34, y, w: CW - shotW - 0.79, h: 0.95 });
   });
-  s.addNotes("The Podium on a sample run. Orange: things that need me. Blue: decisions the run made while I was away. Green: stories being built right now. On the right the activity feed shows each dispatch with its model, retries and failures. It's plain JSON and a CLI, Python standard library only, with 438 tests.");
+  s.addNotes("The Podium on a sample run: the run switcher open in the header, the quest's weeks with its pace pills, and each epic's milestones in its own column. Orange: things that need me. Blue: decisions the run made while I was away. Green: stories being built right now. Handing over: Claim opens the owner menu, so an unowned milestone can go straight to a colleague, who sees a Given to you banner until Got it. Owner and priority are pulldowns, and Mine shows your milestones and what waits on you. Each run leases a port on this machine for a week, listed by podium ports and kept longer with pin, so its filters and collapsed sections stick; picking a stopped run starts it. The header also says when someone runs an older Podium. It's plain JSON and a CLI, Python standard library only, with 653 tests.");
+
+  // extras
+  s = slide("DARK", "And a few things just for fun.", "How");
+  const extras = [
+    [fa.FaFlagCheckered, BRIGHT.blue, "Quest wrap-up", "A card the whole last week: what landed, what's open, who landed it."],
+    [fa.FaWandMagicSparkles, BRIGHT.orange, "Landings burst", "Every landing bursts from its card. The quest's last Must brings confetti."],
+    [fa.FaGhost, BRIGHT.purple, "Four new seasons", "Halloween, Easter, Fettisdagen and Valborg."],
+    [fa.FaObjectGroup, BRIGHT.green, "Mocks one click away", "A brief that names a mock links to it."],
+  ];
+  const ewid = (CW - 3 * 0.4) / 4;
+  for (let i = 0; i < extras.length; i++) {
+    const [Ic, hex, head, body] = extras[i];
+    const x = M + i * (ewid + 0.4);
+    await glyph(s, Ic, hex, { x, y: 2.6, d: 0.85, name: "extra " + (i + 1) });
+    text(s, head, { x, y: 3.8, w: ewid, h: 0.9, fontSize: 21, bold: true, color: C.background1 });
+    text(s, body, { x, y: 4.8, w: ewid, h: 1.3, fontSize: 15, color: DARK_GRAY });
+  }
+  s.addNotes("The lighter side. From the quest's last week until its open weeks end, a wrap-up card tallies what landed, what is still open, what moved and who landed it, and copies as text for the demo. A landing bursts from its card all year, and the last Must of the quest landing brings confetti. Halloween, Easter, Fettisdagen and Valborg join Christmas, Lucia and New Year, each with its own particles, hats and walkers. A brief or file list that names a mock under mock/ links it, so the signed-off design is one click from the story.");
 
   // 6 — caps
   pres.addSection({ title: "Cost" });
@@ -394,7 +413,7 @@ async function build() {
     [fa.FaFlask, "TDD", "Red, green, commit"],
     [fa.FaCodeBranch, "Gate", "Opus review, contract"],
     [fa.FaMagnifyingGlass, "Verify", "deep-qa on the real app"],
-    [fa.FaCodePullRequest, "PR", "Agent, Copilot, shots"],
+    [fa.FaCodePullRequest, "PR", "Opus review, Copilot"],
     [fa.FaUserCheck, "You", "Push preview first"],
   ];
   const gw = CW / gates.length;
@@ -407,23 +426,63 @@ async function build() {
     text(s, name, { x: cx - gw / 2, y: 2.7, w: gw, h: 0.4, fontSize: 18, bold: true, align: "center" });
     text(s, desc, { x: cx - gw / 2 + 0.05, y: 3.12, w: gw - 0.1, h: 0.35, fontSize: 13, color: GRAY, align: "center" });
   }
-  text(s, "Eight QA lenses. A verdict, never a silent skip.", { x: M, y: 3.95, w: CW, h: 0.35, fontSize: 15, bold: true, color: GRAY });
+  text(s, "Eight QA lenses, Design at every gate. A verdict, never a silent skip.", { x: M, y: 3.85, w: CW, h: 0.35, fontSize: 15, bold: true, color: GRAY });
   const lenses = [
-    [fa.FaBug, "Defects", "static"], [fa.FaListCheck, "Spec", "static"], [fa.FaPenRuler, "Design", "static"], [fa.FaShieldHalved, "Security", "static"],
+    [fa.FaBug, "Defects", "static"], [fa.FaListCheck, "Spec", "static"], [fa.FaPenRuler, "Design", "copies are Should fix"], [fa.FaShieldHalved, "Security", "static"],
     [fa.FaFileContract, "Contract", "running app"], [fa.FaRoute, "Journeys", "running app"], [fa.FaUniversalAccess, "Accessibility", "running app"], [fa.FaGaugeHigh, "Performance", "running app"],
   ];
   const lw = (CW - 3 * 0.25) / 4;
   for (let i = 0; i < lenses.length; i++) {
     const [Ic, name, kind] = lenses[i];
-    const x = M + (i % 4) * (lw + 0.25), y = 4.45 + Math.floor(i / 4) * 1.15;
-    rounded(s, { x, y, w: lw, h: 0.95, fill: HEX.lt2, name: "lens " + name });
-    await glyph(s, Ic, i < 4 ? HEX.accent1 : HEX.accent3, { x: x + 0.3, y: y + 0.25, d: 0.45, name: "lens " + name });
+    const x = M + (i % 4) * (lw + 0.25), y = 4.3 + Math.floor(i / 4) * 1.0;
+    rounded(s, { x, y, w: lw, h: 0.85, fill: HEX.lt2, name: "lens " + name });
+    await glyph(s, Ic, i < 4 ? HEX.accent1 : HEX.accent3, { x: x + 0.3, y: y + 0.2, d: 0.45, name: "lens " + name });
     text(s, [
       { text: name, options: { bold: true, fontSize: 17, breakLine: true } },
       { text: kind, options: { fontSize: 12, color: GRAY } },
-    ], { x: x + 1.0, y, w: lw - 1.15, h: 0.95, valign: "middle" });
+    ], { x: x + 1.0, y, w: lw - 1.15, h: 0.85, valign: "middle" });
   }
-  s.addNotes("Seven gates between an idea and a push. The grill forces assumptions into the open before code exists, as a spec brief you confirm. TDD stops vacuous tests. deep-qa only reports: pass, fixable or blocked, and a lens that can't run is reported, never dropped. The last gate is always a human.");
+  text(s, [
+    { text: "The contract fails on  ", options: { bold: true } },
+    { text: "new copies of existing code, broken module boundaries and oversized functions.", options: { color: GRAY } },
+  ], { x: M, y: 6.3, w: CW, h: 0.35, fontSize: 15 });
+  s.addNotes("Seven gates between an idea and a push. The grill forces assumptions into the open before code exists, as a spec brief you confirm. TDD stops vacuous tests. The contract fails on new jscpd clones against the base branch, broken module boundaries and size limits, each naming its fix. deep-qa only reports: pass, fixable or blocked, and a lens that can't run is reported, never dropped. Its Design lens runs at every gate and rates a non-trivial duplicate of existing code Should fix; a skipped Should fix is shown to you with its reason. Before the push, create-deep-pr has a fresh-context Opus agent review the whole diff and fixes its blockers, then Copilot reviews the draft. The last gate is always a human.");
+
+  // strategic
+  s = slide("LIGHT", "Strategic programming, built in.", "Quality");
+  const habits = [
+    [fa.FaMagnifyingGlass, "Look first", "A story agent searches for existing code before it writes new."],
+    [fa.FaPuzzlePiece, "Extend, don't copy", "Shared modules grow, even outside the story's scope."],
+    [fa.FaCodeCommit, "Refactors stand alone", "A refactor goes in its own commit, before the change."],
+    [fa.FaBroom, "Room to tidy", "A milestone can be a refactor. The cut keeps it."],
+  ];
+  const hw = (7.3 - 0.4) / 2;
+  for (let i = 0; i < habits.length; i++) {
+    const [Ic, head, body] = habits[i];
+    const x = M + (i % 2) * (hw + 0.4), y = 1.85 + Math.floor(i / 2) * 2.3;
+    await glyph(s, Ic, HEX.accent2, { x, y, d: 0.55, name: "habit " + (i + 1) });
+    text(s, head, { x, y: y + 0.75, w: hw, h: 0.45, fontSize: 20, bold: true });
+    text(s, body, { x, y: y + 1.22, w: hw, h: 0.75, fontSize: 15, color: GRAY });
+  }
+  const px = M + 7.8, pw2 = W - M - px;
+  rounded(s, { x: px, y: 1.75, w: pw2, h: 4.75, fill: HEX.dk1, name: "contract panel", shadow: true });
+  text(s, "The contract fails on", { x: px + 0.4, y: 2.0, w: pw2 - 0.8, h: 0.45, fontSize: 18, bold: true, color: C.background1 });
+  const fails = [
+    [fa.FaClone, BRIGHT.orange, "New duplication", "Clones of code already in the repo."],
+    [fa.FaCubes, BRIGHT.blue, "Broken boundaries", "A module reaching past another's interface."],
+    [fa.FaRulerHorizontal, BRIGHT.green, "Oversized code", "Functions and files over the limit."],
+  ];
+  for (let i = 0; i < fails.length; i++) {
+    const [Ic, hex, head, body] = fails[i];
+    const y = 2.75 + i * 1.15;
+    await glyph(s, Ic, hex, { x: px + 0.4, y: y + 0.05, d: 0.45, name: "contract " + (i + 1) });
+    text(s, [
+      { text: head, options: { bold: true, fontSize: 17, color: C.background1, breakLine: true } },
+      { text: body, options: { fontSize: 14, color: "AEAEB2" } },
+    ], { x: px + 1.1, y, w: pw2 - 1.5, h: 0.95 });
+  }
+  text(s, "Each failure names its fix.", { x: px + 0.4, y: 6.0, w: pw2 - 0.8, h: 0.35, fontSize: 13, color: "AEAEB2" });
+  s.addNotes("Tactical programming gets a story green; strategic programming keeps the codebase cheap to change next month. The idea is John Ousterhout's, from A Philosophy of Software Design. Story agents search for a twin before writing new code, extend shared modules even outside their story's scope and log that as an out-of-scope note, and put a refactor in its own tidy-first commit that merges with the change. The milestone cut keeps refactor milestones instead of folding them away. deep-plan pins longevity gates in each repo's contract: new jscpd clones against the base branch, module boundaries and size limits.");
 
   // 10 — control
   s = slide("DARK", "You stay in charge. Even while away.", "Quality");
@@ -464,14 +523,19 @@ async function build() {
     const nd = 0.7, nx = rcx + dx * ringD / 2 - nd / 2, ny = rcy + dy * ringD / 2 - nd / 2;
     dot(s, { x: nx, y: ny, d: nd, fill: i === 3 ? HEX.dk1 : HEX.accent5, line: HEX.lt1, name: "loop node " + (i + 1) });
     text(s, String(i + 1), { x: nx, y: ny, w: nd, h: nd, fontSize: 20, bold: true, color: C.background1, align: "center", valign: "middle" });
-    const ty = 1.75 + i * 1.2;
+    const ty = 1.6 + i * 1.08;
     text(s, String(i + 1), { x: 6.3, y: ty, w: 0.5, h: 0.45, fontSize: 22, bold: true, color: i === 3 ? C.text1 : C.accent5 });
     text(s, [
       { text: head, options: { bold: true, fontSize: 20, breakLine: true } },
       { text: body, options: { fontSize: 15, color: GRAY } },
-    ], { x: 6.9, y: ty, w: W - M - 6.9, h: 1.05 });
+    ], { x: 6.9, y: ty, w: W - M - 6.9, h: 1.0 });
   });
-  s.addNotes("The setup learns from its own friction. The retro looks for repeated mistakes and repeated work that wastes tokens; podium tokens mines session logs for oversized output and repeated commands. /deep-improve runs as a weekly schedule with nobody watching; it asks nothing, drafts fixes on local branches and writes a report. Nothing ships without my approval.");
+  rounded(s, { x: 6.3, y: 5.95, w: W - M - 6.3, h: 0.75, fill: HEX.lt2, name: "garden band" });
+  text(s, [
+    { text: "Every month  ", options: { bold: true, color: C.accent3 } },
+    { text: "deep-garden drafts refactors of the codebases' churn hotspots, for you to approve.", options: { color: GRAY } },
+  ], { x: 6.55, y: 5.95, w: W - M - 6.8, h: 0.75, fontSize: 14, valign: "middle" });
+  s.addNotes("The setup learns from its own friction. The retro looks for repeated mistakes and repeated work that wastes tokens; podium tokens mines session logs for oversized output and repeated commands. /deep-improve runs as a weekly schedule with nobody watching; it asks nothing, drafts fixes on local branches and writes a report. On the 1st of every month /deep-garden does the same for the product code: it finds churn hotspots and duplication, drafts up to three structural refactors per repo with tests green, and lists them for me to approve or reject. Nothing ships without my approval.");
 
   // 12 — measured
   s = slide("DARK", "What it has shipped so far.", "Payoff");
@@ -496,7 +560,7 @@ async function build() {
     [BRIGHT.blue, "Parallel speed", "Up to 10 agents building at once, each on the model its job needs."],
     [BRIGHT.purple, "Control you can see", "Plan, steer and approve from one screen. Every loop capped."],
     [BRIGHT.green, "Quality by default", "Gates from grill to push, not a review at the end."],
-    [BRIGHT.orange, "Compounding gains", "This week's friction is next week's fix."],
+    [BRIGHT.orange, "Compounding gains", "This week's friction is next week's fix. A monthly garden keeps the codebase tidy."],
   ];
   wins.forEach(([hex, head, body], i) => {
     const x = M + (i % 2) * 6.1, y = 1.85 + Math.floor(i / 2) * 1.85;
@@ -506,7 +570,7 @@ async function build() {
     ], { x, y, w: 5.6, h: 1.5 });
   });
   text(s, "github.com/warriv93/podium-dashboard  ·  github.com/warriv93/deep-skills", { x: M, y: 6.0, w: CW, h: 0.4, fontSize: 15, color: C.background1 });
-  s.addNotes("The four things to take away: parallel agents for speed, Podium for control, gates for quality, and a weekly pass that improves the suite itself. To try it: install Podium from github.com/warriv93/podium-dashboard and the skills with deep-skills' install.sh, then start with /deep-plan on one feature. Questions?");
+  s.addNotes("The four things to take away: parallel agents for speed, Podium for control, gates for quality, and a weekly pass that improves the suite itself, with a monthly garden that keeps the codebase tidy. To try it: install Podium from github.com/warriv93/podium-dashboard and the skills with deep-skills' install.sh, then start with /deep-plan on one feature. Questions?");
 
   await pres.writeFile({ fileName: OUT });
   await applyTheme(OUT, THEME);
