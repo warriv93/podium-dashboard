@@ -32,9 +32,6 @@ const BAUBLES = [["#d70015", "#ff6b6b"], ["#c99700", "#ffe28a"], ["#1f5fbf", "#8
 const SNOW = { kind: "flake", count: 70, fall: [0.25, 1.15], sway: 0.4 };
 const CAPS = {
   __proto__: null,
-  snow: { view: "0 0 240 16", at: "left: 6px; right: 6px; top: -14px; height: 23px; background-size: 280px 100%; background-repeat: round; border-radius: 10px 10px 0 0",
-    svg: "<defs><linearGradient id='g' x2='0' y2='1'><stop offset='.35' stop-color='white'/><stop offset='1' stop-color='%23d5e2f1'/></linearGradient></defs>"
-      + "<path d='M0 6 C8 3 16 3 24 5 C34 0 52 0 62 4 C70 2 80 2 88 5 C100 -1 122 0 134 4 C142 2 152 2 160 5 C172 0 192 0 204 4 C214 2 230 3 240 6 L240 10 L222 10 C221 14 217 14 216 10 L170 10 C169 13 166 13 165 10 L110 10 C109 15 105 15 104 10 L52 10 C51 13 48 13 47 10 L0 10 Z' fill='url(%23g)'/><path d='M0 6 C8 3 16 3 24 5 C34 0 52 0 62 4 C70 2 80 2 88 5 C100 -1 122 0 134 4 C142 2 152 2 160 5 C172 0 192 0 204 4 C214 2 230 3 240 6' fill='none' stroke='%23c6d4e5' stroke-width='.7'/>" },
   grass: { view: "0 0 120 12", svg: "<path d='M0 12 L3 4 L5 12 L8 2 L10 12 L13 5 L15 12 L18 1 L20 12 L23 4 L26 12 L29 3 L31 12 L34 5 L37 12 L40 2 L42 12 L45 4 L48 12 L51 1 L53 12 L56 5 L59 12 L62 3 L64 12 L67 4 L70 12 L73 2 L75 12 L78 5 L81 12 L84 1 L86 12 L89 4 L92 12 L95 3 L97 12 L100 5 L103 12 L106 2 L108 12 L111 4 L114 12 L117 3 L120 12 Z' fill='%2334c759'/>",
     at: "left: 10px; right: 18px; top: -7px; height: 12px; background-size: 100% 100%; background-repeat: no-repeat" },
 };
@@ -171,13 +168,17 @@ function frame() {
     const d = dark();
     for (const f of flakes) {
       f.y += f.v; f.a += f.s; f.turn += f.spin; f.x += Math.sin(f.a) * P.sway + 0.15;
-      if (f.y > H + 8 || f.y < -10) Object.assign(f, flake(false));
+      if (f.y > H + 8 || f.y < -10 || pack?.land(f.x, f.y, f.r * 0.25)) Object.assign(f, flake(false));
       if (f.x > W + 6) f.x = -6;
       draw(f, d);
     }
   }
   requestAnimationFrame(frame);
 }
+let pack = null;
+if (season.cap === "snow") document.head.append(Object.assign(document.createElement("script"), { src: `${ASSETS}snowpack.js`, onload: () => {
+  pack = window.podiumSnowpack({ selector: ".fepic", key: (el) => el.dataset.epicSheet, dark, on: () => !snoozed(), moving: () => !matchMedia("(prefers-reduced-motion: reduce)").matches });
+} }));
 addEventListener("resize", resize);
 resize();
 requestAnimationFrame(frame);

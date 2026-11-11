@@ -73,3 +73,28 @@ class Calendar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+SNOWPACK = os.path.join(ROOT, "podium_dashboard", "season", "snowpack.js")
+
+
+def pack(expr):
+    script = f"const S = require({json.dumps(SNOWPACK)}); console.log(JSON.stringify({expr}));"
+    return json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
+
+
+class Snowpack(unittest.TestCase):
+    def test_a_fresh_blanket_is_thin_at_the_ends_and_never_above_the_cap(self):
+        h = pack("S.blanket(200)")
+        self.assertEqual(len(h), 200)
+        self.assertLess(max(h[0], h[-1]), 0.5)
+        self.assertTrue(all(0 <= v <= 16 for v in h))
+
+    def test_snow_slumps_without_losing_any(self):
+        total, steepest = pack("(() => { const h = Array(40).fill(0); h[20] = 14; for (let k = 0; k < 200; k++) S.settle(h); return [h.reduce((a, b) => a + b), Math.max(...h.slice(1).map((v, i) => Math.abs(v - h[i])))]; })()")
+        self.assertAlmostEqual(total, 14, places=6)
+        self.assertLessEqual(steepest, 1.7)
+
+    def test_snow_heaped_at_an_end_stays_on_the_card(self):
+        total = pack("(() => { const h = Array(10).fill(0); h[0] = 12; for (let k = 0; k < 50; k++) S.settle(h); return h.reduce((a, b) => a + b); })()")
+        self.assertAlmostEqual(total, 12, places=6)
