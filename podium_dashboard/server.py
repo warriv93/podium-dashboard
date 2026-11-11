@@ -67,10 +67,19 @@ and arguments, so it picks up the change; the run's state is all on disk.
 On start, in a run dir inside a git repo, it lists the run's files in the clone's .git/info/exclude, so they stay out
 of git: machine-local state that would otherwise swap with every branch switch.
 
+Each run keeps its port from one start to the next through its lease in ~/.podium/ports.json (ports.py): a start whose
+leased port serves the run already exits 1 saying where; --port overrides the lease and becomes it. The lease is marked
+used about hourly while the server runs.
+
 GET /open?run=<slug> is where a shared deep link lands (`http://127.0.0.1:8765/open?run=<slug>#/M24`, the port a
-Podium takes first): it redirects to the Podium of that run on this machine, this one or the first of ports
-8765-8784 whose /info says the same `run` (the run's sync ref slug), keeping the link's #route; 404 with the command to
-start one when none does. It only selects a localhost port, never a path, and writes nothing.
+Podium takes first): it redirects to the Podium of that run on this machine, keeping the link's #route: this one, else
+the one on the run's leased port, else the first of ports 8765-8784 whose /info says the same `run` (the run's sync ref
+slug); else, for a run with a lease whose dir is there, the server it starts detached in that dir; 404 with the command
+to start one when none of these. It only selects a localhost port, and starts nothing but a leased run from the dir
+ports.json names, never one from the request.
+
+GET /runs lists the machine's leases for the page's run switcher, {runs: [{slug, port, live, used, pinned, title,
+current}]}; POST /runs/<slug>/start does what /open does for a leased run and answers its {url}.
 
 GET /git says, per repo the run works in (its own, plus the active milestone's `repos`), how far the checkout's branch
 and the default branch are behind origin, refreshed by a `git fetch` every --git-every minutes (default 5, 0 =
@@ -99,7 +108,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
-from podium_dashboard import extension, sync, version
+from podium_dashboard import extension, ports, sync, version
 from podium_dashboard.commands import Building, give_milestone
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
@@ -198,12 +207,18 @@ def run_slug(p):
     return re.sub(r"[^a-z0-9]+", "-", ref.rsplit("/", 1)[-1].lower()).strip("-") or "run"
 
 
+def title_of(data):
+    project = data.get("project") if isinstance(data.get("project"), dict) else {}
+    return project.get("title") if isinstance(project.get("title"), str) else None
+
+
 def info(root):
     p = load_podium(root)
     data = p.data if p else {}
     people = data.get("people") if isinstance(data.get("people"), dict) else {}
     module = extension.load(p)[0] if p else None
-    return {"runDir": root, "repoDir": repo_dir(root), "run": run_slug(p) if p else None, "watching": watcher_running(podium_dir(root)),
+    return {"runDir": root, "repoDir": repo_dir(root), "run": run_slug(p) if p else None, "title": title_of(data),
+            "watching": watcher_running(podium_dir(root)),
             "orchestrator": {**orchestrator_of(data), "shareSteps": extension.share_steps(module)},
             "me": p.me if p else None,
             "people": {name: {"active": who.get("active"), **({"podium": VERSIONS[name]} if name in VERSIONS else {})}
@@ -369,6 +384,65 @@ def stop_when_idle(server, root, minutes):
             return
 
 
+START_WAIT = 10
+
+
+def start_run(slug, root):
+    """Start run `slug`'s server detached in `root`, the dir its lease names, and wait until it answers: its port, or
+    None. It starts in the folder holding this package, as a restart does."""
+    try:
+        r = subprocess.run([sys.executable, "-m", "podium_dashboard.server", "--dir", root, "--detach"], capture_output=True,
+                           text=True, timeout=30, cwd=os.path.dirname(PACKAGE))
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    found = re.search(r"http://127\.0\.0\.1:(\d+)/", r.stdout + r.stderr)
+    until = time.time() + START_WAIT
+    while found and time.time() < until:
+        if ports.serving(int(found[1])) == slug:
+            return int(found[1])
+        time.sleep(0.1)
+    return None
+
+
+def reach(slug, own):
+    """The port of run `slug`'s Podium on this machine but `own`: its lease's when that serves it, else the first of the
+    range that does, else, with a lease whose dir is there, the one started there; None when none of these."""
+    lease = ports.read().get(slug)
+    if lease and lease["port"] != own and ports.serving(lease["port"]) == slug:
+        return lease["port"]
+    found = next((x for x in range(PORT, PORT + PORTS) if x != own and ports.serving(x) == slug), None)
+    if found or not lease or not os.path.isdir(lease["dir"]):
+        return found
+    return start_run(slug, lease["dir"])
+
+
+def runs(root, own):
+    """Every lease and this run's, in slug order, with whether its port serves it and its title."""
+    p = load_podium(root)
+    mine = run_slug(p) if p else None
+    leases = ports.read()
+    if mine:
+        leases[mine] = {**leases.get(mine, {}), "port": own}
+    out = []
+    for slug, lease in sorted(leases.items()):
+        got = info(root) if slug == mine else http(f"http://127.0.0.1:{lease['port']}/info", timeout=0.5)
+        live = isinstance(got, dict) and got.get("run") == slug
+        title = got.get("title") if live else None
+        out.append({"slug": slug, "port": lease["port"], "live": live, "used": lease.get("used"),
+                    "pinned": lease.get("pinned") is True, "title": title if isinstance(title, str) else None,
+                    "current": slug == mine})
+    return {"runs": out}
+
+
+def keep_lease(slug, root, port):
+    while True:
+        time.sleep(ports.REFRESH)
+        try:
+            ports.touch(slug, root, port)
+        except OSError as e:
+            print(f"podium lease not refreshed: {e}", flush=True)
+
+
 def contains(base, path):
     """Whether `path` is `base` or below it, both already resolved."""
     return os.path.commonpath([base, path]) == base
@@ -478,6 +552,8 @@ def make_handler(root):
         def do_GET(self):
             if self.path == "/info":
                 return self.reply(200, {**info(root), "lan": LAN["url"]} if LAN else info(root))
+            if self.path == "/runs":
+                return self.reply(200, runs(root, self.server.server_address[1]))
             if self.path.split("?")[0] == "/open":
                 return self.open_run(parse_qs(urlparse(self.path).query).get("run", [""])[0])
             if self.path == "/git":
@@ -516,18 +592,16 @@ def make_handler(root):
 
         def open_run(self, run):
             """Redirect to the Podium of run `run` on this machine, the page's own fragment (the deep link) kept by the
-            browser: this server if it serves it, else the first one of the port range that does; else a page saying how
-            to open it. Only a port number of this machine goes into the Location."""
+            browser: this server if it serves it, else the one reach() finds or starts; else a page saying how to open
+            it. Only a port number of this machine goes into the Location."""
             if not RUN_SLUG.match(run):
                 return self.send_error(400)
-            own = self.server.server_address[1]
             p = load_podium(root)
             if p and run_slug(p) == run:
                 return self.redirect("/")
-            for port in (x for x in range(PORT, PORT + PORTS) if x != own):
-                got = http(f"http://127.0.0.1:{port}/info", timeout=0.5)
-                if isinstance(got, dict) and got.get("run") == run:
-                    return self.redirect(f"http://127.0.0.1:{port}/")
+            port = reach(run, self.server.server_address[1])
+            if port:
+                return self.redirect(f"http://127.0.0.1:{port}/")
             page = f"<!doctype html><meta charset=utf-8><title>Podium</title><body style=\"font:16px system-ui;max-width:40em;margin:4em auto\"><h1>This run isn't open here</h1><p>No Podium on this machine serves the run <b>{run}</b>. In your checkout of the run, start one, then open the link again:</p><pre>podium server --detach</pre>"
             self.send(404, "text/html; charset=utf-8", page.encode())
 
@@ -557,6 +631,8 @@ def make_handler(root):
                 return self.reply(202, {"restarting": True})
             if url.path == "/pull":
                 return self.reply(200, pull_run(root) or {"result": "OFF"})
+            if first == "runs":
+                return self.start(url.path.split("/")[2:])
             if first == "reviewed":
                 return self.reviewed(urllib.parse.unquote(url.path[len("/reviewed/"):]), parse_qs(url.query))
             if first == "owner":
@@ -596,6 +672,23 @@ def make_handler(root):
             if action in SETTLE and note:
                 line["note"] = note
             self.queue(line)
+
+        def start(self, parts):
+            """POST /runs/<slug>/start: the URL of leased run `slug`'s Podium, started as /open starts it when stopped."""
+            if len(parts) != 2 or parts[1] != "start":
+                return self.reply(404, {"error": "unknown action"})
+            slug, own = urllib.parse.unquote(parts[0]), self.server.server_address[1]
+            if not RUN_SLUG.match(slug):
+                return self.reply(400, {"error": "not a run slug"})
+            p = load_podium(root)
+            if p and run_slug(p) == slug:
+                return self.reply(200, {"url": f"http://127.0.0.1:{own}/"})
+            if slug not in ports.read():
+                return self.reply(404, {"error": f"no lease for {slug}"})
+            port = reach(slug, own)
+            if not port:
+                return self.reply(502, {"error": f"{slug} didn't start: see server.log in its podium folder"})
+            self.reply(200, {"url": f"http://127.0.0.1:{port}/"})
 
         def do_DELETE(self):
             if self.path.startswith("/handoff/"):
@@ -834,7 +927,7 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     ap = argparse.ArgumentParser(prog="podium server")
     ap.add_argument("--dir")
-    ap.add_argument("--port", type=int, default=PORT)
+    ap.add_argument("--port", type=int, help="the first free port from this one instead of the run's lease, which it becomes")
     ap.add_argument("--idle", type=float, default=60, help="minutes without activity before stopping; 0 = never")
     ap.add_argument("--detach", action="store_true", help="print the URL, then keep serving in the background")
     ap.add_argument("--git-every", type=float, default=5, help="minutes between fetches for GET /git; 0 = never")
@@ -843,7 +936,12 @@ def main(argv=None):
     args = ap.parse_args(argv)
     root = run_dir(args.dir)
     exclude_run_files(root)
-    port = free_port(args.port)
+    p = load_podium(root)
+    slug = run_slug(p) if p else None
+    try:
+        port = ports.take(slug, root, PORT, PORTS, args.port) if slug else free_port(args.port or PORT)
+    except ports.Served as e:
+        sys.exit(f"podium server: {slug} is already served at http://127.0.0.1:{e.port}/")
     server = ThreadingHTTPServer(("0.0.0.0" if args.lan else "127.0.0.1", port), make_handler(root))
     ARGV[:] = [a for a in argv if a != "--detach"] + ["--dir", root, "--port", str(port)]
     print(f"http://127.0.0.1:{port}/", flush=True)
@@ -862,6 +960,8 @@ def main(argv=None):
     if args.git_every > 0:
         threading.Thread(target=watch_git, args=(root, args.git_every), daemon=True).start()
     threading.Thread(target=auto_pull, args=(root,), daemon=True).start()
+    if slug:
+        threading.Thread(target=keep_lease, args=(slug, root, port), daemon=True).start()
     if args.version_every > 0:
         threading.Thread(target=watch_versions, args=(root, version.running(), args.version_every * 60), daemon=True).start()
     if args.idle > 0:

@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from podium_dashboard import human, server  # noqa: E402
+from podium_dashboard import human, ports, server  # noqa: E402
 
 REF = "refs/heads/podium-run/api"
 
@@ -76,16 +76,16 @@ class Server(unittest.TestCase):
             f.write(text)
         return path
 
-    def serve(self, data=DATA, extension=None, git_every=0, lan=False):
+    def serve(self, data=DATA, extension=None, git_every=0, lan=False, leased=None):
         data = json.loads(json.dumps(data))
         if extension:
             data["orchestrator"]["extension"] = self.write("ext/orch.py", textwrap.dedent(extension))
         with open(os.path.join(self.pod, "podium.json"), "w") as f:
             json.dump(data, f)
-        self.port = free_port()
+        self.port = leased or free_port()
         proc = subprocess.Popen([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "server",
-                                 "--port", str(self.port), "--idle", "0", "--git-every", str(git_every), "--version-every", "0",
-                                 *(["--lan"] if lan else [])],
+                                 *([] if leased else ["--port", str(self.port)]), "--idle", "0", "--git-every", str(git_every),
+                                 "--version-every", "0", *(["--lan"] if lan else [])],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env, cwd=self.tmp)
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
@@ -116,6 +116,44 @@ class Server(unittest.TestCase):
         r, body = self.response(method, path, headers)
         return r.status, (json.loads(body) if r.getheader("Content-Type") == "application/json" else body)
 
+    def lease(self, slug, port, run_dir, **more):
+        path = os.path.join(self.tmp, "ports.json")
+        leases = self.leases()
+        leases[slug] = {"port": port, "used": datetime.now(timezone.utc).isoformat(timespec="seconds"), "dir": run_dir, **more}
+        with open(path, "w") as f:
+            json.dump(leases, f)
+
+    def leases(self):
+        try:
+            with open(os.path.join(self.tmp, "ports.json")) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+
+    def other_run(self, name="web", data=DATA):
+        other = os.path.join(self.tmp, name, ".deep-plan")
+        os.makedirs(os.path.join(other, "podium"), exist_ok=True)
+        with open(os.path.join(other, "podium", "podium.json"), "w") as f:
+            json.dump(data, f)
+        return other
+
+    def in_process(self, run_dir, port=None):
+        """A Podium for `run_dir` in this process, so a test can stub what it calls; its port."""
+        httpd = server.ThreadingHTTPServer(("127.0.0.1", port or free_port()), server.make_handler(run_dir))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        return httpd.server_address[1]
+
+    def stubbed(self, started):
+        """Patches for an in-process Podium: this test's ports.json, no port range to scan, and a start that serves the
+        run in this process on its leased port and records what it was asked to start."""
+        def start(slug, run_dir):
+            started.append((slug, run_dir))
+            return self.in_process(run_dir, self.leases()[slug]["port"])
+        return [unittest.mock.patch.object(human, "HUMAN_FILE", self.env["PODIUM_HUMAN"]),
+                unittest.mock.patch.object(server, "PORTS", 0), unittest.mock.patch.object(server, "start_run", start)]
+
     def requests(self):
         try:
             with open(os.path.join(self.pod, "requests.jsonl")) as f:
@@ -129,9 +167,9 @@ class Info(Server):
         self.serve({**DATA, "people": {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}}})
         code, info = self.call("GET", "/info")
         self.assertEqual(code, 200)
-        self.assertEqual(set(info), {"runDir", "repoDir", "run", "watching", "orchestrator", "me", "people", "paseoServer",
+        self.assertEqual(set(info), {"runDir", "repoDir", "run", "title", "watching", "orchestrator", "me", "people", "paseoServer",
                                      "lastUse", "stale", "pull"})
-        self.assertEqual((info["runDir"], info["repoDir"], info["run"]), (self.run_dir, self.repo, "api"))
+        self.assertEqual((info["runDir"], info["repoDir"], info["run"], info["title"]), (self.run_dir, self.repo, "api", "T"))
         self.assertEqual(info["orchestrator"], {"name": "orch", "command": "/orch", "shareSteps": None})
         self.assertEqual(info["me"], "ann")
         self.assertEqual(info["people"], {"ann": {"active": {"milestone": "M1"}}, "bob": {"active": {"milestone": "M2"}}})
@@ -202,9 +240,154 @@ class Open(Server):
         self.addCleanup(httpd.server_close)
         self.addCleanup(httpd.shutdown)
         self.port = httpd.server_address[1]
-        with unittest.mock.patch.object(server, "PORT", mine), unittest.mock.patch.object(server, "PORTS", 1):
+        with unittest.mock.patch.object(server, "PORT", mine), unittest.mock.patch.object(server, "PORTS", 1), \
+                unittest.mock.patch.object(human, "HUMAN_FILE", self.env["PODIUM_HUMAN"]):
             r, _ = self.response("GET", "/open?run=api")
         self.assertEqual((r.status, r.getheader("Location")), (302, f"http://127.0.0.1:{mine}/"))
+
+    def test_a_run_whose_lease_serves_it_redirects_there_without_a_scan(self):
+        other = self.other_run()
+        with unittest.mock.patch.object(human, "HUMAN_FILE", self.env["PODIUM_HUMAN"]):
+            port = self.in_process(other)
+        self.lease("web", port, other)
+        self.serve()
+        r, _ = self.response("GET", "/open?run=web")
+        self.assertEqual((r.status, r.getheader("Location")), (302, f"http://127.0.0.1:{port}/"))
+
+    def test_a_stopped_run_with_a_lease_is_started_from_the_leases_dir_and_then_redirected_to(self):
+        other, started = self.other_run(), []
+        self.lease("web", free_port(), other)
+        for patch in self.stubbed(started):
+            patch.start()
+            self.addCleanup(patch.stop)
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(DATA, f)
+        self.port = self.in_process(self.run_dir)
+        r, _ = self.response("GET", "/open?run=web")
+        self.assertEqual(started, [("web", other)])
+        self.assertEqual(r.status, 302)
+        self.assertRegex(r.getheader("Location"), r"^http://127\.0\.0\.1:\d+/$")
+        self.assertEqual(server.http(r.getheader("Location") + "info")["run"], "web")
+
+    def test_never_starts_a_run_without_a_lease_or_one_whose_dir_is_gone(self):
+        started = []
+        self.lease("gone", free_port(), os.path.join(self.tmp, "nowhere"))
+        for patch in self.stubbed(started):
+            patch.start()
+            self.addCleanup(patch.stop)
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(DATA, f)
+        self.port = self.in_process(self.run_dir)
+        for run in ("other", "gone"):
+            r, body = self.response("GET", f"/open?run={run}")
+            self.assertEqual(r.status, 404)
+            self.assertIn("podium server --detach", body)
+        self.assertEqual(started, [])
+
+
+class Leases(Server):
+    def test_a_run_takes_its_leased_port_and_a_second_start_of_it_is_refused(self):
+        port = free_port()
+        self.lease("api", port, self.run_dir)
+        self.serve(leased=port)
+        self.assertEqual(self.call("GET", "/info")[1]["run"], "api")
+        again = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "server", "--idle", "0"],
+                               capture_output=True, text=True, env=self.env, cwd=self.tmp, timeout=30)
+        self.assertEqual(again.returncode, 1)
+        self.assertIn(f"api is already served at http://127.0.0.1:{port}/", again.stderr)
+        self.assertEqual(again.stdout, "")
+
+    def test_an_explicit_port_is_recorded_as_the_runs_lease(self):
+        self.serve()
+        lease = self.leases()["api"]
+        self.assertEqual((lease["port"], lease["dir"]), (self.port, self.run_dir))
+        self.assertLess(datetime.now(timezone.utc) - datetime.fromisoformat(lease["used"]), timedelta(minutes=1))
+
+    def test_starting_a_run_spawns_a_detached_server_for_its_dir_and_waits_for_it(self):
+        other = self.other_run()
+        with unittest.mock.patch.object(human, "HUMAN_FILE", self.env["PODIUM_HUMAN"]):
+            port = self.in_process(other)
+        calls = []
+
+        def run(argv, **kw):
+            calls.append((argv, kw.get("cwd")))
+            return subprocess.CompletedProcess(argv, 0, f"http://127.0.0.1:{port}/\n", "")
+        with unittest.mock.patch.object(server.subprocess, "run", run):
+            self.assertEqual(server.start_run("web", other), port)
+        self.assertEqual(calls[0], ([sys.executable, "-m", "podium_dashboard.server", "--dir", other, "--detach"], ROOT))
+
+    def test_a_start_that_never_serves_the_run_gives_none(self):
+        port = free_port()
+        with unittest.mock.patch.object(server.subprocess, "run",
+                                        lambda argv, **kw: subprocess.CompletedProcess(argv, 1, "", "no free port")), \
+                unittest.mock.patch.object(server, "START_WAIT", 0.2):
+            self.assertIsNone(server.start_run("web", self.run_dir))
+        with unittest.mock.patch.object(server.subprocess, "run",
+                                        lambda argv, **kw: subprocess.CompletedProcess(argv, 0, f"http://127.0.0.1:{port}/\n", "")), \
+                unittest.mock.patch.object(server, "START_WAIT", 0.2):
+            self.assertIsNone(server.start_run("web", self.run_dir))
+
+
+class Runs(Server):
+    def test_lists_every_lease_with_whether_it_serves_marking_this_run(self):
+        other, gone = self.other_run(), self.other_run("ops")
+        port = free_port()
+        self.lease("web", port, other, pinned=True)
+        self.lease("ops", free_port(), gone)
+        self.serve()
+        runs = self.call("GET", "/runs")[1]["runs"]
+        self.assertEqual([r["slug"] for r in runs], ["api", "ops", "web"])
+        mine, web = runs[0], runs[2]
+        self.assertEqual({k: mine[k] for k in ("port", "live", "current", "title", "pinned")},
+                         {"port": self.port, "live": True, "current": True, "title": "T", "pinned": False})
+        self.assertEqual({k: web[k] for k in ("port", "live", "current", "title", "pinned")},
+                         {"port": port, "live": False, "current": False, "title": None, "pinned": True})
+        self.assertTrue(web["used"])
+
+    def test_a_live_run_gives_its_title(self):
+        other = self.other_run(data={**DATA, "project": {"title": "Web <b>"}})
+        with unittest.mock.patch.object(human, "HUMAN_FILE", self.env["PODIUM_HUMAN"]):
+            port = self.in_process(other)
+        self.lease("web", port, other)
+        self.serve()
+        web = next(r for r in self.call("GET", "/runs")[1]["runs"] if r["slug"] == "web")
+        self.assertEqual((web["live"], web["title"]), (True, "Web <b>"))
+
+    def test_start_runs_a_stopped_leased_run_and_answers_its_url_with_no_watcher(self):
+        other, started = self.other_run(), []
+        self.lease("web", free_port(), other)
+        for patch in self.stubbed(started):
+            patch.start()
+            self.addCleanup(patch.stop)
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(DATA, f)
+        self.port = self.in_process(self.run_dir)
+        code, body = self.call("POST", "/runs/web/start")
+        self.assertEqual(code, 200)
+        self.assertEqual(started, [("web", other)])
+        self.assertRegex(body["url"], r"^http://127\.0\.0\.1:\d+/$")
+        self.assertEqual(server.http(body["url"] + "info")["run"], "web")
+        self.assertEqual(self.call("POST", "/runs/web/start")[1], body)
+        self.assertEqual(len(started), 1)
+
+    def test_start_answers_this_runs_own_url_and_refuses_a_slug_without_a_lease(self):
+        started = []
+        for patch in self.stubbed(started):
+            patch.start()
+            self.addCleanup(patch.stop)
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(DATA, f)
+        self.port = self.in_process(self.run_dir)
+        self.assertEqual(self.call("POST", "/runs/api/start"), (200, {"url": f"http://127.0.0.1:{self.port}/"}))
+        self.assertEqual(self.call("POST", "/runs/other/start")[0], 404)
+        self.assertEqual(self.call("POST", "/runs/..%2Fx/start")[0], 400)
+        self.assertEqual(self.call("POST", "/runs/web")[0], 404)
+        self.assertEqual(started, [])
+
+    def test_refuses_a_start_from_another_origin(self):
+        self.lease("web", free_port(), self.other_run())
+        self.serve()
+        self.assertEqual(self.call("POST", "/runs/web/start", {"Origin": "http://evil.example"})[0], 403)
 
 
 class Hardening(Server):

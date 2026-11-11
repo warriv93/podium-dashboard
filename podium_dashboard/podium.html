@@ -81,6 +81,14 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .brand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .brand .eyebrow { display: flex; align-items: center; gap: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
 .brand h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.runbtn { flex: none; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-2); cursor: pointer; }
+.runbtn::after { content: ""; display: inline-block; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; }
+.runbtn:hover, .runbtn[aria-expanded="true"] { background: var(--gray-soft); color: var(--text); }
+.owner-menu.runs-menu { left: 0; right: auto; min-width: 240px; }
+.runs-menu .run-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--text-3); opacity: .45; }
+.runs-menu .run-dot.on { background: var(--green-dot); opacity: 1; }
+.runs-menu .run-port { color: var(--text-3); font-size: 12px; font-weight: 400; }
 .theme { display: inline-flex; background: var(--gray-soft); border-radius: 9px; padding: 2px; gap: 2px; }
 .theme button { border: 0; background: transparent; border-radius: 7px; padding: 3px 8px; font-size: 11px; color: var(--text-2); cursor: pointer; }
 .theme button.on { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
@@ -787,7 +795,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
     <svg class="logo" id="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg-tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#1c1c1e"/></linearGradient><linearGradient id="lg-blue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2997ff"/><stop offset="1" stop-color="#0066d6"/></linearGradient><linearGradient id="lg-amber" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb340"/><stop offset="1" stop-color="#f08c00"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#lg-tile)"/><rect x=".5" y=".5" width="63" height="63" rx="13.5" fill="none" stroke="#fff" stroke-opacity=".14"/><rect x="20" y="17" width="6" height="26" rx="3" fill="#34c759"/><rect x="29" y="9" width="6" height="34" rx="3" fill="url(#lg-blue)"/><rect x="38" y="23" width="6" height="20" rx="3" fill="url(#lg-amber)"/><rect x="18" y="46" width="28" height="5" rx="1.5" fill="#f5f5f7"/><rect x="13" y="50.5" width="38" height="5" rx="1.5" fill="#fff"/></svg>
     <div class="brand">
       <span class="eyebrow"><span>Podium</span><span class="live" id="live"><i></i><span>Live</span></span><button class="restart" id="restart" data-restart hidden title="The Podium's code changed after this server started, so its buttons can fail. Restart it to pick up the change; the run's state is on disk">Restart</button></span>
-      <h1 id="epic-title">Loading…</h1>
+      <div class="title-row"><h1 id="epic-title">Loading…</h1><span class="ownwrap" id="runs"></span></div>
       <div class="people" id="people" hidden></div>
     </div>
     <div class="corner">
@@ -889,26 +897,26 @@ function setTheme(t) {
   document.querySelectorAll("[data-theme-set]").forEach((b) => { b.classList.toggle("on", b.dataset.themeSet === t); b.setAttribute("aria-checked", b.dataset.themeSet === t); });
   try { localStorage.setItem("podium-theme", t); } catch { /* private mode */ }
 }
-const readHideFinished = () => { try { return localStorage.getItem("podium-hide-finished") === "1"; } catch { return false; } };
+/* a port can serve another run once its lease lapses, so the run's own choices are kept under <key>:<run slug> */
+const runKey = (k) => `${k}:${S.info?.run || ""}`;
+const readRun = (k) => { try { return localStorage.getItem(runKey(k)); } catch { return null; } };
+const writeRun = (k, v) => { if (S.info?.run) try { localStorage.setItem(runKey(k), v); } catch { /* private mode */ } };
 function setHideFinished(on) {
   S.hideFinished = on;
-  try { localStorage.setItem("podium-hide-finished", on ? "1" : "0"); } catch { /* private mode */ }
+  writeRun("podium-hide-finished", on ? "1" : "0");
 }
-S.hideFinished = readHideFinished();
 function setCollapsed(on) {
   S.collapsed = on;
-  try { localStorage.setItem("podium-collapsed", on ? "1" : "0"); } catch { /* private mode */ }
+  writeRun("podium-collapsed", on ? "1" : "0");
 }
-S.collapsed = (() => { try { return localStorage.getItem("podium-collapsed") === "1"; } catch { return false; } })();
 function setMine(on) {
   S.mine = on;
-  try { localStorage.setItem("podium-mine", on ? "1" : "0"); } catch { /* private mode */ }
+  writeRun("podium-mine", on ? "1" : "0");
 }
-S.mine = (() => { try { return localStorage.getItem("podium-mine") === "1"; } catch { return false; } })();
 const TIERS = [["must", "Must have"], ["should", "Should have"], ["nice", "Nice to have"]], EVERY_TIER = TIERS.map(([t]) => t);
 function readPrioShown() {
   try {
-    const stored = JSON.parse(localStorage.getItem("podium-priority-filter")), shown = EVERY_TIER.filter((t) => Array.isArray(stored) && stored.includes(t));
+    const stored = JSON.parse(readRun("podium-priority-filter")), shown = EVERY_TIER.filter((t) => Array.isArray(stored) && stored.includes(t));
     return shown.length ? shown : EVERY_TIER;
   } catch { return EVERY_TIER; }
 }
@@ -916,9 +924,16 @@ function togglePrioTier(tier) {
   const on = S.prioShown.includes(tier);
   if (on && S.prioShown.length === 1) return;
   S.prioShown = EVERY_TIER.filter((t) => (t === tier ? !on : S.prioShown.includes(t)));
-  try { localStorage.setItem("podium-priority-filter", JSON.stringify(S.prioShown)); } catch { /* private mode */ }
+  writeRun("podium-priority-filter", JSON.stringify(S.prioShown));
 }
-S.prioShown = readPrioShown();
+function loadRunChoices() {
+  S.hideFinished = readRun("podium-hide-finished") === "1";
+  S.collapsed = readRun("podium-collapsed") === "1";
+  S.mine = readRun("podium-mine") === "1";
+  S.prioShown = readPrioShown();
+  S.handedSeen = undefined;
+}
+loadRunChoices();
 setTheme((() => { try { return localStorage.getItem("podium-theme") || "system"; } catch { return "system"; } })());
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (n) => Number(n) || 0;
@@ -940,12 +955,13 @@ function vsc(path, base = "runDir") {
 fetch("/info", { cache: "no-store" }).then((r) => r.json()).then(setInfo).catch(() => {});
 function setInfo(i) {
   const first = !S.info, meChanged = !first && i.me !== S.info.me, orchChanged = !first && JSON.stringify(i.orchestrator) !== JSON.stringify(S.info.orchestrator);
-  const peopleChanged = first || JSON.stringify(i.people) !== JSON.stringify(S.info.people);
+  const peopleChanged = first || JSON.stringify(i.people) !== JSON.stringify(S.info.people), runChanged = first || i.run !== S.info.run;
   S.info = i; S.watching = i.watching; S.stale = !!i.stale;
+  if (runChanged) loadRunChoices();
   if ((first || meChanged) && S.raw) loadProject();
   if (peopleChanged || meChanged) { renderPeople(); if (S.project) renderCrew(); }
   if (S.project) renderFetch();
-  if ((first || meChanged || orchChanged) && S.project) render();
+  if ((first || meChanged || orchChanged || runChanged) && S.project) render();
 }
 /* a poll keeps the server alive only while someone is at the tab: in view and touched in the last
    10 minutes, so a tab left open on an unattended screen lets it stop when idle */
@@ -1174,15 +1190,42 @@ function ownerMenu(m) {
 const ownerMenuBtn = (m, chip) => `<span class="ownwrap"><button class="ownbtn" data-owner-menu="${esc(m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === m.id}" title="Change who owns ${esc(m.id)}">${chip}</button>${S.ownerMenu === m.id ? ownerMenu(m) : ""}</span>`;
 const ownerOrClaim = (m, chip) => ((c) => (c ? ownerMenuBtn(m, c) : claimBtn(m)))(ownerChip(m, chip));
 function setOwnerMenu(id) { S.ownerMenu = id; render(); }
-const HANDED_KEY = "podium-handed-seen";
+async function setRunsMenu(open) {
+  S.runsMenu = open;
+  if (open) {
+    try { S.runs = (await (await fetch("/runs", { cache: "no-store" })).json()).runs; } catch { S.runs = null; }
+    if (!S.runsMenu) return;
+  }
+  renderRuns();
+}
+function renderRuns() {
+  const row = (r) => `<button role="menuitemradio" aria-checked="${!!r.current}" data-run-go="${esc(r.slug)}" title="${esc(r.live ? `Open ${r.slug}` : `Start ${r.slug}, then open it`)}"><span class="run-dot ${r.live ? "on" : ""}"></span><span>${esc(r.title || r.slug)}</span><span class="run-port">${esc(r.slug)} · ${num(r.port)}</span>${r.current ? `<b class="tick">✓</b>` : ""}</button>`;
+  const list = Array.isArray(S.runs) ? S.runs.map(row).join("") : `<div class="owner-note">Couldn't list this machine's runs</div>`;
+  $("runs").innerHTML = `<button class="runbtn" data-runs-menu aria-haspopup="menu" aria-expanded="${!!S.runsMenu}" aria-label="Switch run" title="Switch to another run on this machine"></button>${S.runsMenu ? `<div class="owner-menu runs-menu" role="menu" aria-label="Runs on this machine">${list}</div>` : ""}`;
+}
+async function goRun(slug) {
+  const r = (S.runs || []).find((x) => x.slug === slug);
+  setRunsMenu(false);
+  if (!r || r.current) return;
+  if (r.live) { location.href = `http://127.0.0.1:${num(r.port)}/`; return; }
+  toast(`Starting ${slug}…`);
+  try {
+    const res = await fetch(`/runs/${encodeURIComponent(slug)}/start`, { method: "POST" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !/^http:\/\/127\.0\.0\.1:\d+\/$/.test(body.url || "")) return toast(body.error ? `Couldn't start ${slug}: ${body.error}` : "This Podium server predates the run switcher — restart it");
+    location.href = body.url;
+  } catch {
+    toast("Couldn't reach the Podium server — start it with podium server --detach");
+  }
+}
 function handedToMe() {
-  const seen = S.handedSeen ?? Number(localStorage.getItem(HANDED_KEY) || 0), last = new Map();
+  const seen = S.handedSeen ?? Number(readRun("podium-handed-seen") || 0), last = new Map();
   for (const e of S.events || []) if (e.type === "owner" && e.milestone) last.set(e.milestone, e);
   return [...last.values()].filter((e) => isMe(e.owner) && typeof e.by === "string" && !isMe(e.by) && Date.parse(e.at) > seen && isMe(msOf(e.milestone)?.owner));
 }
 function seeHanded() {
   S.handedSeen = Date.now();
-  localStorage.setItem(HANDED_KEY, String(S.handedSeen));
+  writeRun("podium-handed-seen", String(S.handedSeen));
 }
 function handedBanner() {
   const list = handedToMe();
@@ -1978,11 +2021,10 @@ function renderEvents() {
 
 const AWAY_MS = 30 * 60000;
 const DIGEST_SKIP = new Set(["assumed", "settled", "needs", "human", "request", "commit", "status", "note"]);
-const seenKey = () => `podium-seen:${S.project?.project?.title || location.port}`;
 function markSeen() {
-  if (document.visibilityState !== "visible" || !S.project) return false;
-  const k = seenKey(), prev = Number(localStorage.getItem(k) || 0), now = Date.now();
-  localStorage.setItem(k, String(now));
+  if (document.visibilityState !== "visible" || !S.project || !S.info?.run) return false;
+  const prev = Number(readRun("podium-seen") || 0), now = Date.now();
+  writeRun("podium-seen", String(now));
   if (prev && now - prev > AWAY_MS && S.digestSince == null) { S.digestSince = prev; return true; }
   return false;
 }
@@ -2860,6 +2902,10 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 
 document.addEventListener("click", (ev) => {
   if (S.prioMenu && !ev.target.closest("#prio-filter")) setPrioMenu(false);
+  if (S.runsMenu && !ev.target.closest("#runs")) setRunsMenu(false);
+  const rg = ev.target.closest("[data-run-go]");
+  if (rg) { goRun(rg.dataset.runGo); return; }
+  if (ev.target.closest("[data-runs-menu]")) { setRunsMenu(!S.runsMenu); return; }
   const om = ev.target.closest("[data-owner-menu]"), give = ev.target.closest("[data-give]");
   if (om) { setOwnerMenu(S.ownerMenu === om.dataset.ownerMenu ? null : om.dataset.ownerMenu); return; }
   if (give) { if (!give.disabled) giveMs(give.dataset.give, give.dataset.to); return; }
@@ -2956,7 +3002,8 @@ document.addEventListener("keydown", (ev) => {
   else if (ev.key === "Enter" && ev.target.matches(".node, .fchip, .fms, .otitle, .fepic, .quest")) ev.target.click();
 });
 function onEscape() {
-  if (S.prioMenu) { setPrioMenu(false); $("prio-filter").querySelector("[data-prio-menu]")?.focus(); }
+  if (S.runsMenu) { setRunsMenu(false); $("runs").querySelector("[data-runs-menu]")?.focus(); }
+  else if (S.prioMenu) { setPrioMenu(false); $("prio-filter").querySelector("[data-prio-menu]")?.focus(); }
   else if (S.ownerMenu) setOwnerMenu(null);
   else if (S.prioPick) setPrioPick(null);
   else if (S.sel) closeSheet();
@@ -3031,6 +3078,7 @@ window.addEventListener("resize", () => { if (S.project) drawLines(); });
 $("quality").addEventListener("toggle", () => (S.qualityTouched = true), { once: true });
 
 setFavicon("");
+renderRuns();
 poll();
 setInterval(() => { if (!document.hidden || Date.now() - lastPoll >= HIDDEN_POLL_MS) poll(); }, POLL_MS);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });

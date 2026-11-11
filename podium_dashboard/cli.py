@@ -1,7 +1,7 @@
 """podium [--dir <run dir>] <command> ...
 
 The run dir is --dir, else $PODIUM_DIR, else the nearest directory at or above the cwd holding
-podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, self-update, tokens, init, sync defaults,
+podium/podium.json or .deep-plan/podium/podium.json. hours, human, whoami, ports, self-update, tokens, init, sync defaults,
 findings --all --remote, findings --recur, finding resolve|wontfix --remote and --version need no run.
 
 TARGETS
@@ -66,6 +66,13 @@ COMMANDS
         in ~/.podium/human.json, else the local part of `git config user.email`,
         else $USER. In a run that syncs or has a `people` block, your active,
         needsYou and assumptions live in podium.json's people.<you>.
+    ports [release|pin|unpin <slug>]
+        This machine's port leases, ~/.podium/ports.json beside human.json: one
+        line per run, `<slug> <port> <live|stopped> <last used> <pinned|expired|-> <dir>`.
+        A run's server takes its leased port again at each start, so the page's
+        settings, kept per port in the browser, stay. A lease lasts 7 days from
+        its last use; release drops one, pin keeps one from expiring, unpin
+        takes that back.
     claim <milestone> [--force]
         Make the milestone yours (milestones[].owner) with an `owner` event,
         pulling first when the run syncs, and pushing at once. Refused (exit 1)
@@ -230,7 +237,7 @@ import importlib
 import os
 import sys
 
-from podium_dashboard import __version__, decisions, extension, findings, sync, tokens, update
+from podium_dashboard import __version__, decisions, extension, findings, ports, sync, tokens, update
 from podium_dashboard.commands import (cmd_assume, cmd_assumptions, cmd_batch, cmd_claim, cmd_get, cmd_hours, cmd_human,
                                        cmd_init, cmd_log, cmd_ls, cmd_move, cmd_ready, cmd_release, cmd_requests, cmd_set,
                                        cmd_settle, cmd_status, cmd_whoami)
@@ -243,9 +250,9 @@ COMMANDS = {"status": cmd_status, "get": cmd_get, "set": cmd_set, "batch": cmd_b
             "sync": sync.cmd_sync, "whoami": cmd_whoami, "claim": cmd_claim, "release": cmd_release,
             "asana": asana.cmd_asana, "self-update": update.cmd_self_update, "tokens": tokens.cmd_tokens,
             "finding": findings.cmd_finding, "findings": findings.cmd_findings, "decision": decisions.cmd_decision,
-            "decisions": decisions.cmd_decisions}
+            "decisions": decisions.cmd_decisions, "ports": ports.cmd_ports}
 SUBCOMMANDS = ("server", "watch")
-NO_PODIUM = {"hours", "human", "whoami", "self-update", "tokens"}
+NO_PODIUM = {"hours", "human", "whoami", "ports", "self-update", "tokens"}
 
 
 def usage(root):

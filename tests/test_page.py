@@ -280,7 +280,7 @@ class HostileRun(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)
         files = {**files, "podium/podium.json": json.dumps(run), "podium/events.jsonl": "".join(json.dumps(e) + "\n" for e in events),
-                 "/info": json.dumps({"runDir": "/run", "repoDir": "/repo", "watching": True, "me": "ann", "people": {},
+                 "/info": json.dumps({"runDir": "/run", "repoDir": "/repo", "run": "api", "watching": True, "me": "ann", "people": {},
                                       "orchestrator": run["orchestrator"], "paseoServer": X, "stale": False, **(info or {})}),
                  "/human": json.dumps({"mode": "available", "until": None, "source": "hours",
                                        "hours": {"days": "Mon-Fri", "from": "07:00", "to": "17:00"}}),
@@ -563,7 +563,7 @@ class HostileRun(unittest.TestCase):
 
     def test_hide_finished_reads_podium_hide_finished_from_local_storage(self):
         self.assertIn('"podium-hide-finished"', open(PAGE).read())
-        labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "1"})
+        labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished:api": "1"})
         self.assertIn("Show all · 3 hidden", labels)
 
     def collapse_button(self, html):
@@ -576,7 +576,7 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("data-collapsed", maps[-1])
 
     def test_collapsed_is_kept_in_podium_collapsed_and_marks_the_map(self):
-        maps, _ = self.maps(localStorage={"podium-collapsed": "1"})
+        maps, _ = self.maps(localStorage={"podium-collapsed:api": "1"})
         self.assertEqual(self.collapse_button("".join(self.html)).groups(), ("on", "true"))
         self.assertIn('<div class="full" data-collapsed style=', maps[0])
 
@@ -614,45 +614,45 @@ class HostileRun(unittest.TestCase):
 
     def test_unticking_a_tier_hides_its_milestones_says_how_many_tiers_show_and_keeps_the_choice(self):
         maps, _ = self.maps(self.priority_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; };'
-                                                       ' closeSheet(); togglePrioTier("nice"); render(); return put["podium-priority-filter"]; })()')
+                                                       ' closeSheet(); togglePrioTier("nice"); render(); return put["podium-priority-filter:api"]; })()')
         self.assertEqual(json.loads(self.probe()), ["must", "should"])
         self.assertEqual(self.shown(maps[-1]), ["M2", "M3"])
         self.assertEqual(self.prio_filter()[0], "Priority · 2 of 3")
 
     def test_the_priority_filter_is_read_from_podium_priority_filter(self):
-        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["should"]'})
+        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["should"]'})
         self.assertEqual(self.shown(maps[0]), ["M3"])
         self.assertEqual(self.prio_filter()[0], "Priority · 1 of 3")
 
     def test_a_missing_broken_or_hostile_priority_filter_shows_every_tier(self):
         for stored in ("", "{", '"must"', '{"0": "must", "length": 1}', "[]", "null", "[1, 2]", json.dumps(["__proto__", X]), json.dumps(X)):
             with self.subTest(stored=stored):
-                maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": stored})
+                maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": stored})
                 self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
                 self.assertEqual(self.prio_filter()[0], "Priority")
                 self.assertNotIn("pwn", "".join(h for h in self.html if "data-prio-menu" in h))
 
     def test_the_last_ticked_tier_cannot_be_unticked(self):
-        self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["must"]'},
+        self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["must"]'},
                   probe='(togglePrioTier("must"), setPrioMenu(true), S.prioShown)')
         self.assertEqual(self.probe(), ["must"])
         self.assertEqual(self.prio_filter(), ("Priority · 1 of 3", "true", [("must", "Must have", True, True), ("should", "Should have", False, False),
                                                                             ("nice", "Nice to have", False, False)]))
 
     def test_the_open_milestone_stays_on_the_map_when_its_tier_is_unticked(self):
-        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["must"]'}, probe='(closeSheet(), expand("M3"))')
+        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["must"]'}, probe='(closeSheet(), expand("M3"))')
         self.assertEqual(self.shown(maps[-1]), ["M2", "M3"])
         self.assertEqual(self.open_cards(maps[-1]), ["M3"])
 
     def test_epic_tiles_are_not_filtered_by_priority(self):
-        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter": '["nice"]'})
+        maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["nice"]'})
         self.assertEqual(re.findall(r'<div class="fepic" data-epic-sheet="(\w+)"', maps[0]), ["e1", "e2"])
         self.assertEqual(sorted(self.shown(maps[0])), ["M1", "R1"])
 
     def test_hide_finished_counts_only_the_finished_milestones_while_a_tier_is_unticked(self):
         run = json.loads(json.dumps(HIDE_RUN))
         run["epics"][0]["milestones"][2]["priority"] = "must"
-        shown, _, label = self.hidden_map({"podium-hide-finished": "1", "podium-priority-filter": '["must"]'}, run=run,
+        shown, _, label = self.hidden_map({"podium-hide-finished:api": "1", "podium-priority-filter:api": '["must"]'}, run=run,
                                           probe='(closeSheet(), expand("M3"), 0)')
         self.assertEqual(shown, ["M3"])
         self.assertEqual(label, "Show all · 5 hidden")
@@ -676,7 +676,7 @@ class HostileRun(unittest.TestCase):
 
     def hidden_map(self, stored=None, run=HIDE_RUN, probe='(expand("M3"), 0)'):
         """The last full map's milestone ids, the story ids inside the open milestone, and the Hide finished label."""
-        stored = {"podium-hide-finished": "1"} if stored is None else stored
+        stored = {"podium-hide-finished:api": "1"} if stored is None else stored
         maps, _ = self.maps(run, localStorage=stored, probe=probe)
         full = maps[-1]
         open_card = self.open_card(full)
@@ -725,7 +725,7 @@ class HostileRun(unittest.TestCase):
         self.assertIn("folded", self.feed_classes({"podium-feed-open": "0"}))
 
     def test_hide_finished_is_off_for_any_other_stored_value(self):
-        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished": "0"})), {"Hide finished"})
+        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished:api": "0"})), {"Hide finished"})
 
     def test_a_missing_document_of_a_colleagues_milestone_is_not_synced_from_their_machine_yet(self):
         run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
@@ -1076,11 +1076,11 @@ class HostileRun(unittest.TestCase):
 
     def test_mine_shows_your_milestones_and_what_waits_on_you_and_is_kept(self):
         maps, _ = self.maps(self.mine_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; }; closeSheet();'
-                                                    ' S.project.needsYou = { reason: "look", story: "M3/S6" }; setMine(true); render(); return put["podium-mine"]; })()')
+                                                    ' S.project.needsYou = { reason: "look", story: "M3/S6" }; setMine(true); render(); return put["podium-mine:api"]; })()')
         self.assertEqual(self.probe(), "1")
         self.assertEqual(self.shown(maps[-1]), ["M1", "M3"])
         self.assertEqual(self.mine_button(), ("on", "true", "Mine · 2 hidden"))
-        maps, _ = self.maps(self.mine_run(), localStorage={"podium-mine": "1"}, probe="(closeSheet(), render(), 0)")
+        maps, _ = self.maps(self.mine_run(), localStorage={"podium-mine:api": "1"}, probe="(closeSheet(), render(), 0)")
         self.assertEqual(self.shown(maps[-1]), ["M1"])
 
     def test_a_bullet_that_wraps_onto_the_next_line_stays_one_bullet(self):
@@ -1636,7 +1636,7 @@ class HostileRun(unittest.TestCase):
         self.assertIn(".fchip", re.search(r'ev\.target\.matches\("([^"]*)"\)\) ev\.target\.click', open(PAGE).read()).group(1))
 
     def test_with_hide_finished_on_merged_waves_are_hidden_with_no_fold_line(self):
-        maps, _ = self.maps(FINISHED_RUN, localStorage={"podium-hide-finished": "1"}, probe='expand("M2")')
+        maps, _ = self.maps(FINISHED_RUN, localStorage={"podium-hide-finished:api": "1"}, probe='expand("M2")')
         self.assertEqual(self.tree_text(self.open_card(maps[-1])), (["Wave 3"], ["S3"], []))
         self.assertNotIn("Fold merged waves", self.open_card(maps[-1]))
 
@@ -1644,7 +1644,7 @@ class HostileRun(unittest.TestCase):
         run = json.loads(json.dumps(FINISHED_RUN))
         run["epics"][0]["milestones"][0]["stories"] = [{"id": "S1", "title": "a", "status": "done"}, {"id": "S2", "title": "b", "status": "dropped"}]
         row = '<div class="mfold"><span class="mfl">All 2 stories finished</span><button class="ocollapse" data-hide-finished>Show</button></div>'
-        for stored, shown in (({"podium-hide-finished": "1"}, True), ({}, False)):
+        for stored, shown in (({"podium-hide-finished:api": "1"}, True), ({}, False)):
             self.maps(run, localStorage=stored, probe='(reveal("M1"), $("map").innerHTML)')
             card = self.open_card(self.probe())
             self.assertEqual(row in card, shown)
@@ -1653,7 +1653,7 @@ class HostileRun(unittest.TestCase):
     def test_show_on_an_open_milestone_scrolls_back_to_it_and_the_header_button_does_not(self):
         run = json.loads(json.dumps(FINISHED_RUN))
         run["epics"][0]["milestones"][0]["stories"] = [{"id": "S1", "title": "a", "status": "done"}]
-        self.maps(run, localStorage={"podium-hide-finished": "1"},
+        self.maps(run, localStorage={"podium-hide-finished:api": "1"},
                   probe='(() => { const scrolls = []; scrollTo = (o) => scrolls.push(o.behavior); reveal("M1"); scrolls.length = 0;'
                         ' const click = (...hits) => { const target = { dataset: { ms: "M1" }, closest: (s) => (hits.includes(s) ? target : null) };'
                         ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return [S.hideFinished, scrolls.splice(0)]; };'
@@ -1686,7 +1686,7 @@ class HostileRun(unittest.TestCase):
             ("S3", "S4", "overlap", False), ("S5", "S6", "dep", False), ("S6", "S5", "dep", False)])
 
     def test_tree_lines_into_stories_hide_finished_hides_are_dropped(self):
-        edges = self.tree_edges(TREE_RUN, "M1", {"podium-hide-finished": "1"})
+        edges = self.tree_edges(TREE_RUN, "M1", {"podium-hide-finished:api": "1"})
         self.assertNotIn("S1", [e[0] for e in edges])
         self.assertIn(("S3", "S4", "overlap", False), edges)
 
@@ -1860,7 +1860,7 @@ class HostileRun(unittest.TestCase):
         self.assertIn("ready", cards["M13"][0].split())
 
     def test_hide_finished_hides_a_moved_milestone_like_a_landed_one(self):
-        cards, _ = self.moved(stored={"podium-hide-finished": "1"})
+        cards, _ = self.moved(stored={"podium-hide-finished:api": "1"})
         self.assertNotIn("M10", cards)
         self.assertIn("M11", cards)
 
@@ -1954,6 +1954,86 @@ class HostileRun(unittest.TestCase):
         got = self.probe()
         self.assertEqual(got["bad"], [])
         self.assertEqual(got["good"], ["/plan/M1", "/handoff/M1/S1"])
+
+    PUT = '(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; }; %s; return Object.keys(put).sort(); })()'
+
+    def test_the_runs_own_choices_carry_its_slug_and_the_theme_stays_global(self):
+        self.maps(probe=self.PUT % ('closeSheet(); setTheme("dark"); setHideFinished(true); setCollapsed(true); setMine(true);'
+                                    ' togglePrioTier("nice"); seeHanded(); markSeen()'))
+        self.assertEqual(self.probe(), ["podium-collapsed:api", "podium-handed-seen:api", "podium-hide-finished:api", "podium-mine:api",
+                                        "podium-priority-filter:api", "podium-seen:api", "podium-theme"])
+
+    def test_a_value_kept_without_the_slug_or_under_another_run_is_not_read(self):
+        for stored in ({"podium-collapsed": "1", "podium-mine": "1"}, {"podium-collapsed:web": "1", "podium-mine:web": "1"}):
+            with self.subTest(stored=stored):
+                self.maps(localStorage=stored, probe="[S.collapsed, S.mine]")
+                self.assertEqual(self.probe(), [False, False])
+        self.maps(localStorage={"podium-collapsed:web": "1"}, info={"run": "web"}, probe="S.collapsed")
+        self.assertTrue(self.probe())
+
+    def test_nothing_is_kept_before_the_page_knows_its_run(self):
+        self.maps(info={"run": None}, probe=self.PUT % 'closeSheet(); setCollapsed(true); setTheme("light"); markSeen()')
+        self.assertEqual(self.probe(), ["podium-theme"])
+
+    def test_the_season_snooze_stays_global(self):
+        with open(os.path.join(ROOT, "podium_dashboard", "season", "season.js")) as f:
+            season = f.read()
+        self.assertIn('localStorage.getItem("podium-season-off")', season)
+        self.assertIn('localStorage.setItem("podium-season-off",', season)
+
+    RUNS = {"runs": [{"slug": "api", "port": 8765, "live": True, "used": DONE, "pinned": False, "title": "Acme", "current": True},
+                     {"slug": "web", "port": 8766, "live": True, "used": DONE, "pinned": True, "title": X, "current": False},
+                     {"slug": "ops", "port": 8770, "live": False, "used": DONE, "pinned": False, "title": None, "current": False}]}
+    CLICK = ('const click = (...hits) => { const target = { dataset: { runGo: "web" }, closest: (s) => (hits.includes(s) ? target : null) };'
+             ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); };')
+
+    def switch(self, probe, **files):
+        self.maps(probe=f"(async () => {{ {self.CLICK} closeSheet(); {probe} }})()", **{"/runs": json.dumps(self.RUNS), **files})
+        return self.probe()
+
+    def test_the_title_has_a_button_that_opens_the_switcher_closed(self):
+        page = open(PAGE).read()
+        self.assertIn('<div class="title-row"><h1 id="epic-title">Loading…</h1><span class="ownwrap" id="runs"></span></div>', page)
+        html = self.switch('return $("runs").innerHTML;')
+        self.assertIn('data-runs-menu aria-haspopup="menu" aria-expanded="false"', html)
+        self.assertNotIn("runs-menu", html.replace("data-runs-menu", ""))
+
+    def test_lists_every_run_marking_the_current_one_and_which_are_live(self):
+        html = self.switch('await setRunsMenu(true); return $("runs").innerHTML;')
+        self.assertIn('aria-expanded="true"', html)
+        menu = re.search(r'<div class="owner-menu runs-menu" role="menu" aria-label="Runs on this machine">(.*)</div>$', html, re.S).group(1)
+        rows = re.findall(r'aria-checked="(\w+)" data-run-go="(\w+)"[^>]*><span class="run-dot ?(on)? ?"></span><span>([^<]*)</span>'
+                          r'<span class="run-port">([^<]*)</span>', menu)
+        self.assertEqual([(c, slug, on, port) for c, slug, on, _, port in rows],
+                         [("true", "api", "on", "api · 8765"), ("false", "web", "on", "web · 8766"), ("false", "ops", "", "ops · 8770")])
+        self.assertEqual(rows[2][3], "ops")
+        self.assertEqual(menu.count('class="tick"'), 1)
+        scan = Scan()
+        scan.feed(html)
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        self.assertIn(X, "".join(scan.text))
+
+    def test_a_click_outside_or_escape_closes_it_and_the_button_toggles_it(self):
+        self.assertEqual(self.switch('await setRunsMenu(true); const before = S.runsMenu; click(); return [before, S.runsMenu, $("runs").innerHTML.includes("Runs on this machine")];'),
+                         [True, False, False])
+        self.assertEqual(self.switch('await setRunsMenu(true); onEscape(); return S.runsMenu;'), False)
+        self.assertEqual(self.switch('await setRunsMenu(true); click("#runs"); return S.runsMenu;'), True)
+        self.assertEqual(self.switch('click("#runs", "[data-runs-menu]"); await new Promise((r) => setImmediate(r)); return S.runsMenu;'), True)
+
+    def test_a_live_run_opens_on_its_port_and_a_stopped_one_is_started_first(self):
+        self.assertEqual(self.switch('await setRunsMenu(true); await goRun("web"); return [location.href, S.runsMenu];'),
+                         ["http://127.0.0.1:8766/", False])
+        started = self.switch('await setRunsMenu(true); await goRun("ops"); return location.href;', **{"/runs/ops/start": '{"url": "http://127.0.0.1:8770/"}'})
+        self.assertEqual(started, "http://127.0.0.1:8770/")
+        self.assertEqual(self.switch('await setRunsMenu(true); await goRun("api"); return location.href;'), "http://127.0.0.1:8765/")
+
+    def test_a_start_that_fails_or_answers_another_url_stays_put(self):
+        for body in (None, json.dumps({"url": JS}), json.dumps({"url": "http://evil.example:8770/"})):
+            with self.subTest(body=body):
+                files = {"/runs/ops/start": body} if body else {}
+                self.assertEqual(self.switch('await setRunsMenu(true); await goRun("ops"); return location.href;', **files),
+                                 "http://127.0.0.1:8765/")
+
 
 STICKY_HARNESS = r"""
 const src = require("fs").readFileSync(process.argv[2], "utf8");
