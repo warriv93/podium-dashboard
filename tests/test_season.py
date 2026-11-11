@@ -40,6 +40,10 @@ class Calendar(unittest.TestCase):
         self.assertEqual(got, ["xmas", None, "xmas", "xmas", None])
 
 
+    def test_fettisdagen_has_no_snow_and_semlor_fly_by_often(self):
+        got = ask('[S.SEASONS.fettisdagen.particles, S.SEASONS.fettisdagen.cap, S.SEASONS.fettisdagen.flyer.every <= 30]')
+        self.assertEqual(got, [None, None, True])
+
     def test_halloween_easter_fettisdagen_and_valborg_fall_on_their_days(self):
         days = [(2026, 10, 23), (2026, 10, 24), (2026, 10, 31), (2026, 11, 1), (2026, 11, 2),
                 (2026, 3, 28), (2026, 3, 29), (2026, 4, 5), (2026, 4, 6), (2026, 4, 7), (2027, 3, 21), (2027, 3, 29), (2027, 3, 30),
