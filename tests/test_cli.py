@@ -351,6 +351,20 @@ class SetValues(Cli):
             e = json.loads(f.read().splitlines()[-1], parse_constant=refuse)
         self.assertEqual((e["sha"], e["number"]), ("7355178", 4))
 
+    def test_an_event_names_its_own_milestone_when_the_target_has_none(self):
+        run = self.run_at(os.path.join(self.tmp, "run"))
+        self.podium("--dir", run, "set", "epic:e", "title=E", "--event", "planned", "milestone=M2")
+        with open(os.path.join(run, "podium", "events.jsonl")) as f:
+            e = json.loads(f.read().splitlines()[-1])
+        self.assertEqual((e["type"], e["milestone"]), ("planned", "M2"))
+
+    def test_an_event_milestone_overrides_the_targets(self):
+        run = self.run_at(os.path.join(self.tmp, "run"))
+        self.podium("--dir", run, "set", "milestone:M1", "--event", "moved", "milestone=M2")
+        with open(os.path.join(run, "podium", "events.jsonl")) as f:
+            e = json.loads(f.read().splitlines()[-1])
+        self.assertEqual(e["milestone"], "M2")
+
     def test_a_sha_inside_a_json_value_or_under_a_sha_key_stays_text(self):
         run = self.run_at(os.path.join(self.tmp, "run"))
         self.podium("--dir", run, "set", "milestone:M1", "landedSha.api=1234567e10",

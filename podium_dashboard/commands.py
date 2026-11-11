@@ -155,7 +155,8 @@ def apply_set(p, args):
         if blocked:
             print(f"blocked: {' '.join(blocked)}")
     if rest[ev:]:
-        p.event(rest[ev + 1], mid, sid, **pairs(rest[ev + 2:]))
+        fields = pairs(rest[ev + 2:])
+        p.event(rest[ev + 1], fields.pop("milestone", mid), fields.pop("story", sid), **fields)
 
 
 def personal(p, item):

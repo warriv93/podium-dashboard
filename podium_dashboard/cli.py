@@ -34,7 +34,8 @@ COMMANDS
         number.
         A story set to status=failed blocks every story that depends on it,
         directly or through others. --event appends one events.jsonl line
-        with `at`, `milestone` and `story` filled in from the target.
+        with `at`, `milestone` and `story` filled in from the target; an
+        event's own milestone= or story= wins.
     batch
         Several `set`s in one write: stdin holds one `set` argument line per op
         (`<target> key=value ... [--event TYPE key=value ...]`, shell-quoted, a
