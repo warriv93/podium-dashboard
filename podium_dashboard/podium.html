@@ -232,8 +232,18 @@ a.wchip { color: inherit; text-decoration: none; }
 
 .dsbtn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px 2px 7px; border-radius: 999px; background: var(--card-2); color: var(--text-2); border: 1px solid var(--line-2); font: inherit; font-size: 12px; font-weight: 600; line-height: 18px; letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; }
 .dsbtn:hover { border-color: var(--accent); color: var(--accent); }
-.dsbtn.has { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.dsbtn:is(.draw, .has) { position: relative; display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; color: var(--accent); }
+.dsbtn:is(.draw, .has) svg { display: block; width: 14px; height: 14px; }
+.dsbtn.draw { background: none; border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
+.dsbtn.has { background: var(--accent-soft); border-color: var(--accent); }
 .dsbtn.has:hover { background: var(--accent); color: #fff; }
+.ds-badge { position: absolute; display: grid; place-items: center; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; line-height: 1; font-weight: 700; box-shadow: 0 0 0 2px var(--card); }
+.dsbtn.draw .ds-badge { right: -4px; bottom: -4px; font-size: 11px; }
+.dsbtn.has .ds-badge { right: -5px; top: -5px; }
+.dsbtn[data-tip]:hover::after, .dsbtn[data-tip]:hover::before { position: absolute; top: calc(100% + 8px); right: -6px; z-index: 40; width: 230px; padding: 7px 10px; box-sizing: border-box; font-size: 12px; line-height: 1.4; text-align: left; white-space: normal; pointer-events: none; }
+.dsbtn[data-tip]:hover::after { content: attr(data-tip); padding-top: 25px; border-radius: 9px; background: #1d1d1f; color: #c7c7cc; font-weight: 400; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.dsbtn[data-tip]:hover::before { content: attr(data-tip-title); z-index: 41; color: #fff; font-weight: 650; }
+.fms:has(.dsbtn:hover), .fepic:has(.dsbtn:hover) { z-index: 30; }
 .dsbtn.busy { cursor: default; border-style: dashed; }
 .dsbtn.busy:hover { border-color: var(--line-2); color: var(--text-2); }
 .dsbtn.busy i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: dsp 1s ease-in-out infinite; }
@@ -1843,12 +1853,13 @@ const isEpic = (id) => S.project.epics.some((x) => x.id === id);
 const dsOwner = (id) => S.project.epics.find((x) => x.id === id) || S.project.epics.flatMap((x) => x.milestones || []).find((m) => m.id === id);
 const dsDrawing = (E) => E.domainStories?.status === "drawing" || (Date.now() - (S.dsAsked?.[E.id] || 0) < 120000 && (E.domainStories?.at || "") < new Date(S.dsAsked[E.id]).toISOString());
 function dsBtn(E) {
-  const d = E.domainStories, what = isEpic(E.id) ? "epic" : "milestone";
-  if (dsDrawing(E) && !d?.stories?.length) return `<span class="dsbtn busy" title="The orchestrator is drawing it"><i></i>Drawing…</span>`;
-  if (d?.stories?.length) return `<button class="dsbtn has" data-ds="${esc(E.id)}" title="Open this ${what}'s domain stories">${DS_ICO}Story</button>`;
-  const tip = d?.status === "failed" ? `The last drawing failed: ${d.reason || "no reason given"}. Draw it again`
-    : what === "epic" ? "Draw this epic's process as domain stories, from its brief" : "Draw what this milestone changes as domain stories, starting from the epic's when it has them";
-  return orch() ? `<button class="dsbtn" data-act="domain-story" data-id="${esc(E.id)}" title="${esc(tip)}">${DS_ICO}Domain story</button>` : "";
+  const d = E.domainStories, what = isEpic(E.id) ? "epic" : "milestone", n = d?.stories?.length || 0;
+  if (dsDrawing(E) && !n) return `<span class="dsbtn busy" title="The orchestrator is drawing it"><i></i>Drawing…</span>`;
+  if (n) return `<button class="dsbtn has" data-ds="${esc(E.id)}" aria-label="Open ${n === 1 ? "the domain story" : `${n} domain stories`}" data-tip-title="${n === 1 ? "Open its domain story" : `Open its ${n} domain stories`}" data-tip="Opens the story view below the map.">${DS_ICO}<b class="ds-badge">${n}</b></button>`;
+  const how = d?.status === "failed" ? `The last drawing failed: ${d.reason || "no reason given"}. Click to draw it again.`
+    : what === "epic" ? "The orchestrator draws this epic's process from its brief. Takes a few minutes."
+    : "The orchestrator draws what this milestone changes, starting from the epic's stories. Takes a few minutes.";
+  return orch() ? `<button class="dsbtn draw" data-act="domain-story" data-id="${esc(E.id)}" aria-label="Draw domain stories" data-tip-title="Draw domain stories" data-tip="${esc(how)}">${DS_ICO}<b class="ds-badge">+</b></button>` : "";
 }
 function openDs(id) { S.ds = { id, tab: 0 }; render(); requestAnimationFrame(() => scrollTo({ top: document.querySelector(".map-card").getBoundingClientRect().top + scrollY - stickyOffset() - 12, behavior: "smooth" })); }
 function closeDs() { S.ds = null; render(); }

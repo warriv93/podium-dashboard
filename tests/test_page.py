@@ -1152,6 +1152,19 @@ class HostileRun(unittest.TestCase):
         self.assertIn('data-prio-pick="epic/e2" aria-haspopup="menu" aria-expanded="true" title="Change the priority"><span class="prio should" title="Should have"><b>★</b>Should</span>', head)
         self.assertIn('aria-checked="true" data-prio="should" data-prio-of="epic/e2"', head)
 
+    def test_an_undrawn_milestone_offers_a_round_draw_button_whose_hover_says_what_happens(self):
+        self.maps(self.priority_run(), probe='(S.project.orchestrator = { command: "/o" }, dsBtn(msOf("M3")))')
+        btn = self.probe()
+        self.assertIn('<button class="dsbtn draw" data-act="domain-story" data-id="M3" aria-label="Draw domain stories"', btn)
+        self.assertIn('data-tip-title="Draw domain stories" data-tip="The orchestrator draws what this milestone changes', btn)
+        self.assertIn('<b class="ds-badge">+</b>', btn)
+
+    def test_a_drawn_milestone_opens_its_stories_and_badges_their_count(self):
+        self.maps(self.priority_run(), probe='(msOf("M3").domainStories = { stories: [{}, {}] }, dsBtn(msOf("M3")))')
+        btn = self.probe()
+        self.assertIn('<button class="dsbtn has" data-ds="M3" aria-label="Open 2 domain stories"', btn)
+        self.assertIn('<b class="ds-badge">2</b>', btn)
+
     def test_a_milestone_sheet_has_the_same_badge_pulldown(self):
         self.maps(self.priority_run(), probe='(openSheet({ ms: "M3" }), S.prioPick = "M3", renderSheet(), document.getElementById("sheet-head").innerHTML)')
         head = self.probe()
