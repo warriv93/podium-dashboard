@@ -2563,7 +2563,7 @@ function milestoneSheet(m) {
     claimBtn(m),
   ].join(" ");
   const q = m.quality?.gate;
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
   $("sheet-body").innerHTML = `
     ${asanaAsk(m)}
     ${m.note ? `<div class="sec"><div class="muted">${esc(m.note)}</div></div>` : ""}

@@ -1152,6 +1152,16 @@ class HostileRun(unittest.TestCase):
         self.assertIn('data-prio-pick="epic/e2" aria-haspopup="menu" aria-expanded="true" title="Change the priority"><span class="prio should" title="Should have"><b>★</b>Should</span>', head)
         self.assertIn('aria-checked="true" data-prio="should" data-prio-of="epic/e2"', head)
 
+    def test_a_milestone_sheet_has_the_same_badge_pulldown(self):
+        self.maps(self.priority_run(), probe='(openSheet({ ms: "M3" }), S.prioPick = "M3", renderSheet(), document.getElementById("sheet-head").innerHTML)')
+        head = self.probe()
+        self.assertIn('<span class="sid">M3</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M3" aria-haspopup="menu" aria-expanded="true" title="Change the priority"><span class="prio should" title="Should have"><b>★</b>Should</span>', head)
+        self.assertIn('aria-checked="true" data-prio="should" data-prio-of="M3"', head)
+
+    def test_a_milestone_sheet_without_a_priority_offers_nice_to_have(self):
+        self.maps(self.priority_run(), probe='(openSheet({ ms: "M1" }), renderSheet(), document.getElementById("sheet-head").innerHTML)')
+        self.assertIn('data-prio-pick="M1" aria-haspopup="menu" aria-expanded="false" title="Change the priority"><span class="prio nice" title="Nice to have">Nice to have</span>', self.probe())
+
     def test_a_click_outside_either_pulldown_closes_it(self):
         self.maps(probe='(() => { const click = () => { const target = { dataset: {}, closest: () => null }; LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); };'
                         ' S.prioPick = "M2"; click(); const prio = S.prioPick; S.ownerMenu = "M3"; click(); return [prio, S.ownerMenu]; })()')
