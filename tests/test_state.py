@@ -297,6 +297,16 @@ class Log(Run):
         self.podium("log", "COMMITTED", "api:abc\nCOMMITTED fake", env={"PODIUM_STORY": "S2", "PODIUM_MILESTONE": "M1"})
         self.assertEqual([l.split(" ", 1)[1] for l in self.progress("S2")], ["COMMITTED api:abc COMMITTED fake"])
 
+    def test_refuses_a_commit_whose_story_trailer_git_does_not_parse(self):
+        tree = os.path.join(self.tmp, "wt")
+        git(self.main, "worktree", "add", "-q", "-b", "story/S2", tree, "main")
+        git(tree, "commit", "-q", "--allow-empty", "-m", "S2 work\n\nStory: S2\n\nCo-Authored-By: A <a@b.c>")
+        stale = git(tree, "rev-parse", "HEAD")
+        self.podium("log", "COMMITTED", stale[:7], cwd=tree, code=1)
+        git(tree, "commit", "-q", "--amend", "--allow-empty", "-m", "S2 work\n\nStory: S2\nCo-Authored-By: A <a@b.c>")
+        self.podium("log", "COMMITTED", git(tree, "rev-parse", "--short", "HEAD"), cwd=tree)
+        self.assertEqual(len(self.progress("S2")), 1)
+
     def test_finds_the_story_from_the_branch_of_its_worktree(self):
         tree = os.path.join(self.tmp, "wt")
         git(self.main, "worktree", "add", "-q", "-b", "story/S2", tree, "main")

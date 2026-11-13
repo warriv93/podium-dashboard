@@ -527,6 +527,17 @@ def story_target(p, args):
     return m, s, rest
 
 
+def untrailed_commits(note, sid):
+    """The shas in a COMMITTED note that resolve in the cwd's repo but carry no `Story: <sid>` trailer git parses."""
+    out = []
+    for sha in re.findall(r"(?:^|[\s:])([0-9a-f]{7,64})(?=\s|$)", note):
+        r = subprocess.run(git_argv("log", "-1", "--format=%(trailers:key=Story,valueonly)", f"{sha}^{{commit}}", "--"),
+                           capture_output=True, text=True)
+        if r.returncode == 0 and sid not in r.stdout.split():
+            out.append(sha)
+    return out
+
+
 def cmd_log(p, args):
     m, s, rest = story_target(p, args)
     if not rest or rest[0] not in stages(p):
@@ -534,6 +545,9 @@ def cmd_log(p, args):
     if not (valid_id(m["id"]) and valid_id(s["id"])):
         sys.exit(f"not a safe id: {m['id']!r}/{s['id']!r}")
     note = " ".join(" ".join(rest[1:]).split())  # one line: a newline would start a line of its own
+    if rest[0] == "COMMITTED" and (bad := untrailed_commits(note, s["id"])):
+        sys.exit(f"COMMITTED refused: {' '.join(bad)} has no `Story: {s['id']}` trailer git parses; put it in the "
+                 f"message's last paragraph with the other trailers, amend, then log the new sha")
     path = os.path.join(p.dir, "stories", m["id"], f"{s['id']}.progress")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with p.locked(), open(path, "a") as f:
