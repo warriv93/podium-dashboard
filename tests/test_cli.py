@@ -365,6 +365,12 @@ class SetValues(Cli):
             e = json.loads(f.read().splitlines()[-1])
         self.assertEqual(e["milestone"], "M2")
 
+    def test_batch_refuses_arguments_instead_of_dropping_them(self):
+        run = self.run_at(os.path.join(self.tmp, "run"))
+        r = self.podium("--dir", run, "batch", "--event", "planned", "milestone=M1", code=1)
+        self.assertIn("batch takes no arguments", r.stderr)
+        self.assertFalse(os.path.exists(os.path.join(run, "podium", "events.jsonl")))
+
     def test_a_sha_inside_a_json_value_or_under_a_sha_key_stays_text(self):
         run = self.run_at(os.path.join(self.tmp, "run"))
         self.podium("--dir", run, "set", "milestone:M1", "landedSha.api=1234567e10",

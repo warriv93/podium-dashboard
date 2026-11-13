@@ -201,6 +201,9 @@ def split_op(line):
 
 
 def cmd_batch(p, args):
+    if args:
+        sys.exit(f"batch takes no arguments, got {shlex.join(args)!r}: put one `set` argument line per op on stdin,"
+                 " e.g. `podium batch <<< 'milestone:M3 --event planned'`")
     ops = [split_op(l) for l in sys.stdin.read().splitlines() if l.strip() and not l.lstrip().startswith("#")]
     ops = [op[1:] if op[0] == "set" else op for op in ops]
     p.held = []
