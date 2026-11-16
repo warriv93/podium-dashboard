@@ -112,13 +112,17 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .share { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; color: var(--text); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .share i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
 .share.on i { background: var(--green-dot); opacity: 1; }
-#prio-filter { position: relative; display: inline-flex; }
-#prio-filter .share::after { content: ""; width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .6; }
-#prio-filter .share.on { border-color: var(--text); font-weight: 600; }
+#state-filter { position: relative; display: inline-flex; }
+#state-filter .share::after { content: ""; width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .6; }
+#state-filter .share.on { border-color: var(--text); font-weight: 600; }
 .prio-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; display: flex; flex-direction: column; gap: 2px; min-width: 160px; padding: 6px; background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-hi); }
 .prio-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .prio-menu label:hover { background: var(--gray-soft); }
 .prio-menu input { margin: 0; accent-color: var(--text); }
+.prio-menu .mhead { padding: 6px 8px 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.prio-menu .mhead + label { margin-top: 0; }
+.prio-menu .mhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.prio-menu small { margin-left: auto; padding-left: 12px; font-size: 11.5px; color: var(--text-3); }
 .fms:has(:is(.owner-menu, .prio-pick-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }
 .vhint { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 650; white-space: nowrap; cursor: help; align-self: center; }
 .ownwrap { position: relative; display: inline-flex; flex: none; }
@@ -377,6 +381,8 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms.failed { border: 1.5px solid var(--red); }
 .fms.moved { background: transparent; box-shadow: none; opacity: .6; }
 .fms.moved .title { color: var(--text-3); }
+.fms.dropped { background: transparent; box-shadow: none; opacity: .6; }
+.fms.dropped .title { color: var(--text-3); text-decoration: line-through; }
 .fms, .fms.working, .fms.waits, .fms.waitfor, .fms.failed { border-left-width: 4px; }
 .fms { border-left-color: var(--line-2); }
 .fms.done { border-left-color: var(--green-dot); }
@@ -842,7 +848,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <div class="map-head">
         <h2 id="map-title">Topology</h2>
         <div class="map-tools">
-          <span id="hide-finished"></span><span id="collapse-map"></span><span id="prio-filter"></span><span id="mine-filter"></span>
+          <span id="collapse-map"></span><span id="state-filter"></span><span id="mine-filter"></span>
           <div class="legend">
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
@@ -915,6 +921,14 @@ function setHideFinished(on) {
   S.hideFinished = on;
   writeRun("podium-hide-finished", on ? "1" : "0");
 }
+function setHidePaused(on) {
+  S.hidePaused = on;
+  writeRun("podium-hide-paused", on ? "1" : "0");
+}
+function setShowClosed(on) {
+  S.showClosed = on;
+  writeRun("podium-show-closed", on ? "1" : "0");
+}
 function setCollapsed(on) {
   S.collapsed = on;
   writeRun("podium-collapsed", on ? "1" : "0");
@@ -938,6 +952,8 @@ function togglePrioTier(tier) {
 }
 function loadRunChoices() {
   S.hideFinished = readRun("podium-hide-finished") === "1";
+  S.hidePaused = readRun("podium-hide-paused") === "1";
+  S.showClosed = readRun("podium-show-closed") === "1";
   S.collapsed = readRun("podium-collapsed") === "1";
   S.mine = readRun("podium-mine") === "1";
   S.prioShown = readPrioShown();
@@ -1396,6 +1412,7 @@ function fullMs(m, all) {
   let foot;
   if (isResearch(m)) foot = st === "done" ? `<span class="badge done">Answered</span>` : `<span class="badge research">Research</span><span>${esc(m.asana?.assignee || "")}</span>`;
   else if (st === "moved") foot = movedPill(m, all) || `<span class="badge moved">Moved</span>`;
+  else if (st === "dropped") foot = `<span class="badge dropped">Dropped</span>`;
   else if (st === "done") foot = `<span class="badge done">Landed${m.shippedAt ? ` ${day(m.shippedAt)}` : ""}</span>${stories.length ? `<span>${stories.length} stories</span>` : ""}`;
   else if (st === "working") foot = msWaits(m) ? `<span class="pulse amber"></span><span class="badge needs">Waiting on you</span><span>${msDoing(m)}</span>`
     : `<span class="pulse"></span><span class="badge working">${planning(m) ? "Planning in progress" : "Working on"}</span><span>${msDoing(m)}${stories.length ? ` · ${merged}/${stories.length} merged` : ""}</span>`;
@@ -1465,11 +1482,14 @@ function keeps(ms, story) {
   if (story !== undefined) return isSel(ms, story) || (n.ms === ms && n.story === String(story));
   return S.sel?.ms === ms || S.open === ms || n.ms === ms || waitersOf(ms).length > 0;
 }
-const hidesFinished = (x) => S.hideFinished && ["done", "moved"].includes(x.status) && !keeps(x.id);
+const PAUSED = ["parked", "later"];
+const hidesClosed = (x) => !S.showClosed && x.status === "dropped";
+const hidesByState = (x) => hidesClosed(x) || (!keeps(x.id) && ((S.hideFinished && ["done", "moved"].includes(x.status))
+  || (S.hidePaused && PAUSED.includes(x.status)) || !S.prioShown.includes(tierOf(x))));
 const tierOf = (x) => (PRIO[x?.priority] ? x.priority : "nice");
 const mine = (x) => isMe(x.owner) || prsToReview().some((pr) => pr.ms === x.id);
 const hidesForMine = (x) => S.mine && !mine(x) && !keeps(x.id);
-const hidesMs = (x) => hidesFinished(x) || hidesForMine(x) || (!S.prioShown.includes(tierOf(x)) && !keeps(x.id));
+const hidesMs = (x) => hidesByState(x) || hidesForMine(x);
 const hidesStory = (m, s) => S.hideFinished && ["done", "dropped"].includes(s.status) && !keeps(m.id, s.id);
 function treeRows(m) {
   const rows = wavesOf(m.stories || []), col = dict();
@@ -1556,7 +1576,7 @@ function renderFull() {
   const m = $("map");
   const all = dict(P.epics.flatMap((E) => E.milestones || []).map((x) => [x.id, x]));
   const lane = dict(P.epics.flatMap((E, i) => (E.milestones || []).map((x) => [x.id, i])));
-  const listed = runOrder(Object.values(all).filter((x) => x.status !== "dropped"));
+  const listed = runOrder(Object.values(all));
   const order = listed.filter((x) => !isResearch(x)), research = listed.filter(isResearch);
   const cols = `${P.epics.map((E) => `minmax(${colOf(E)[0]}px, ${colOf(E)[1]}fr)`).join(" ")}`;
   const head = `${P.epics.map((E) => {
@@ -1568,10 +1588,10 @@ function renderFull() {
   }).join("")}`;
   const om = openMs();
   renderCollapsed();
-  renderPrioFilter();
-  renderMine(listed.filter(hidesForMine).length);
-  renderHideFinished(listed.filter(hidesFinished).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
-  const unstarted = (x) => !["done", "working", "moved"].includes(x.status);
+  const onMap = listed.filter((x) => !hidesClosed(x));
+  renderStateFilter(onMap.filter(hidesByState).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
+  renderMine(onMap.filter(hidesForMine).length);
+  const unstarted = (x) => !["done", "working", "moved", "dropped"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
   const decs = dict((Array.isArray(P.decisions) ? P.decisions : []).filter((d) => d && typeof d === "object" && typeof d.id === "string").map((d) => [d.id, d]));
@@ -2169,23 +2189,31 @@ function renderCollapsed() {
   const on = S.collapsed;
   $("collapse-map").innerHTML = `<button class="share ${on ? "on" : ""}" data-collapse-map aria-pressed="${on}" title="${on ? "Show milestones in full again" : "Show each milestone as one line: id, priority, title and owner"}">Collapsed</button>`;
 }
-function setPrioMenu(open) {
-  S.prioMenu = open;
-  renderPrioFilter();
+function setStateMenu(open) {
+  S.stateMenu = open;
+  render();
 }
-function renderPrioFilter() {
-  const el = $("prio-filter"), shown = S.prioShown, some = shown.length < TIERS.length, had = document.activeElement?.closest?.("#prio-filter") && document.activeElement;
-  const box = ([t, label]) => `<label><input type="checkbox" data-prio-tier="${t}"${shown.includes(t) ? " checked" : ""}${shown.length === 1 && shown.includes(t) ? " disabled" : ""}>${label}</label>`;
-  el.innerHTML = `<button class="share ${some ? "on" : ""}" data-prio-menu aria-expanded="${!!S.prioMenu}" aria-controls="prio-menu" title="Show milestones by priority">${some ? `Priority · ${shown.length} of ${TIERS.length}` : "Priority"}</button>${S.prioMenu ? `<div class="prio-menu" id="prio-menu" role="group" aria-label="Show milestones that are">${TIERS.map(box).join("")}</div>` : ""}`;
-  if (had) el.querySelector(had.dataset.prioTier ? `[data-prio-tier="${had.dataset.prioTier}"]` : "[data-prio-menu]")?.focus();
+const STATUS_BOXES = [["paused", "Paused", "parked · later"], ["closed", "Closed", "dropped"], ["finished", "Finished", "landed · moved"]];
+const statusShown = (k) => ({ __proto__: null, paused: !S.hidePaused, closed: S.showClosed, finished: !S.hideFinished }[k]);
+const stateIsDefault = () => S.prioShown.length === TIERS.length && !S.hidePaused && !S.showClosed && !S.hideFinished;
+function toggleState(key) {
+  if (EVERY_TIER.includes(key)) togglePrioTier(key);
+  else if (key === "paused") setHidePaused(!S.hidePaused);
+  else if (key === "closed") setShowClosed(!S.showClosed);
+  else if (key === "finished") setHideFinished(!S.hideFinished);
+}
+function renderStateFilter(hidden) {
+  const el = $("state-filter"), shown = S.prioShown, some = !stateIsDefault(), had = document.activeElement?.closest?.("#state-filter") && document.activeElement;
+  const box = (key, label, on, off, hint = "") => `<label><input type="checkbox" data-state-show="${key}"${on ? " checked" : ""}${off ? " disabled" : ""}>${label}${hint ? `<small>${hint}</small>` : ""}</label>`;
+  const tiers = TIERS.map(([t, label]) => box(t, label, shown.includes(t), shown.length === 1 && shown.includes(t))).join("");
+  const statuses = STATUS_BOXES.map(([k, label, hint]) => box(k, label, statusShown(k), false, hint)).join("");
+  const menu = `<div class="prio-menu" id="state-menu" role="group" aria-label="Show milestones that are"><span class="mhead">Priority</span>${tiers}<span class="mhead">Status</span>${statuses}</div>`;
+  el.innerHTML = `<button class="share ${some ? "on" : ""}" data-state-menu aria-expanded="${!!S.stateMenu}" aria-controls="state-menu" title="Show milestones by priority and status">${some && hidden ? `State · ${hidden} hidden` : "State"}</button>${S.stateMenu ? menu : ""}`;
+  if (had) el.querySelector(had.dataset.stateShow ? `[data-state-show="${had.dataset.stateShow}"]` : "[data-state-menu]")?.focus();
 }
 function renderMine(hidden) {
   const on = S.mine;
   $("mine-filter").innerHTML = `<button class="share ${on ? "on" : ""}" data-mine aria-pressed="${on}" title="${on ? "Show everyone's milestones again" : "Show only your milestones and what waits on you"}">${on && hidden ? `Mine · ${hidden} hidden` : "Mine"}</button>`;
-}
-function renderHideFinished(hidden) {
-  const on = S.hideFinished;
-  $("hide-finished").innerHTML = `<button class="share ${on ? "on" : ""}" data-hide-finished aria-pressed="${on}" title="${on ? "Show finished work again" : "Hide finished work from the map. Whatever is open or needs you stays"}">${on ? `Show all${hidden ? ` · ${hidden} hidden` : ""}` : "Hide finished"}</button>`;
 }
 function renderFetch() {
   const el = $("fetch"), on = !!S.project.sync?.enabled, last = S.info?.pull;
@@ -2912,7 +2940,7 @@ let toastT;
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3200); }
 
 document.addEventListener("click", (ev) => {
-  if (S.prioMenu && !ev.target.closest("#prio-filter")) setPrioMenu(false);
+  if (S.stateMenu && !ev.target.closest("#state-filter")) setStateMenu(false);
   if (S.runsMenu && !ev.target.closest("#runs")) setRunsMenu(false);
   const rg = ev.target.closest("[data-run-go]");
   if (rg) { goRun(rg.dataset.runGo); return; }
@@ -2940,10 +2968,10 @@ document.addEventListener("click", (ev) => {
   }
   if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
   if (ev.target.closest("[data-mine]")) { setMine(!S.mine); render(); return; }
-  if (ev.target.closest("[data-prio-menu]")) { setPrioMenu(!S.prioMenu); return; }
-  const tier = ev.target.closest("[data-prio-tier]");
-  if (tier) { togglePrioTier(tier.dataset.prioTier); render(); return; }
-  if (ev.target.closest("#prio-filter")) return;
+  if (ev.target.closest("[data-state-menu]")) { setStateMenu(!S.stateMenu); return; }
+  const state = ev.target.closest("[data-state-show]");
+  if (state) { toggleState(state.dataset.stateShow); render(); return; }
+  if (ev.target.closest("#state-filter")) return;
   if (ev.target.closest("[data-fetch]")) { fetchShared(); return; }
   if (ev.target.closest("[data-ds-back]")) { closeDs(); return; }
   const dt = ev.target.closest("[data-ds-tab]");
@@ -3014,7 +3042,7 @@ document.addEventListener("keydown", (ev) => {
 });
 function onEscape() {
   if (S.runsMenu) { setRunsMenu(false); $("runs").querySelector("[data-runs-menu]")?.focus(); }
-  else if (S.prioMenu) { setPrioMenu(false); $("prio-filter").querySelector("[data-prio-menu]")?.focus(); }
+  else if (S.stateMenu) { setStateMenu(false); $("state-filter").querySelector("[data-state-menu]")?.focus(); }
   else if (S.ownerMenu) setOwnerMenu(null);
   else if (S.prioPick) setPrioPick(null);
   else if (S.sel) closeSheet();

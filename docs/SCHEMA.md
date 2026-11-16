@@ -67,7 +67,7 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 |---|---|
 | `id`, `title`, `summary` | |
 | `status` | `draft`, `later`, `parked`, `todo`, `working`, `done`, `dropped`, `moved` (folded into another milestone by `podium move`) |
-| `movedTo` | a moved milestone's target. The Podium greys its card with a "Moved to <id>" pill that opens the target, and Hide finished hides it like a landed one; it counts as neither landed nor open |
+| `movedTo` | a moved milestone's target. The Podium greys its card with a "Moved to <id>" pill that opens the target, and unticking Finished in the State menu hides it like a landed one; it counts as neither landed nor open |
 | `includes` | ids of the milestones moved into this one, in the order they were moved; the card says "includes <ids>" |
 | `cut` | `{pattern, valuable, kept}`: the splitting pattern that cut it (a slug), whether a user notices it, and why it stays when not (`podium set milestone:<id> cut=<json>`). `valuable: false` with `kept` shows a small "infra" tag whose tooltip is `kept` |
 | `phase` | the stepper position, one of `orchestrator.phases` (default `recon spec mock architecture stories build gate verify land`) |

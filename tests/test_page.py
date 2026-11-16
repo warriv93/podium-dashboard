@@ -346,16 +346,10 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn(("i", "id", "pwn"), scan.attrs)
         return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
 
-    def hide_finished_buttons(self, run, stored=None):
-        """The label of every Hide finished button the page rendered, in render order."""
+    def state_labels(self, run, stored=None):
+        """The label of every State button the page rendered, in render order."""
         self.rendered(run, [], PROGRESS, (), localStorage=stored or {})
-        labels = []
-        for html in self.html:
-            if "data-hide-finished" in html:
-                scan = Scan()
-                scan.feed(html)
-                labels.append("".join(scan.text))
-        return labels
+        return [re.search(r"data-state-menu [^>]*>(.*?)</button>", html).group(1) for html in self.html if "data-state-menu" in html]
 
     def crew(self, people, events, owners=()):
         """The header's avatars, as the last render put them: [] when it showed none."""
@@ -555,22 +549,22 @@ class HostileRun(unittest.TestCase):
         run = {**CYCLIC_RUN, "orchestrator": {"name": "o", "command": "/o", "shareSteps": [X, "{ref}"]}, "sync": {"enabled": True, "ref": X}}
         self.assertEqual(self.share_button(run)[1].splitlines()[1:3], [f"1. {X}", f"2. {X}"])
 
-    def test_the_map_header_offers_hide_finished_and_shows_everything_by_default(self):
-        labels = self.hide_finished_buttons(FINISHED_RUN)
+    def test_the_map_header_has_no_hide_finished_button_and_shows_everything_by_default(self):
+        labels = self.state_labels(FINISHED_RUN)
         self.assertTrue(labels)
-        self.assertEqual(set(labels), {"Hide finished"})
-        self.assertIn('id="hide-finished"', open(PAGE).read())
+        self.assertEqual(set(labels), {"State"})
+        self.assertNotIn('id="hide-finished"', open(PAGE).read())
 
-    def test_hide_finished_reads_podium_hide_finished_from_local_storage(self):
+    def test_unticking_finished_is_read_from_podium_hide_finished(self):
         self.assertIn('"podium-hide-finished"', open(PAGE).read())
-        labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished:api": "1"})
-        self.assertIn("Show all · 3 hidden", labels)
+        labels = self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "1"})
+        self.assertIn("State · 3 hidden", labels)
 
     def collapse_button(self, html):
         return re.search(r'<button class="share ?(on)?" data-collapse-map aria-pressed="(\w+)"[^>]*>Collapsed</button>', html)
 
-    def test_a_collapsed_button_sits_beside_hide_finished_and_is_off_by_default(self):
-        self.assertIn('<span id="hide-finished"></span><span id="collapse-map"></span>', open(PAGE).read())
+    def test_a_collapsed_button_opens_the_map_header_filters_and_is_off_by_default(self):
+        self.assertIn('<span id="collapse-map"></span><span id="state-filter"></span>', open(PAGE).read())
         maps, _ = self.maps()
         self.assertEqual(self.collapse_button("".join(self.html)).group(2), "false")
         self.assertNotIn("data-collapsed", maps[-1])
@@ -590,53 +584,59 @@ class HostileRun(unittest.TestCase):
             self.assertRegex(css, r"\.full\[data-collapsed\] \.fms:not\(\.open\) " + re.escape(hidden) + r"\b[^{]*\{ display: none")
 
     def prio_filter(self):
-        """The Priority pull-down as the last render put it: its label, aria-expanded, and each box as (tier, label, checked, disabled)."""
-        html = [h for h in self.html if "data-prio-menu" in h][-1]
-        button = re.search(r'<button class="share ?(?:on)?" data-prio-menu aria-expanded="(\w+)"[^>]*>(.*?)</button>', html)
-        boxes = re.findall(r'<label><input type="checkbox" data-prio-tier="(\w+)"( checked)?( disabled)?>(.*?)</label>', html)
-        return button.group(2), button.group(1), [(tier, label, bool(on), bool(off)) for tier, on, off, label in boxes]
+        """The State pull-down's priority half as the last render put it: its label, aria-expanded, and each box as (tier, label, checked, disabled)."""
+        label, expanded, boxes = self.state_filter()
+        return label, expanded, [b for b in boxes if b[0] in ("must", "should", "nice")]
+
+    def state_filter(self):
+        """The State pull-down as the last render put it: its label, aria-expanded, and each box as (key, label, checked, disabled)."""
+        html = [h for h in self.html if "data-state-menu" in h][-1]
+        button = re.search(r'<button class="share ?(?:on)?" data-state-menu aria-expanded="(\w+)"[^>]*>(.*?)</button>', html)
+        boxes = re.findall(r'<label><input type="checkbox" data-state-show="(\w+)"( checked)?( disabled)?>(.*?)(?:<small>.*?</small>)?</label>', html)
+        return button.group(2), button.group(1), [(key, label, bool(on), bool(off)) for key, on, off, label in boxes]
 
     @staticmethod
     def shown(full):
         return re.findall(r'<div class="fms [^"]*" [^>]*?data-id="([^"]*)"', full)
 
-    def test_a_priority_pull_down_sits_after_collapsed_closed_and_showing_every_tier(self):
-        self.assertIn('<span id="collapse-map"></span><span id="prio-filter"></span>', open(PAGE).read())
+    def test_a_state_pull_down_sits_after_collapsed_closed_and_showing_every_tier(self):
+        self.assertIn('<span id="collapse-map"></span><span id="state-filter"></span>', open(PAGE).read())
         maps, _ = self.maps(self.priority_run())
-        self.assertEqual(self.prio_filter(), ("Priority", "false", []))
+        self.assertEqual(self.prio_filter(), ("State", "false", []))
         self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
 
-    def test_opening_the_priority_menu_lists_must_should_and_nice_to_have_all_ticked(self):
-        self.maps(self.priority_run(), probe="(setPrioMenu(true), S.prioMenu)")
+    def test_opening_the_state_menu_lists_the_tiers_then_paused_closed_and_finished(self):
+        self.maps(self.priority_run(), probe="(setStateMenu(true), S.stateMenu)")
         self.assertTrue(self.probe())
-        self.assertEqual(self.prio_filter(), ("Priority", "true", [("must", "Must have", True, False), ("should", "Should have", True, False),
-                                                                   ("nice", "Nice to have", True, False)]))
+        self.assertEqual(self.state_filter(), ("State", "true", [("must", "Must have", True, False), ("should", "Should have", True, False),
+                                                                 ("nice", "Nice to have", True, False), ("paused", "Paused", True, False),
+                                                                 ("closed", "Closed", False, False), ("finished", "Finished", True, False)]))
 
     def test_unticking_a_tier_hides_its_milestones_says_how_many_tiers_show_and_keeps_the_choice(self):
         maps, _ = self.maps(self.priority_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; };'
                                                        ' closeSheet(); togglePrioTier("nice"); render(); return put["podium-priority-filter:api"]; })()')
         self.assertEqual(json.loads(self.probe()), ["must", "should"])
         self.assertEqual(self.shown(maps[-1]), ["M2", "M3"])
-        self.assertEqual(self.prio_filter()[0], "Priority · 2 of 3")
+        self.assertEqual(self.prio_filter()[0], "State · 2 hidden")
 
     def test_the_priority_filter_is_read_from_podium_priority_filter(self):
         maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["should"]'})
         self.assertEqual(self.shown(maps[0]), ["M3"])
-        self.assertEqual(self.prio_filter()[0], "Priority · 1 of 3")
+        self.assertEqual(self.prio_filter()[0], "State · 3 hidden")
 
     def test_a_missing_broken_or_hostile_priority_filter_shows_every_tier(self):
         for stored in ("", "{", '"must"', '{"0": "must", "length": 1}', "[]", "null", "[1, 2]", json.dumps(["__proto__", X]), json.dumps(X)):
             with self.subTest(stored=stored):
                 maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": stored})
                 self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
-                self.assertEqual(self.prio_filter()[0], "Priority")
-                self.assertNotIn("pwn", "".join(h for h in self.html if "data-prio-menu" in h))
+                self.assertEqual(self.prio_filter()[0], "State")
+                self.assertNotIn("pwn", "".join(h for h in self.html if "data-state-menu" in h))
 
     def test_the_last_ticked_tier_cannot_be_unticked(self):
         self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["must"]'},
-                  probe='(togglePrioTier("must"), setPrioMenu(true), S.prioShown)')
+                  probe='(togglePrioTier("must"), setStateMenu(true), S.prioShown)')
         self.assertEqual(self.probe(), ["must"])
-        self.assertEqual(self.prio_filter(), ("Priority · 1 of 3", "true", [("must", "Must have", True, True), ("should", "Should have", False, False),
+        self.assertEqual(self.prio_filter(), ("State · 2 hidden", "true", [("must", "Must have", True, True), ("should", "Should have", False, False),
                                                                             ("nice", "Nice to have", False, False)]))
 
     def test_the_open_milestone_stays_on_the_map_when_its_tier_is_unticked(self):
@@ -649,43 +649,78 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(re.findall(r'<div class="fepic" data-epic-sheet="(\w+)"', maps[0]), ["e1", "e2"])
         self.assertEqual(sorted(self.shown(maps[0])), ["M1", "R1"])
 
-    def test_hide_finished_counts_only_the_finished_milestones_while_a_tier_is_unticked(self):
+    def test_the_state_count_adds_up_what_the_tiers_and_finished_hide(self):
         run = json.loads(json.dumps(HIDE_RUN))
         run["epics"][0]["milestones"][2]["priority"] = "must"
         shown, _, label = self.hidden_map({"podium-hide-finished:api": "1", "podium-priority-filter:api": '["must"]'}, run=run,
                                           probe='(closeSheet(), expand("M3"), 0)')
         self.assertEqual(shown, ["M3"])
-        self.assertEqual(label, "Show all · 5 hidden")
+        self.assertEqual(label, "State · 6 hidden")
 
-    def test_escape_closes_the_priority_menu_before_the_open_milestone(self):
-        self.maps(self.priority_run(), probe='(() => { closeSheet(); expand("M2"); setPrioMenu(true); onEscape(); return [S.prioMenu, S.open]; })()')
+    @staticmethod
+    def paused_run():
+        run = json.loads(json.dumps(HIDE_RUN))
+        run["epics"][0]["milestones"] += [{"id": "M5", "title": "parked", "status": "parked"}, {"id": "M6", "title": "later", "status": "later"},
+                                          {"id": "M7", "title": "dropped", "status": "dropped"}]
+        return run
+
+    def test_paused_and_finished_milestones_show_and_closed_ones_stay_off_by_default(self):
+        shown, _, label = self.hidden_map({}, run=self.paused_run())
+        self.assertEqual(shown, ["M1", "M2", "M3", "M4", "M5", "M6"])
+        self.assertEqual(label, "State")
+
+    def test_unticking_paused_hides_parked_and_later_milestones_and_keeps_the_choice(self):
+        maps, _ = self.maps(self.paused_run(), probe=self.PUT % 'closeSheet(); toggleState("paused"); render()')
+        self.assertEqual(self.probe(), ["podium-hide-paused:api"])
+        self.assertEqual(self.shown(maps[-1]), ["M1", "M2", "M3", "M4"])
+        self.assertEqual(self.state_filter()[0], "State · 2 hidden")
+
+    def test_ticking_closed_shows_dropped_milestones_with_a_dropped_badge(self):
+        maps, _ = self.maps(self.paused_run(), localStorage={"podium-show-closed:api": "1"}, probe="(closeSheet(), render(), 0)")
+        self.assertEqual(self.shown(maps[-1]), ["M1", "M2", "M3", "M4", "M5", "M6", "M7"])
+        cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[-1])[1:]}
+        self.assertTrue(cards["M7"].startswith('<div class="fms dropped'))
+        self.assertIn('<span class="badge dropped">Dropped</span>', cards["M7"])
+        self.assertEqual(self.state_filter()[0], "State")
+
+    def test_a_dropped_milestone_is_never_up_next(self):
+        run = self.paused_run()
+        run["epics"][0]["milestones"] = [m for m in run["epics"][0]["milestones"] if m["id"] != "M4"]
+        maps, _ = self.maps(run, localStorage={"podium-show-closed:api": "1"}, probe="(closeSheet(), render(), 0)")
+        self.assertNotRegex(maps[-1], r'<div class="fnext">Up next</div><div class="fms dropped')
+
+    def test_unticking_finished_from_the_menu_hides_landed_milestones(self):
+        maps, _ = self.maps(self.paused_run(), probe='(closeSheet(), toggleState("finished"), render(), S.hideFinished)')
+        self.assertTrue(self.probe())
+        self.assertEqual(self.shown(maps[-1]), ["M3", "M4", "M5", "M6"])
+
+    def test_escape_closes_the_state_menu_before_the_open_milestone(self):
+        self.maps(self.priority_run(), probe='(() => { closeSheet(); expand("M2"); setStateMenu(true); onEscape(); return [S.stateMenu, S.open]; })()')
         self.assertEqual(self.probe(), [False, "M2"])
         self.assertEqual(self.prio_filter()[1], "false")
 
-    def test_the_priority_menu_stays_open_while_ticking_and_a_click_outside_closes_it(self):
-        self.maps(self.priority_run(), probe='(() => { const click = (...hits) => { const target = { dataset: { prioTier: "should" }, closest: (s) => (hits.includes(s) ? target : null) };'
-                                             ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return S.prioMenu; };'
-                                             ' closeSheet(); const opened = click("#prio-filter", "[data-prio-menu]"); const ticked = click("#prio-filter", "[data-prio-tier]");'
+    def test_the_state_menu_stays_open_while_ticking_and_a_click_outside_closes_it(self):
+        self.maps(self.priority_run(), probe='(() => { const click = (...hits) => { const target = { dataset: { stateShow: "should" }, closest: (s) => (hits.includes(s) ? target : null) };'
+                                             ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return S.stateMenu; };'
+                                             ' closeSheet(); const opened = click("#state-filter", "[data-state-menu]"); const ticked = click("#state-filter", "[data-state-show]");'
                                              ' const shown = [...S.prioShown]; return [opened, ticked, shown, click()]; })()')
         self.assertEqual(self.probe(), [True, True, ["must", "nice"], False])
 
     def test_a_stored_podium_hide_finished_stories_changes_nothing_and_the_page_no_longer_names_it(self):
-        labels = self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished-stories": "1"})
-        self.assertEqual(set(labels), {"Hide finished"})
+        labels = self.state_labels(FINISHED_RUN, {"podium-hide-finished-stories": "1"})
+        self.assertEqual(set(labels), {"State"})
         self.assertNotIn("podium-hide-finished-stories", open(PAGE).read())
 
     def hidden_map(self, stored=None, run=HIDE_RUN, probe='(expand("M3"), 0)'):
-        """The last full map's milestone ids, the story ids inside the open milestone, and the Hide finished label."""
+        """The last full map's milestone ids, the story ids inside the open milestone, and the State label."""
         stored = {"podium-hide-finished:api": "1"} if stored is None else stored
         maps, _ = self.maps(run, localStorage=stored, probe=probe)
         full = maps[-1]
         open_card = self.open_card(full)
         shown = re.findall(r'<div class="fms [^"]*" [^>]*?data-id="([^"]*)"', full)
         stories = re.findall(r'<div class="node compact [^"]*" data-open="[^"]*" data-story="([^"]*)"', open_card)
-        label = next(h for h in reversed(self.html) if "data-hide-finished" in h)
-        scan = Scan()
-        scan.feed(label)
-        return shown, stories, "".join(scan.text)
+        label = re.search(r"data-state-menu [^>]*>(.*?)</button>", next(h for h in reversed(self.html) if "data-state-menu" in h)).group(1)
+        return shown, stories, label
 
     def test_hide_finished_hides_landed_and_moved_milestones_and_finished_stories_of_the_open_one(self):
         shown, stories, _ = self.hidden_map()
@@ -696,10 +731,10 @@ class HostileRun(unittest.TestCase):
         shown, stories, label = self.hidden_map({})
         self.assertEqual(shown, ["M1", "M2", "M3", "M4"])
         self.assertEqual(sorted(stories), ["S1", "S2", "S3", "S4", "S5"])
-        self.assertEqual(label, "Hide finished")
+        self.assertEqual(label, "State")
 
     def test_hide_finished_counts_the_milestones_and_stories_it_hides(self):
-        self.assertEqual(self.hidden_map()[2], "Show all · 5 hidden")
+        self.assertEqual(self.hidden_map()[2], "State · 5 hidden")
 
     def test_hide_finished_keeps_the_story_whose_sheet_is_open(self):
         _, stories, label = self.hidden_map(probe='(openSheet({ ms: "M3", story: "S1" }), 0)')
@@ -725,7 +760,7 @@ class HostileRun(unittest.TestCase):
         self.assertIn("folded", self.feed_classes({"podium-feed-open": "0"}))
 
     def test_hide_finished_is_off_for_any_other_stored_value(self):
-        self.assertEqual(set(self.hide_finished_buttons(FINISHED_RUN, {"podium-hide-finished:api": "0"})), {"Hide finished"})
+        self.assertEqual(set(self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "0"})), {"State"})
 
     def test_a_missing_document_of_a_colleagues_milestone_is_not_synced_from_their_machine_yet(self):
         run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
@@ -1068,8 +1103,8 @@ class HostileRun(unittest.TestCase):
         html = [h for h in self.html if "data-mine" in h][-1]
         return re.search(r'<button class="share ?(on)?" data-mine aria-pressed="(\w+)"[^>]*>(.*?)</button>', html).groups()
 
-    def test_a_mine_toggle_sits_beside_priority_and_starts_off(self):
-        self.assertIn('<span id="prio-filter"></span><span id="mine-filter"></span>', open(PAGE).read())
+    def test_a_mine_toggle_sits_beside_state_and_starts_off(self):
+        self.assertIn('<span id="state-filter"></span><span id="mine-filter"></span>', open(PAGE).read())
         maps, _ = self.maps(self.mine_run(), probe="(closeSheet(), render(), 0)")
         self.assertEqual(self.mine_button(), (None, "false", "Mine"))
         self.assertEqual(sorted(self.shown(maps[-1])), ["M1", "M2", "M3", "R1"])
@@ -1982,9 +2017,9 @@ class HostileRun(unittest.TestCase):
 
     def test_the_runs_own_choices_carry_its_slug_and_the_theme_stays_global(self):
         self.maps(probe=self.PUT % ('closeSheet(); setTheme("dark"); setHideFinished(true); setCollapsed(true); setMine(true);'
-                                    ' togglePrioTier("nice"); seeHanded(); markSeen()'))
-        self.assertEqual(self.probe(), ["podium-collapsed:api", "podium-handed-seen:api", "podium-hide-finished:api", "podium-mine:api",
-                                        "podium-priority-filter:api", "podium-seen:api", "podium-theme"])
+                                    ' togglePrioTier("nice"); toggleState("paused"); toggleState("closed"); seeHanded(); markSeen()'))
+        self.assertEqual(self.probe(), ["podium-collapsed:api", "podium-handed-seen:api", "podium-hide-finished:api", "podium-hide-paused:api",
+                                        "podium-mine:api", "podium-priority-filter:api", "podium-seen:api", "podium-show-closed:api", "podium-theme"])
 
     def test_a_value_kept_without_the_slug_or_under_another_run_is_not_read(self):
         for stored in ({"podium-collapsed": "1", "podium-mine": "1"}, {"podium-collapsed:web": "1", "podium-mine:web": "1"}):
