@@ -109,7 +109,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
 from podium_dashboard import extension, ports, sync, version
-from podium_dashboard.commands import Building, give_milestone
+from podium_dashboard.commands import Building, Finished, give_milestone, set_milestone_state
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
 from podium_dashboard.plugins import paseo
@@ -637,6 +637,8 @@ def make_handler(root):
                 return self.reviewed(urllib.parse.unquote(url.path[len("/reviewed/"):]), parse_qs(url.query))
             if first == "owner":
                 return self.give(urllib.parse.unquote(url.path[len("/owner/"):]), parse_qs(url.query, keep_blank_values=True).get("to", [None])[0])
+            if first == "status":
+                return self.state(urllib.parse.unquote(url.path[len("/status/"):]), parse_qs(url.query).get("to", [""])[0])
             if first == "priority":
                 return self.priority(urllib.parse.unquote(url.path[len("/priority/"):]), parse_qs(url.query).get("level", [""])[0])
             if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
@@ -816,6 +818,21 @@ def make_handler(root):
                 x["priority"] = level
             p.save()
             self.reply(200, {"id": x["id"], "priority": x.get("priority")})
+
+        def state(self, mid, to):
+            """POST /status/<milestone>?to=open|paused|closed: anyone may pause (parked), close (dropped) or reopen a
+            milestone, refused while it is working or once it landed or moved. Written to podium.json at once; it needs
+            no watcher."""
+            if to not in ("open", "paused", "closed"):
+                return self.reply(400, {"error": "to is open, paused or closed"})
+            p = load_podium(root)
+            if not p or not any(m.get("id") == mid for m in p.milestones()):
+                return self.reply(404, {"error": "unknown milestone"})
+            try:
+                status = set_milestone_state(p, mid, to)
+            except (Building, Finished) as e:
+                return self.reply(409, {"error": str(e)})
+            self.reply(200, {"id": mid, "status": status})
 
         def give(self, mid, to):
             """POST /owner/<milestone>?to=<person>, or ?to= for nobody: anyone may reassign a milestone to someone in the

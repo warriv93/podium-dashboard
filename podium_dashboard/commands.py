@@ -386,13 +386,53 @@ def give_milestone(p, milestone_id, to):
     else:
         del m["owner"]
     p.event("owner", m["id"], owner=to)
+    saved(p, f"{m['id']} given to {to or 'nobody'} by {p.me}")
+    return owner
+
+
+def saved(p, message):
+    """Save podium.json and, in a synced run, push it, pulling once first when a colleague's change got there before."""
     p.save()
     if p.synced():
-        out = sync.save(p, f"{m['id']} given to {to or 'nobody'} by {p.me}")
-        if out == "BEHIND":
+        if sync.save(p, message) == "BEHIND":
             sync.pull(p)
-            sync.save(p, f"{m['id']} given to {to or 'nobody'} by {p.me}")
-    return owner
+            sync.save(p, message)
+
+
+class Finished(Exception):
+    pass
+
+
+STATE_STATUS = {"paused": "parked", "closed": "dropped"}
+STATE_WORD = {"open": "reopened", "paused": "paused", "closed": "closed"}
+
+
+def set_milestone_state(p, milestone_id, state):
+    """Open, pause (parked) or close (dropped) the milestone, as anyone in the run may from the Podium, with a `status`
+    event; pulled first and pushed after in a synced run. Pausing or closing an open one keeps the status it left in
+    `resumeTo`, which opening restores (else todo once it has stories, draft before). Raises Building while it is
+    working and Finished once it landed or moved. Returns its status after."""
+    if p.synced():
+        sync.pull(p)
+    m = p.milestone(milestone_id)
+    status = m.get("status")
+    if status == "working":
+        raise Building(f"{m['id']} is in progress: stop it first")
+    if status in ("done", "moved"):
+        raise Finished(f"{m['id']} has {'landed' if status == 'done' else 'moved'}")
+    if state == "open":
+        to = status if status in ("draft", "todo") else m.get("resumeTo") if m.get("resumeTo") in ("draft", "todo") else "todo" if m.get("stories") else "draft"
+        m.pop("resumeTo", None)
+    else:
+        to = STATE_STATUS[state]
+        if status in ("draft", "todo"):
+            m["resumeTo"] = status
+    if to == status:
+        return status
+    m["status"] = to
+    p.event("status", m["id"], text=f"{m['id']} {STATE_WORD[state]}")
+    saved(p, f"{m['id']} {STATE_WORD[state]} by {p.me}")
+    return to
 
 def cmd_claim(p, args):
     force, rest = "--force" in args, [a for a in args if a != "--force"]

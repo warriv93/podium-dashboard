@@ -774,6 +774,57 @@ class Priority(Server):
 
 
 
+class State(Server):
+    podium, milestone = Priority.podium, Priority.milestone
+
+    def events(self):
+        with open(os.path.join(self.pod, "events.jsonl")) as f:
+            return [{k: e[k] for k in ("type", "milestone", "text", "by") if k in e} for e in map(json.loads, f)]
+
+    def run_with(self, **m2):
+        data = json.loads(json.dumps(DATA))
+        data["epics"][0]["milestones"][1].update(m2)
+        self.serve(data)
+
+    def test_pauses_closes_and_reopens_a_milestone_with_no_watcher(self):
+        self.run_with()
+        self.assertEqual(self.call("POST", "/status/M9?to=paused")[0], 404)
+        self.assertEqual(self.call("POST", "/status/M2?to=gone"), (400, {"error": "to is open, paused or closed"}))
+        self.assertEqual(self.call("POST", "/status/M2?to=paused"), (200, {"id": "M2", "status": "parked"}))
+        self.assertEqual({k: self.milestone("M2").get(k) for k in ("status", "resumeTo")}, {"status": "parked", "resumeTo": "todo"})
+        self.assertEqual(self.call("POST", "/status/M2?to=closed"), (200, {"id": "M2", "status": "dropped"}))
+        self.assertEqual(self.milestone("M2")["resumeTo"], "todo")
+        self.assertEqual(self.call("POST", "/status/M2?to=open"), (200, {"id": "M2", "status": "todo"}))
+        self.assertNotIn("resumeTo", self.milestone("M2"))
+        self.assertEqual([e["text"] for e in self.events()[-3:]], ["M2 paused", "M2 closed", "M2 reopened"])
+        self.assertEqual(self.requests(), [])
+
+    def test_reopening_a_draft_restores_draft(self):
+        self.run_with(status="draft")
+        self.call("POST", "/status/M2?to=closed")
+        self.assertEqual(self.call("POST", "/status/M2?to=open"), (200, {"id": "M2", "status": "draft"}))
+
+    def test_reopening_one_paused_elsewhere_is_todo_with_stories_and_draft_without(self):
+        for stories, status in (([{"id": "S1", "status": "todo"}], "todo"), ([], "draft")):
+            with self.subTest(stories=stories):
+                self.run_with(status="later", stories=stories)
+                self.assertEqual(self.call("POST", "/status/M2?to=open"), (200, {"id": "M2", "status": status}))
+
+    def test_setting_the_state_it_already_has_writes_no_event(self):
+        self.run_with(status="parked")
+        self.assertEqual(self.call("POST", "/status/M2?to=paused"), (200, {"id": "M2", "status": "parked"}))
+        self.assertFalse(os.path.exists(os.path.join(self.pod, "events.jsonl")))
+
+    def test_refuses_a_milestone_in_progress_landed_or_moved(self):
+        self.run_with()
+        self.assertEqual(self.call("POST", "/status/M1?to=paused"), (409, {"error": "M1 is in progress: stop it first"}))
+        for status, error in (("done", "M2 has landed"), ("moved", "M2 has moved")):
+            with self.subTest(status=status):
+                self.run_with(status=status)
+                self.assertEqual(self.call("POST", "/status/M2?to=closed"), (409, {"error": error}))
+                self.assertEqual(self.milestone("M2")["status"], status)
+
+
 class Owner(Server):
     podium, milestone = Priority.podium, Priority.milestone
 

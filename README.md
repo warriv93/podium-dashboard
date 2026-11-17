@@ -146,6 +146,8 @@ Each milestone card shows its state on a coloured left edge with a glyph before 
 
 A milestone or epic marked must have carries a gold **★ Must** pill on the map, one marked should have a soft gold **★ Should** pill; anything unmarked is nice to have. Click the pill on an open milestone (where a nice to have one shows a grey **Nice to have** pill; closed cards leave it out) or in an epic's sheet (a quest's US tiles) to pick another from a pulldown (`POST /priority/<milestone>?level=must|should|nice`, or `/priority/epic/<epic>?level=...`; written to `podium.json` at once, with no watcher needed), or with `podium set milestone:<id> priority=must` (`priority=should`, `epic:<id>` for an epic, `priority=null` clears it).
 
+A milestone's pulldown also sets its status: **Open**, **Paused** (parked) or **Closed** (dropped), from the open card or its sheet (`POST /status/<milestone>?to=open|paused|closed`, written to `podium.json` at once with a `status` event, and pushed in a shared run). Pausing or closing an open milestone keeps the status it left in `resumeTo`, which Open restores. The choices are greyed out while the milestone is in progress, and a landed or moved one, or an epic, offers priority only.
+
 Beside it, a run with two or more people shows one avatar each (everyone in `podium.json`'s `people` or the `by` of an event; yours has a ring; past five people it shows four and a `+N` chip). A green dot means an event of theirs is under 15 minutes old: recent activity, not live presence. The tooltip names the milestones they own, the one they're on with its phase, and when they were last active.
 
 ## Security

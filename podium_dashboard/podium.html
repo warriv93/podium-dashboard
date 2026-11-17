@@ -119,6 +119,9 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .prio-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .prio-menu label:hover { background: var(--gray-soft); }
 .prio-menu input { margin: 0; accent-color: var(--text); }
+.prio-pick-menu .mhead { padding: 4px 8px 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.prio-pick-menu .mhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.prio-pick-menu button .badge { pointer-events: none; background: none; padding: 0; color: var(--text); text-decoration: none; font-size: 13px; font-weight: 500; }
 .prio-menu .mhead { padding: 6px 8px 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .prio-menu .mhead + label { margin-top: 0; }
 .prio-menu .mhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
@@ -1449,11 +1452,20 @@ const colOf = (E) => ((E.milestones || []).some((x) => x.id === S.open) && canEx
 const PRIO = { __proto__: null, must: "Must", should: "Should" };
 const prioPill = (x) => (PRIO[x?.priority] ? `<span class="prio ${x.priority}" title="${PRIO[x.priority]} have"><b>★</b>${PRIO[x.priority]}</span>` : "");
 const PICKS = [["must", "★ Must"], ["should", "★ Should"], ["", "Nice to have"]];
+const STATE_PICKS = [["open", "Open", "ready"], ["paused", "Paused", "parked"], ["closed", "Closed", "dropped"]];
+const stateOf = (m) => (PAUSED.includes(m.status) ? "paused" : m.status === "dropped" ? "closed" : "open");
+const canSetState = (m) => !!m && !isResearch(m) && !["done", "moved"].includes(m.status);
+function statePicks(ref, m) {
+  const now = stateOf(m), busy = m.status === "working";
+  const item = ([v, label, badge]) => `<button role="menuitemradio" aria-checked="${now === v}" data-state-to="${v}" data-state-of="${esc(ref)}"${busy ? ` disabled title="${esc(m.id)} is in progress: stop it first"` : ""}><span class="badge ${badge}">${label}</span>${now === v ? `<b class="tick">✓</b>` : ""}</button>`;
+  return `<span class="mhead">Status</span>${STATE_PICKS.map(item).join("")}`;
+}
 function prioPick(ref, x) {
-  const now = PRIO[x?.priority] ? x.priority : "", open = S.prioPick === ref;
+  const now = PRIO[x?.priority] ? x.priority : "", open = S.prioPick === ref, states = !ref.startsWith("epic/") && canSetState(x);
   const pill = (v) => prioPill({ priority: v }) || `<span class="prio nice" title="Nice to have">Nice to have</span>`;
-  const menu = `<div class="prio-pick-menu" role="menu" aria-label="Priority of ${esc(ref.replace(/^epic\//, ""))}">${PICKS.map(([v]) => `<button role="menuitemradio" aria-checked="${now === v}" data-prio="${v}" data-prio-of="${esc(ref)}">${pill(v)}${now === v ? `<b class="tick">✓</b>` : ""}</button>`).join("")}</div>`;
-  return `<span class="prio-wrap"><button class="prio-pick" data-prio-pick="${esc(ref)}" aria-haspopup="menu" aria-expanded="${open}" title="Change the priority">${pill(now)}</button>${open ? menu : ""}</span>`;
+  const prios = PICKS.map(([v]) => `<button role="menuitemradio" aria-checked="${now === v}" data-prio="${v}" data-prio-of="${esc(ref)}">${pill(v)}${now === v ? `<b class="tick">✓</b>` : ""}</button>`).join("");
+  const menu = `<div class="prio-pick-menu" role="menu" aria-label="${states ? "State" : "Priority"} of ${esc(ref.replace(/^epic\//, ""))}">${states ? `<span class="mhead">Priority</span>${prios}${statePicks(ref, x)}` : prios}</div>`;
+  return `<span class="prio-wrap"><button class="prio-pick" data-prio-pick="${esc(ref)}" aria-haspopup="menu" aria-expanded="${open}" title="${states ? "Change the priority or status" : "Change the priority"}">${pill(now)}</button>${open ? menu : ""}</span>`;
 }
 function setPrioPick(ref) { S.prioPick = ref; render(); }
 async function setPriority(ref, level) {
@@ -1465,6 +1477,20 @@ async function setPriority(ref, level) {
   const x = epic ? S.project.epics.find((E) => E.id === epic) : msOf(id);
   if (x && level) x.priority = level;
   else if (x) delete x.priority;
+  render();
+}
+const STATE_DOING = { __proto__: null, open: ["Reopening", "reopened"], paused: ["Pausing", "paused"], closed: ["Closing", "closed"] };
+async function setMsState(id, to) {
+  if (refuseDotted(id)) return;
+  S.prioPick = null;
+  render();
+  toast(`${STATE_DOING[to][0]} ${id}…`);
+  const r = await fetch(`/status/${idPath(id)}?to=${to}`, { method: "POST" }).catch(() => null);
+  const body = await r?.json().catch(() => null);
+  if (!r?.ok) return toast(r ? `Couldn't change ${id}: ${body?.error || r.status}` : SERVER_DOWN);
+  const m = msOf(id);
+  if (m && body?.status) m.status = body.status;
+  toast(`${id} ${STATE_DOING[to][1]}`);
   render();
 }
 function openHead(m, foot) {
@@ -2995,6 +3021,8 @@ document.addEventListener("click", (ev) => {
     keep(); requestAnimationFrame(keep);
     return;
   }
+  const sp = ev.target.closest("[data-state-of]");
+  if (sp) { ev.stopPropagation(); if (!sp.disabled) setMsState(sp.dataset.stateOf, sp.dataset.stateTo); return; }
   const pr = ev.target.closest("[data-prio-of]");
   if (pr) { ev.stopPropagation(); setPriority(pr.dataset.prioOf, pr.dataset.prio); return; }
   const lk = ev.target.closest("[data-looked]");
