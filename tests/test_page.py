@@ -1335,6 +1335,37 @@ class HostileRun(unittest.TestCase):
                         ' await setMsState("M3", "closed"); return said; })()')
         self.assertEqual(self.probe(), ["Closing M3…", "M3 closed"])
 
+    FLAKY = [{"name": "unit", "logs": "contract-core.logs/merge-r6", "flips": 3, "last": "2026-10-20T08:00:00Z", "runs": 4, "fails": 1},
+             {"name": "lint", "logs": "contract.logs", "flips": 1, "last": "2026-10-19T08:00:00Z", "runs": 1, "fails": 1}]
+    FLAKY_PROBE = ('(async () => { const chip = document.getElementById("flaky-gates").innerHTML;'
+                   ' LISTENERS.click.forEach((f) => f({ target: { dataset: {}, closest: (q) => (q === "[data-flaky]" ? { dataset: {} } : null) }, stopPropagation() {} }));'
+                   ' await null; return [chip, S.sel, document.getElementById("sheet-head").innerHTML, document.getElementById("sheet-body").innerHTML]; })()')
+
+    def test_flaky_gates_show_as_a_chip_that_opens_a_sheet_listing_each_with_where_how_often_and_when(self):
+        self.maps(probe=self.FLAKY_PROBE, **{"/gates": json.dumps({"gates": self.FLAKY})})
+        chip, sel, head, body = self.probe()
+        self.assertIn(">2 flaky gates</button>", chip)
+        self.assertEqual(sel, {"gates": True})
+        self.assertIn("<h2>Flaky gates</h2>", head)
+        for text in ("<b class=\"mono\">unit</b>", "contract-core.logs/merge-r6", "flipped 3 times", "1 of 4 runs failed",
+                     "<b class=\"mono\">lint</b>", "flipped 1 time<", "1 of 1 run failed"):
+            self.assertIn(text, body)
+
+    def test_no_flaky_gates_or_a_server_without_them_shows_no_chip(self):
+        for gates in (None, {"gates": []}, {"gates": "x"}):
+            with self.subTest(gates=gates):
+                self.maps(probe='document.getElementById("flaky-gates").innerHTML', **({"/gates": json.dumps(gates)} if gates else {}))
+                self.assertEqual(self.probe(), "")
+
+    def test_the_flaky_gates_sheet_shows_hostile_fields_as_text_and_links_to_itself(self):
+        self.maps(probe=self.FLAKY_PROBE, **{"/gates": json.dumps({"gates": [{"name": X, "logs": X, "flips": X, "last": X, "runs": X, "fails": X}]})})
+        scan = Scan()
+        scan.feed(self.probe()[3])
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        self.assertIn(X, "".join(scan.text))
+        self.maps(probe='(S.sel = { gates: true }, sheetRoute())', **{"/gates": json.dumps({"gates": self.FLAKY})})
+        self.assertEqual(self.probe(), {"hash": "#/gates", "label": "the flaky gates"})
+
     def test_a_milestone_sheet_without_a_priority_offers_nice_to_have(self):
         self.maps(self.priority_run(), probe='(openSheet({ ms: "M1" }), renderSheet(), document.getElementById("sheet-head").innerHTML)')
         self.assertIn('data-prio-pick="M1" aria-haspopup="menu" aria-expanded="false" title="Change the priority"><span class="prio nice" title="Nice to have">Nice to have</span>', self.probe())

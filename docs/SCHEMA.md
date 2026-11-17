@@ -18,6 +18,7 @@ Unknown keys in `podium.json` pass through every command untouched, so an orches
 | `cursor.json` | `podium requests` | never |
 | `watcher.json` | `podium watch` | never |
 | `server.log` | `podium server --detach` | never |
+| `<name>.logs/**/gates.jsonl`, in the run dir | `gates.sh --logs` | never |
 | `synced.json` | `podium sync` | never |
 | `~/.podium/human.json` | `podium hours`, `whoami`, the Podium toggle | outside any run; one per machine |
 | `~/.podium/sync.json` | `podium sync defaults` | outside any run; one per machine, beside `human.json` |
@@ -170,6 +171,18 @@ An event is major, and saves the run when sync is on, if its type is `status`, `
 The line is `<ISO time> <STAGE> <note>`. Default stages: `STARTED RED GREEN REFACTOR FIX CONTRACT COMMITTED FAILED`. `orchestrator.stages` adds more, or changes how a default shows: `{STAGE: {doing, step, time}}` where `doing` is the label while the story is in that stage, `step` (0 to 3) its position in the story's progress bar, and `time` the row it counts toward in the timing view.
 
 The watcher prints only `COMMITTED` and `FAILED` lines. A story's brief sits beside its progress file as `<story>.md`.
+
+## gates.jsonl
+
+A contract run's history: `gates.sh <dir> --logs <logs dir>` appends one line per gate it runs to `<logs dir>/gates.jsonl`, beside the per-gate logs it overwrites, and never rewrites or clears it:
+
+```
+{"at": "2026-11-17T09:12:03Z", "gate": "test", "ok": false, "secs": 41, "sha": "4f1c2e9…"}
+```
+
+`at` is when the gate finished, in UTC; `gate` its name as `PASS`/`FAIL` prints it; `ok` whether it passed; `secs` how long it took in whole seconds; `sha` the checkout's `git rev-parse HEAD`, or null outside a commit. A failed write is skipped and changes neither the gate's result nor the exit code.
+
+The server's `GET /gates` reads every `gates.jsonl` up to three folders below the run dir, none in `worktrees/`, `repos/`, `node_modules/`, `.git/` or `podium/`, so a feature-plan run's `contract-<repo>.logs/<label>/` and a deep-plan run's `contract.logs/` both count. A gate is flaky in a logs folder when a run of it failed and a later run there passed on the same sha; a run without a sha never counts. It answers `{"gates": [{"name", "logs", "flips", "last", "runs", "fails"}]}`, latest flip first: `logs` the folder relative to the run dir, `flips` how many failures were followed by a pass on their sha, `last` the `at` of the latest such pass, `runs` and `fails` every run of the gate in that folder. Each file is read again only once its mtime or size changes.
 
 ## requests.jsonl
 

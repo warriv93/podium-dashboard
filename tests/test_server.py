@@ -861,6 +861,47 @@ class Owner(Server):
         self.assertEqual(self.call("POST", "/owner/M2?to=cy"), (409, {"error": "M2 is building: stop it first"}))
         self.assertEqual(self.milestone("M2")["owner"], "bob")
 
+
+class Gates(Server):
+    def history(self, logs, *runs):
+        path = os.path.join(self.run_dir, logs, "gates.jsonl")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a") as f:
+            for at, gate, ok, sha in runs:
+                f.write(json.dumps({"at": at, "gate": gate, "ok": ok, "secs": 3, "sha": sha}) + "\n")
+
+    def test_a_gate_that_fails_and_then_passes_on_the_same_sha_is_flaky(self):
+        self.history("contract.logs", ("T1", "test", False, "a1"), ("T2", "lint", True, "a1"), ("T3", "test", True, "a1"),
+                     ("T4", "lint", False, "a1"), ("T5", "lint", True, "a2"), ("T6", "test", False, "a2"), ("T7", "test", True, "a2"))
+        self.serve()
+        self.assertEqual(self.call("GET", "/gates"), (200, {"gates": [
+            {"name": "test", "logs": "contract.logs", "flips": 2, "last": "T7", "runs": 4, "fails": 2}]}))
+
+    def test_a_flake_counts_only_within_its_own_logs_folder(self):
+        self.history("contract-core.logs/merge-r6", ("T1", "unit", False, "a1"))
+        self.history("contract-core.logs/merge-r7", ("T2", "unit", True, "a1"), ("T3", "unit", False, "b1"), ("T4", "unit", True, "b1"))
+        self.serve()
+        self.assertEqual(self.call("GET", "/gates")[1]["gates"],
+                         [{"name": "unit", "logs": "contract-core.logs/merge-r7", "flips": 1, "last": "T4", "runs": 3, "fails": 1}])
+
+    def test_leaves_out_checkouts_dependencies_folders_too_deep_and_runs_without_a_sha(self):
+        flip = (("T1", "unit", False, "a1"), ("T2", "unit", True, "a1"))
+        for logs in ("worktrees/S1/contract.logs", "repos/api/contract.logs", "x/node_modules/y", "a/b/c/d"):
+            self.history(logs, *flip)
+        self.history("contract.logs", ("T1", "unit", False, None), ("T2", "unit", True, None))
+        self.serve()
+        self.assertEqual(self.call("GET", "/gates"), (200, {"gates": []}))
+
+    def test_skips_broken_lines_and_reads_a_history_again_once_it_grows(self):
+        self.history("contract.logs", ("T1", "unit", False, "a1"))
+        with open(os.path.join(self.run_dir, "contract.logs", "gates.jsonl"), "a") as f:
+            f.write('{"gate": "unit", "ok": "yes"}\nnot json\n')
+        self.serve()
+        self.assertEqual(self.call("GET", "/gates"), (200, {"gates": []}))
+        self.history("contract.logs", ("T2", "unit", True, "a1"))
+        self.assertEqual([g["flips"] for g in self.call("GET", "/gates")[1]["gates"]], [1])
+
+
 class Prompts(Server):
     def test_takes_prompts_and_actions_from_the_extension(self):
         self.serve(extension=EXTENSION)

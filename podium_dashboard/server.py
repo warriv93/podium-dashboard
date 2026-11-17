@@ -89,6 +89,11 @@ GET /git says, per repo the run works in (its own, plus the active milestone's `
 and the default branch are behind origin, refreshed by a `git fetch` every --git-every minutes (default 5, 0 =
 never): a run that moved on another machine shows in the Podium.
 
+GET /gates lists the flaky gates, {gates: [{name, logs, flips, last, runs, fails}]}: from each gates.jsonl that
+gates.sh --logs appends to, up to three folders below the run dir (none in a worktrees/, repos/, node_modules/ or
+podium/ folder), every gate that failed and later passed on the same sha, with its logs folder relative to the run dir,
+how often it did, the time of the last such pass, and all its runs and failures there.
+
 In a run that syncs, it pulls the shared state every minute (never saves or pushes), so others' changes show with no
 orchestrator running; GET /info says the last pull's `pull` {at, result}. POST /pull, the header's Fetch button,
 pulls now, watcher or not: 200 {result, at}, or {"result": "OFF"} when the run doesn't sync.
@@ -267,6 +272,65 @@ def exclude_run_files(root):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a") as f:
             f.write("\n# orchestrator run state (machine-local; added by the Podium server)\n" + "\n".join(missing) + "\n")
+
+
+HISTORY = "gates.jsonl"
+HISTORY_DEPTH = 3
+NOT_RUN_LOGS = {"worktrees", "repos", "node_modules", ".git", "podium"}
+GATE_RUNS = {}
+
+
+def gate_histories(root):
+    """Every gates.jsonl at most HISTORY_DEPTH folders below the run dir, past no checkout, dependency or podium folder."""
+    found = []
+    for at, dirs, files in os.walk(root):
+        depth = os.path.relpath(at, root).count(os.sep) + (at != root)
+        dirs[:] = [] if depth >= HISTORY_DEPTH else sorted(d for d in dirs if d not in NOT_RUN_LOGS)
+        if HISTORY in files:
+            found.append(os.path.join(at, HISTORY))
+    return found
+
+
+def gate_flips(path):
+    """Per gate of one gates.jsonl, in its order: runs, fails, and each pass that followed a failure on the same sha."""
+    gates, failing = {}, set()
+    with open(path, errors="replace") as f:
+        for line in f:
+            try:
+                run = json.loads(line)
+                name, ok, sha = run["gate"], run["ok"], run.get("sha")
+            except (ValueError, TypeError, KeyError):
+                continue
+            if not isinstance(name, str) or not isinstance(ok, bool):
+                continue
+            g = gates.setdefault(name, {"runs": 0, "fails": 0, "flips": 0, "last": None})
+            g["runs"] += 1
+            if not ok:
+                g["fails"] += 1
+                if isinstance(sha, str):
+                    failing.add((name, sha))
+            elif (name, sha) in failing:
+                failing.discard((name, sha))
+                g["flips"] += 1
+                g["last"] = run.get("at") if isinstance(run.get("at"), str) else g["last"]
+    return gates
+
+
+def flaky_gates(root):
+    """The gates that failed and then passed on the same commit in the same logs folder, latest flip first; each
+    gates.jsonl is read again only once its mtime or size changed."""
+    flaky = []
+    for path in gate_histories(root):
+        try:
+            st = os.stat(path)
+            stamp = (st.st_mtime_ns, st.st_size)
+            if GATE_RUNS.get(path, (None,))[0] != stamp:
+                GATE_RUNS[path] = (stamp, gate_flips(path))
+        except OSError:
+            continue
+        logs = os.path.relpath(os.path.dirname(path), root)
+        flaky += [{"name": name, "logs": logs, **g} for name, g in GATE_RUNS[path][1].items() if g["flips"]]
+    return {"gates": sorted(flaky, key=lambda g: g["last"] or "", reverse=True)}
 
 
 GIT = {"repos": [], "at": None}
@@ -566,6 +630,8 @@ def make_handler(root):
                 return self.reply(200, GIT)
             if self.path == "/cost":
                 return self.reply(200, costs.get())
+            if self.path == "/gates":
+                return self.reply(200, flaky_gates(root))
             if self.path.startswith("/prompt/"):
                 parts = [urllib.parse.unquote(p) for p in self.path.split("?")[0].split("/") if p][1:]
                 return self.prompt(parts[0] if parts else None, "/".join(parts[1:]) or None)
