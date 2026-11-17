@@ -82,7 +82,7 @@ def utc(text):
 
 def totals(usage):
     i, creation, read, out = usage
-    return {"input": i, "cache": creation + read, "output": out}
+    return {"input": i, "cacheWrite": creation, "cacheRead": read, "output": out}
 
 
 def added(a, b):
@@ -156,7 +156,7 @@ class Costs:
         milestones = {}
         for (ms, sid), found in messages.items():
             tokens = totals([sum(col) for col in zip(*found.values())])
-            entry = milestones.setdefault(ms, {"input": 0, "cache": 0, "output": 0, "stories": {}})
+            entry = milestones.setdefault(ms, {"input": 0, "cacheWrite": 0, "cacheRead": 0, "output": 0, "stories": {}})
             entry.update(added(entry, tokens))
             entry["stories"][sid] = tokens
         return {"ready": True, "at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "milestones": milestones}

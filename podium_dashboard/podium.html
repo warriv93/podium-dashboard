@@ -2289,7 +2289,7 @@ function msCost(m) {
     .filter(([a, b]) => !isNaN(a) && !isNaN(b) && b >= a);
   const retried = stories.reduce((n, s) => n + (Number.isInteger(s.attempts) && s.attempts > 1 ? s.attempts - 1 : 0), 0);
   const tok = S.cost?.milestones?.[m.id];
-  const tokens = tok && typeof tok === "object" ? SPLIT.reduce((n, k) => n + (Number(tok[k]) || 0), 0) : 0;
+  const tokens = tok && typeof tok === "object" ? FRESH.reduce((n, k) => n + (Number(tok[k]) || 0), 0) : 0;
   return {
     wall: spans.length ? Math.max(...spans.map(([, b]) => b)) - Math.min(...spans.map(([a]) => a)) : 0,
     agent: spans.reduce((n, [a, b]) => n + b - a, 0),
@@ -2297,10 +2297,10 @@ function msCost(m) {
     tokens, split: tokens ? tok : null,
   };
 }
-const SPLIT = ["input", "cache", "output"];
+const SPLIT = ["input", "cacheWrite", "cacheRead", "output"], FRESH = ["input", "cacheWrite", "output"];
 const addSplit = (a, b) => (b ? dict(SPLIT.map((k) => [k, (Number(a?.[k]) || 0) + (Number(b[k]) || 0)])) : a);
 const sumCost = (list) => list.reduce((a, c) => ({ wall: 0, agent: a.agent + c.agent, retries: a.retries + c.retries, tokens: a.tokens + c.tokens, split: addSplit(a.split, c.split) }), { wall: 0, agent: 0, retries: 0, tokens: 0, split: null });
-const splitTip = (c) => (c.split ? `Tokens of this machine's Claude Code sessions only: input ${count(Number(c.split.input) || 0)} · cache ${count(Number(c.split.cache) || 0)} · output ${count(Number(c.split.output) || 0)}` : "");
+const splitTip = (c) => (c.split ? ((n) => `Tokens of this machine's Claude Code sessions only: input ${count(n("input"))} · cache writes ${count(n("cacheWrite"))} · output ${count(n("output"))}, and ${count(n("cacheRead"))} more read back from the cache`)((k) => Number(c.split[k]) || 0) : "");
 function costLine(c, { wall = true, here = " on this machine", time = dur } = {}) {
   return [wall && c.wall && `${time(c.wall)} start to finish`, c.agent && `${time(c.agent)} agent time`,
     c.retries && `${c.retries} ${c.retries === 1 ? "retry" : "retries"}`, c.tokens && `${count(c.tokens)} tokens${here}`].filter(Boolean).join(" · ");

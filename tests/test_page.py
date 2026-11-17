@@ -162,8 +162,8 @@ COST_RUN = {
         {"id": "M2", "title": "second", "status": "done", "stories": [
             {"id": "S4", "title": "d", "status": "done", "startedAt": "2026-10-22T08:00:00+00:00", "finishedAt": "2026-10-22T08:20:00+00:00"}]},
         {"id": "M3", "title": "third", "status": "todo", "stories": [{"id": "S5", "title": "e", "status": "todo"}]}]}]}
-COST = {"ready": True, "milestones": {"M1": {"input": 1000, "cache": 3000000, "output": 99000, "stories": {}},
-                                      "__proto__": {"input": 5, "cache": 5, "output": 5}}}
+COST = {"ready": True, "milestones": {"M1": {"input": 1000, "cacheWrite": 100000, "cacheRead": 3000000, "output": 99000, "stories": {}},
+                                      "__proto__": {"input": 5, "cacheWrite": 5, "cacheRead": 5, "output": 5}}}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
 
 CONSENT = "core-events/src/main/java/se/parkster/events/domain/parking/consent"
@@ -1296,19 +1296,19 @@ class HostileRun(unittest.TestCase):
 
     def test_a_milestone_sheets_timeline_says_its_time_retries_and_this_machines_tokens(self):
         sheets, _ = self.cost_view(**{"/cost": json.dumps(COST)})
-        self.assertIn("2 h 0 min start to finish · 2 h 30 min agent time · 1 retry · 3.1M tokens on this machine</span>", sheets["M1"])
-        self.assertIn('title="Tokens of this machine&#39;s Claude Code sessions only: input 1.0k · cache 3.0M · output 99.0k"', sheets["M1"])
+        self.assertIn("2 h 0 min start to finish · 2 h 30 min agent time · 1 retry · 200.0k tokens on this machine</span>", sheets["M1"])
+        self.assertIn('title="Tokens of this machine&#39;s Claude Code sessions only: input 1.0k · cache writes 100.0k · output 99.0k, and 3.0M more read back from the cache"', sheets["M1"])
         self.assertIn("20 min start to finish · 20 min agent time</span>", sheets["M2"])
         self.assertNotIn("tokens", sheets["M2"])
         self.assertIsNone(sheets["M3"])
 
     def test_a_landed_milestones_card_carries_a_quiet_cost_line_and_an_open_one_none(self):
         _, cards = self.cost_view(**{"/cost": json.dumps(COST)})
-        self.assertEqual(cards, {"M1": "2h 30m agent time · 1 retry · 3.1M tokens", "M2": "20m agent time", "M3": None})
+        self.assertEqual(cards, {"M1": "2h 30m agent time · 1 retry · 200.0k tokens", "M2": "20m agent time", "M3": None})
 
     def test_the_epic_sheet_totals_its_milestones(self):
         sheets, _ = self.cost_view(**{"/cost": json.dumps(COST)})
-        self.assertIn(">2 h 50 min agent time · 1 retry · 3.1M tokens on this machine</span>", sheets["epic"])
+        self.assertIn(">2 h 50 min agent time · 1 retry · 200.0k tokens on this machine</span>", sheets["epic"])
 
     def test_a_server_without_cost_leaves_out_the_tokens_and_keeps_the_time(self):
         sheets, cards = self.cost_view()

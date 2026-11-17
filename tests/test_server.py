@@ -976,7 +976,7 @@ class Cost(Server):
         self.fail("the cost never got ready")
 
     def tokens(self, n):
-        return {"input": n, "cache": 5 * n, "output": 4 * n}
+        return {"input": n, "cacheWrite": 2 * n, "cacheRead": 3 * n, "output": 4 * n}
 
     def test_sums_the_sessions_whose_cwd_is_in_a_storys_worktree_each_message_once(self):
         tree = self.worktree("worktrees/S1/core")
