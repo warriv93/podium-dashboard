@@ -1244,6 +1244,10 @@ class HostileRun(unittest.TestCase):
                         ' await setMsState("M3", "closed"); return [said, msOf("M3").status]; })()')
         self.assertEqual(self.probe(), [["Closing M3…", "Couldn't change M3: M3 is in progress: stop it first"], "todo"])
 
+    def test_a_repos_commits_given_as_one_bare_sha_read_as_that_commit(self):
+        self.maps(probe='commitsOf({ commits: { core: 9359861629, web: "7f4b7858", api: [{ sha: "abc" }] } })')
+        self.assertEqual(self.probe(), [{"repo": "core", "sha": "9359861629"}, {"repo": "web", "sha": "7f4b7858"}, {"repo": "api", "sha": "abc"}])
+
     def test_a_status_change_says_it_started_and_when_it_is_done(self):
         self.maps(probe='(async () => { const said = []; toast = (t) => said.push(t);'
                         ' globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ status: "dropped" }) });'

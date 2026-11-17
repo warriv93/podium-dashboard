@@ -1162,7 +1162,8 @@ const msRepos = (m) => Object.entries(m?.repos || {}).map(([repo, r]) => ({ repo
 const repoNames = (x) => (Array.isArray(x.repos) ? x.repos : Object.keys(x.repos || {}));
 function commitsOf(s) {
   const c = s.commits || [];
-  return Array.isArray(c) ? c.map((x) => ({ repo: null, ...x })) : Object.entries(c).flatMap(([repo, l]) => (l || []).map((x) => ({ repo, ...x })));
+  const entry = (x) => (x && typeof x === "object" ? x : { sha: String(x) });
+  return Array.isArray(c) ? c.map((x) => ({ repo: null, ...entry(x) })) : Object.entries(c).flatMap(([repo, l]) => [].concat(l ?? []).map((x) => ({ repo, ...entry(x) })));
 }
 function repoUrl(repo) {
   if (!repo) return S.epic?.repoUrl || S.project?.repoUrl;
