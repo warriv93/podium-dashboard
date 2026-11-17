@@ -593,7 +593,7 @@ class HostileRun(unittest.TestCase):
         html = [h for h in self.html if "data-state-menu" in h][-1]
         button = re.search(r'<button class="share ?(?:on)?" data-state-menu aria-expanded="(\w+)"[^>]*>(.*?)</button>', html)
         boxes = re.findall(r'<label><input type="checkbox" data-state-show="(\w+)"( checked)?( disabled)?>(.*?)(?:<small>.*?</small>)?</label>', html)
-        return button.group(2), button.group(1), [(key, label, bool(on), bool(off)) for key, on, off, label in boxes]
+        return button.group(2), button.group(1), [(key, re.sub(r"<[^>]+>", "", label), bool(on), bool(off)) for key, on, off, label in boxes]
 
     @staticmethod
     def shown(full):
@@ -608,9 +608,13 @@ class HostileRun(unittest.TestCase):
     def test_opening_the_state_menu_lists_the_tiers_then_paused_closed_and_finished(self):
         self.maps(self.priority_run(), probe="(setStateMenu(true), S.stateMenu)")
         self.assertTrue(self.probe())
-        self.assertEqual(self.state_filter(), ("State", "true", [("must", "Must have", True, False), ("should", "Should have", True, False),
+        self.assertEqual(self.state_filter(), ("State", "true", [("must", "★Must", True, False), ("should", "★Should", True, False),
                                                                  ("nice", "Nice to have", True, False), ("paused", "Paused", True, False),
                                                                  ("closed", "Closed", False, False), ("finished", "Finished", True, False)]))
+        menu = [h for h in self.html if "data-state-menu" in h][-1]
+        self.assertIn('data-state-show="must" checked><span class="prio must" title="Must have"><b>★</b>Must</span>', menu)
+        for key, badge in (("paused", "parked"), ("closed", "dropped"), ("finished", "done")):
+            self.assertRegex(menu, f'data-state-show="{key}"[^>]*><span class="badge {badge}">')
 
     def test_unticking_a_tier_hides_its_milestones_says_how_many_tiers_show_and_keeps_the_choice(self):
         maps, _ = self.maps(self.priority_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; };'
@@ -636,7 +640,7 @@ class HostileRun(unittest.TestCase):
         self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["must"]'},
                   probe='(togglePrioTier("must"), setStateMenu(true), S.prioShown)')
         self.assertEqual(self.probe(), ["must"])
-        self.assertEqual(self.prio_filter(), ("State · 2 hidden", "true", [("must", "Must have", True, True), ("should", "Should have", False, False),
+        self.assertEqual(self.prio_filter(), ("State · 2 hidden", "true", [("must", "★Must", True, True), ("should", "★Should", False, False),
                                                                             ("nice", "Nice to have", False, False)]))
 
     def test_the_open_milestone_stays_on_the_map_when_its_tier_is_unticked(self):

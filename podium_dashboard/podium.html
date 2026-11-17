@@ -121,6 +121,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .prio-menu input { margin: 0; accent-color: var(--text); }
 .prio-pick-menu .mhead { padding: 4px 8px 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .prio-pick-menu .mhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.prio-menu label .badge { background: none; padding: 0; color: var(--text); text-decoration: none; font-size: 13px; font-weight: 500; }
 .prio-pick-menu button .badge { pointer-events: none; background: none; padding: 0; color: var(--text); text-decoration: none; font-size: 13px; font-weight: 500; }
 .prio-menu .mhead { padding: 6px 8px 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .prio-menu .mhead + label { margin-top: 0; }
@@ -2220,7 +2221,8 @@ function setStateMenu(open) {
   S.stateMenu = open;
   render();
 }
-const STATUS_BOXES = [["paused", "Paused", "parked · later"], ["closed", "Closed", "dropped"], ["finished", "Finished", "landed · moved"]];
+const STATUS_BOXES = [["paused", "Paused", "parked · later", "parked"], ["closed", "Closed", "dropped", "dropped"], ["finished", "Finished", "landed · moved", "done"]];
+const tierPill = (t) => prioPill({ priority: t }) || `<span class="prio nice" title="Nice to have">Nice to have</span>`;
 const statusShown = (k) => ({ __proto__: null, paused: !S.hidePaused, closed: S.showClosed, finished: !S.hideFinished }[k]);
 const stateIsDefault = () => S.prioShown.length === TIERS.length && !S.hidePaused && !S.showClosed && !S.hideFinished;
 function toggleState(key) {
@@ -2232,8 +2234,8 @@ function toggleState(key) {
 function renderStateFilter(hidden) {
   const el = $("state-filter"), shown = S.prioShown, some = !stateIsDefault(), had = document.activeElement?.closest?.("#state-filter") && document.activeElement;
   const box = (key, label, on, off, hint = "") => `<label><input type="checkbox" data-state-show="${key}"${on ? " checked" : ""}${off ? " disabled" : ""}>${label}${hint ? `<small>${hint}</small>` : ""}</label>`;
-  const tiers = TIERS.map(([t, label]) => box(t, label, shown.includes(t), shown.length === 1 && shown.includes(t))).join("");
-  const statuses = STATUS_BOXES.map(([k, label, hint]) => box(k, label, statusShown(k), false, hint)).join("");
+  const tiers = TIERS.map(([t]) => box(t, tierPill(t), shown.includes(t), shown.length === 1 && shown.includes(t))).join("");
+  const statuses = STATUS_BOXES.map(([k, label, hint, badge]) => box(k, `<span class="badge ${badge}">${label}</span>`, statusShown(k), false, hint)).join("");
   const menu = `<div class="prio-menu" id="state-menu" role="group" aria-label="Show milestones that are"><span class="mhead">Priority</span>${tiers}<span class="mhead">Status</span>${statuses}</div>`;
   el.innerHTML = `<button class="share ${some ? "on" : ""}" data-state-menu aria-expanded="${!!S.stateMenu}" aria-controls="state-menu" title="Show milestones by priority and status">${some && hidden ? `State · ${hidden} hidden` : "State"}</button>${S.stateMenu ? menu : ""}`;
   if (had) el.querySelector(had.dataset.stateShow ? `[data-state-show="${had.dataset.stateShow}"]` : "[data-state-menu]")?.focus();
