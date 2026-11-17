@@ -453,6 +453,14 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("elsewhere-only", text)
         self.assertNotIn("Dispatcher", text)
 
+    def test_a_list_field_stored_as_text_drops_that_field_and_keeps_the_map(self):
+        run = json.loads(json.dumps(CYCLIC_RUN))
+        landed = {"id": "M3", "title": "landed-with-text-artifacts", "status": "done", "deps": "[M1]",
+                  "artifacts": "[{name:mock,path:mock/index.html,phase:mock}]"}
+        run["epics"][0]["milestones"].append(landed)
+        scan = self.rendered(run, [], PROGRESS, ("S1", "S2", "S3"))
+        self.assertIn("landed-with-text-artifacts", "".join(scan.text))
+
     def test_renders_a_run_whose_ids_types_and_states_are_object_prototype_keys(self):
         scan = self.rendered(PROTO_RUN, PROTO_EVENTS, PROTO_PROGRESS, (*KEYS, "S1"), **{"podium/handoffs.json": "null"})
         text = "".join(scan.text)

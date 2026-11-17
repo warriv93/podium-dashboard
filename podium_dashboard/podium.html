@@ -1049,8 +1049,23 @@ function personal(d) {
   const assumptions = d.sync?.enabled || people ? [...numbered(mine.assumptions, ""), ...numbered(d.assumptions, "t")] : numbered(d.assumptions, "");
   return { ...d, active: pick("active"), needsYou: pick("needsYou"), assumptions };
 }
+/* a list field stored as anything else (text a mangled `set` wrote, say) would throw in every card that reads it
+   and blank the whole map, so it is dropped with a warning naming it */
+const LIST_FIELDS = ["milestones", "stories", "artifacts", "deps", "overlapAfter", "files", "commits", "includes"];
+function dropBadLists(x, where) {
+  if (!x || typeof x !== "object") return;
+  for (const k of LIST_FIELDS) {
+    if (k in x && x[k] != null && !Array.isArray(x[k])) {
+      console.warn(`podium.json: ${where}${x.id ?? ""}.${k} is not a list; ignored`);
+      delete x[k];
+    }
+  }
+  for (const k of ["milestones", "stories"]) (x[k] || []).forEach((y) => dropBadLists(y, `${where}${x.id ?? ""}/`));
+}
 function loadProject() {
-  S.project = personal(normalizeProject(JSON.parse(S.raw)));
+  const d = JSON.parse(S.raw);
+  if (Array.isArray(d.epics)) d.epics.forEach((E) => dropBadLists(E, ""));
+  S.project = personal(normalizeProject(d));
   if (S.open && !canExpand(openMs())) S.open = null;
 }
 const epicOfMs = (ms) => S.project.epics.find((E) => (E.milestones || []).some((m) => m.id === ms))?.id;

@@ -154,6 +154,20 @@ class Batch(Run):
         self.assertEqual(self.milestone()["phase"], "gate")
         self.assertEqual([e["type"] for e in self.events()], ["note", "phase"])
 
+    def test_keeps_unquoted_json_values_whole(self):
+        self.podium("batch", stdin='milestone: artifacts=[{"name": "mock", "path": "mock/a b.html"}] note=\'two words\'\n')
+        m = self.milestone()
+        self.assertEqual(m["artifacts"], [{"name": "mock", "path": "mock/a b.html"}])
+        self.assertEqual(m["note"], "two words")
+
+    def test_a_quoted_json_value_stays_as_the_shell_would_split_it(self):
+        self.podium("batch", stdin="""milestone: 'deps=["M0"]'\n""")
+        self.assertEqual(self.milestone()["deps"], ["M0"])
+
+    def test_refuses_a_bracketed_value_that_is_not_json(self):
+        self.podium("set", "milestone:", "artifacts=[{name:mock}]", code=1)
+        self.assertNotIn("artifacts", self.milestone())
+
     def test_a_failing_op_writes_nothing(self):
         self.podium("batch", stdin="S1 note=a --event note text=x\nS9 note=b\n", code=1)
         self.assertNotIn("note", self.stories()["S1"])

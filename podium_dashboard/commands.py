@@ -171,8 +171,37 @@ def cmd_set(p, args):
     p.save()
 
 
+JSON_VALUE = re.compile(r"(?<=[\w.+]=)[\[{]")
+
+
+def split_op(line):
+    """A batch line's arguments as the shell would split them, but a `key=` followed by unquoted JSON keeps that JSON
+    whole, inner quotes included: shlex alone would strip them and store the value as text."""
+    spans, at = [], 0
+    while (m := JSON_VALUE.search(line, at)):
+        try:
+            _, end = json.JSONDecoder().raw_decode(line, m.start())
+        except ValueError:
+            at = m.end()
+            continue
+        if line[:m.start()].count("'") % 2 or line[:m.start()].count('"') % 2:
+            at = end
+            continue
+        spans.append((m.start(), end))
+        at = end
+    if not spans:
+        return shlex.split(line)
+    marked, last = [], 0
+    for i, (a, b) in enumerate(spans):
+        marked += [line[last:a], f"\0{i}\0"]
+        last = b
+    marked.append(line[last:])
+    tokens = shlex.split("".join(marked))
+    return [re.sub(r"\0(\d+)\0", lambda g: line[spans[int(g[1])][0]:spans[int(g[1])][1]], t) for t in tokens]
+
+
 def cmd_batch(p, args):
-    ops = [shlex.split(l) for l in sys.stdin.read().splitlines() if l.strip() and not l.lstrip().startswith("#")]
+    ops = [split_op(l) for l in sys.stdin.read().splitlines() if l.strip() and not l.lstrip().startswith("#")]
     ops = [op[1:] if op[0] == "set" else op for op in ops]
     p.held = []
     for op in ops:

@@ -341,8 +341,16 @@ def parse_value(raw, path=("",)):
     try:
         value = strict_json(raw, text)
     except ValueError:
+        if looks_like_json(raw):
+            sys.exit(f"{path[-1]}: {raw[:60]!r} looks like JSON but does not parse; quote it or pass @file")
         return raw
     return raw if text and isinstance(value, bool) else value
+
+
+def looks_like_json(raw):
+    """A value bracketed as a list or an object, which stored as text would break every reader of that field."""
+    raw = raw.strip()
+    return len(raw) > 1 and (raw[0], raw[-1]) in (("[", "]"), ("{", "}"))
 
 
 def assign(obj, item):
