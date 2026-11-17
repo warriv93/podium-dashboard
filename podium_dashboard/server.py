@@ -81,6 +81,10 @@ ports.json names, never one from the request.
 GET /runs lists the machine's leases for the page's run switcher, {runs: [{slug, port, live, used, pinned, title,
 current}]}; POST /runs/<slug>/start does what /open does for a leased run and answers its {url}.
 
+GET /cost answers the tokens this machine's Claude Code sessions spent per milestone and story (cost.py):
+{ready, at, milestones: {<milestone>: {input, cache, output, stories: {<story>: {input, cache, output}}}}}. It reads the
+session logs in the background and never waits for them: until the first read is done, `ready` is false.
+
 GET /git says, per repo the run works in (its own, plus the active milestone's `repos`), how far the checkout's branch
 and the default branch are behind origin, refreshed by a `git fetch` every --git-every minutes (default 5, 0 =
 never): a run that moved on another machine shows in the Podium.
@@ -108,7 +112,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
-from podium_dashboard import extension, ports, sync, version
+from podium_dashboard import cost, extension, ports, sync, version
 from podium_dashboard.commands import Building, Finished, give_milestone, set_milestone_state
 from podium_dashboard.files import EMPTY_WHEN_MISSING, MACHINE_FILES, SHARED_FILES, git_argv, progress_files, write_atomic
 from podium_dashboard.human import availability, human_hours, human_state, next_change, set_toggle, write_toggle
@@ -458,6 +462,8 @@ def served(base, path):
 
 
 def make_handler(root):
+    costs = cost.Costs(root)
+
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
             super().__init__(*a, directory=root, **kw)
@@ -558,6 +564,8 @@ def make_handler(root):
                 return self.open_run(parse_qs(urlparse(self.path).query).get("run", [""])[0])
             if self.path == "/git":
                 return self.reply(200, GIT)
+            if self.path == "/cost":
+                return self.reply(200, costs.get())
             if self.path.startswith("/prompt/"):
                 parts = [urllib.parse.unquote(p) for p in self.path.split("?")[0].split("/") if p][1:]
                 return self.prompt(parts[0] if parts else None, "/".join(parts[1:]) or None)

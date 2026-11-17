@@ -1,6 +1,6 @@
 """Tests for the Podium server, run as `podium server` against a temp run: what /info says, the Host and Origin checks,
 /repo/ confined to the run's repo, the sandbox on every file it serves, checkouts read relative to the run dir and
-never one a pull could have written, request queuing, prompts from the run's extension, and pulls of a synced run."""
+never one a pull could have written, request queuing, prompts from the run's extension, pulls of a synced run, and what the machine's sessions cost."""
 import http.client
 import json
 import os
@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from podium_dashboard import human, ports, server  # noqa: E402
+from podium_dashboard import cost, human, ports, server  # noqa: E402
 
 REF = "refs/heads/podium-run/api"
 
@@ -947,6 +947,98 @@ class Pulls(Server):
             self.assertRegex(server.PULL["result"], r"^PULLED ")
             self.assertTrue(server.PULL["at"])
         self.assertEqual(self.local()["epics"], DATA["epics"])
+
+
+def cost_run(*stories):
+    return {**DATA, "epics": [{"id": "e", "milestones": [
+        {"id": ms, "status": "done", "stories": [{"id": sid, "status": "done", **more} for m, sid, more in stories if m == ms]}
+        for ms in dict.fromkeys(m for m, _, _ in stories)]}]}
+
+
+class Cost(Server):
+    def log(self, folder, name, *messages):
+        """A session log in this HOME's ~/.claude/projects/<folder>/<name>, one assistant line per (id, cwd, tokens, at)."""
+        lines = [json.dumps({"type": "assistant", "timestamp": at, "cwd": cwd, "sessionId": "s",
+                             "message": {"id": mid, "usage": {"input_tokens": n, "cache_creation_input_tokens": 2 * n,
+                                                              "cache_read_input_tokens": 3 * n, "output_tokens": 4 * n}}})
+                 for mid, cwd, n, at in messages]
+        return self.write(os.path.join(".claude", "projects", folder, name), "".join(line + "\n" for line in lines))
+
+    def worktree(self, rel):
+        return os.path.join(self.run_dir, rel)
+
+    def cost(self):
+        for _ in range(100):
+            body = self.call("GET", "/cost")[1]
+            if body["ready"]:
+                return body["milestones"]
+            time.sleep(0.05)
+        self.fail("the cost never got ready")
+
+    def tokens(self, n):
+        return {"input": n, "cache": 5 * n, "output": 4 * n}
+
+    def test_sums_the_sessions_whose_cwd_is_in_a_storys_worktree_each_message_once(self):
+        tree = self.worktree("worktrees/S1/core")
+        slug = cost.slug(tree)
+        at = "2026-10-20T08:00:00.000Z"
+        self.log(slug, "a.jsonl", ("m1", tree, 10, at), ("m1", tree, 10, at), ("m2", tree + "/backend", 1, at))
+        self.log(slug + "-backend", "b.jsonl", ("m3", tree + "/backend", 100, at))
+        self.log(slug, os.path.join("a", "subagents", "agent-x.jsonl"), ("m4", tree, 1000, at))
+        self.log(slug, "elsewhere.jsonl", ("m5", "/elsewhere", 7, at))
+        self.log(cost.slug(self.worktree("worktrees/S2/core")), "c.jsonl", ("m6", self.worktree("worktrees/S2/core"), 20000, at))
+        self.serve(cost_run(("M1", "S1", {"worktrees": {"core": "worktrees/S1/core"}}),
+                            ("M1", "S2", {"worktrees": {"core": "worktrees/S2/core"}}),
+                            ("M2", "S3", {"worktrees": {}})))
+        self.assertEqual(self.cost(), {"M1": {**self.tokens(21111), "stories": {"S1": self.tokens(1111), "S2": self.tokens(20000)}}})
+
+    def test_counts_an_agent_tool_story_from_its_subagent_log_wherever_it_lies(self):
+        self.log("-somewhere-else", os.path.join("parent", "subagents", "agent-a1b2.jsonl"), ("m1", "/somewhere/else", 3, "2026-10-20T08:00:00Z"))
+        self.serve(cost_run(("M1", "S1", {"agent": {"backend": "agent", "id": "a1b2"}}),
+                            ("M1", "S2", {"agent": {"backend": "agent", "id": "*"}})))
+        self.assertEqual(self.cost(), {"M1": {**self.tokens(3), "stories": {"S1": self.tokens(3)}}})
+
+    def test_a_worktree_two_stories_share_gives_each_message_to_the_story_that_started_last_before_it(self):
+        tree = self.worktree("worktrees/S1/web")
+        self.log(cost.slug(tree), "a.jsonl", ("m1", tree, 1, "2026-10-20T07:00:00Z"), ("m2", tree, 10, "2026-10-20T09:00:00Z"),
+                 ("m3", tree, 100, "2026-11-01T09:00:00Z"))
+        self.serve(cost_run(("M1", "S1", {"worktrees": {"web": "worktrees/S1/web"}, "startedAt": "2026-10-20T08:00:00+00:00"}),
+                            ("M9", "S1", {"worktrees": {"web": tree}, "startedAt": "2026-11-01T10:00:00+02:00"})))
+        self.assertEqual(self.cost(), {"M1": {**self.tokens(11), "stories": {"S1": self.tokens(11)}},
+                                       "M9": {**self.tokens(100), "stories": {"S1": self.tokens(100)}}})
+
+    def test_answers_at_once_while_the_logs_are_read_and_rereads_only_a_changed_log(self):
+        tree = self.worktree("worktrees/S1/core")
+        path = self.log(cost.slug(tree), "a.jsonl", ("m1", tree, 1, "2026-10-20T08:00:00Z"))
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(cost_run(("M1", "S1", {"worktrees": {"core": "worktrees/S1/core"}})), f)
+        release, parsed, real = threading.Event(), [], cost.message_usages
+
+        def slow(p):
+            release.wait(5)
+            parsed.append(p)
+            return real(p)
+        costs = cost.Costs(self.run_dir, os.path.join(self.tmp, ".claude", "projects"))
+        with unittest.mock.patch.object(cost, "message_usages", slow), unittest.mock.patch.object(cost, "REFRESH", 0):
+            self.assertEqual(costs.get(), {"ready": False, "milestones": {}})
+            release.set()
+            for _ in range(100):
+                if costs.get()["ready"] and not costs.running:
+                    break
+                time.sleep(0.02)
+            self.assertEqual(costs.get()["milestones"]["M1"]["output"], 4)
+            while costs.running:
+                time.sleep(0.02)
+            self.assertEqual(parsed, [path])
+            with open(path, "a") as f:
+                f.write(json.dumps({"type": "assistant", "timestamp": "2026-10-20T09:00:00Z", "cwd": tree,
+                                    "message": {"id": "m2", "usage": {"output_tokens": 6}}}) + "\n")
+            for _ in range(100):
+                if costs.get()["milestones"]["M1"]["output"] == 10:
+                    break
+                time.sleep(0.02)
+            self.assertEqual(costs.get()["milestones"]["M1"]["output"], 10)
+            self.assertEqual(parsed, [path, path])
 
 
 if __name__ == "__main__":

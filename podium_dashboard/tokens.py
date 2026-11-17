@@ -123,13 +123,46 @@ def read_file(path, since, prefixes, tally):
         tally.add("sequence", " → ".join(c["key"] for c in window), sum(c["tokens"] for c in window), window[0]["stream"])
 
 
-def read_assistant(d, message, stream, calls, sequence, tally):
+def usage_of(message):
     usage = message.get("usage")
+    return [int(usage.get(k) or 0) for k in USAGE_KEYS] if isinstance(usage, dict) else None
+
+
+def largest(a, b):
+    return [max(x, y) for x, y in zip(a, b)]
+
+
+def message_usages(path):
+    """A session log's assistant messages by id: {cwd, at, agent, usage}, usage the largest per field over the log's
+    repeats of the message."""
+    found = {}
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if "usage" not in line:
+                continue
+            try:
+                d = json.loads(line)
+                message = d.get("message")
+                if d.get("type") != "assistant" or not isinstance(message, dict):
+                    continue
+                used = usage_of(message)
+            except (ValueError, TypeError, AttributeError):
+                continue
+            if used is None:
+                continue
+            mid = message.get("id") or d.get("uuid")
+            seen = found.get(mid)
+            found[mid] = {"cwd": d.get("cwd") or "", "at": d.get("timestamp") if isinstance(d.get("timestamp"), str) else "",
+                          "agent": d.get("agentId"), "usage": largest(seen["usage"], used) if seen else used}
+    return found
+
+
+def read_assistant(d, message, stream, calls, sequence, tally):
     mid = message.get("id") or d.get("uuid")
-    if isinstance(usage, dict):
-        used = [int(usage.get(k) or 0) for k in USAGE_KEYS]
+    used = usage_of(message)
+    if used is not None:
         seen = tally.messages.setdefault(mid, {"model": message.get("model") or "unknown", "usage": used})
-        seen["usage"] = [max(a, b) for a, b in zip(seen["usage"], used)]
+        seen["usage"] = largest(seen["usage"], used)
         tally.sessions.add(d.get("sessionId"))
     for item in message.get("content") or []:
         if isinstance(item, dict) and item.get("type") == "tool_use" and item.get("id") not in tally.calls:

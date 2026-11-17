@@ -318,7 +318,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .full[data-collapsed] .fms:not(.open) .fidrow { order: 1; flex: none; align-items: center; }
 .full[data-collapsed] .fms:not(.open) > .title { order: 2; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .full[data-collapsed] .fms:not(.open) .ownwrap, .full[data-collapsed] .fms:not(.open) .claim { order: 3; flex: 0 1 auto; max-width: 120px; }
-.full[data-collapsed] .fms:not(.open) .ftools, .full[data-collapsed] .fms:not(.open) .ms-repos, .full[data-collapsed] .fms:not(.open) .foot, .full[data-collapsed] .fms:not(.open) .fincl, .full[data-collapsed] .fms:not(.open) .fdots, .full[data-collapsed] .fepic .fsub { display: none; }
+.full[data-collapsed] .fms:not(.open) .ftools, .full[data-collapsed] .fms:not(.open) .ms-repos, .full[data-collapsed] .fms:not(.open) .foot, .full[data-collapsed] .fms:not(.open) .fincl, .full[data-collapsed] .fms:not(.open) .fcost, .full[data-collapsed] .fms:not(.open) .fdots, .full[data-collapsed] .fepic .fsub { display: none; }
 .full[data-collapsed] .fepic { margin-bottom: 10px; }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prio-pick, .copy, .release) { transition: transform .12s ease; }
 :is(a.pr, .pr-link, .wchip:not(.pr-chip), .fchip, .dsbtn, .mockbtn, .asanabtn, .claim, .link-chip, .share, .btn, .prio-pick, .copy, .release):hover { transform: scale(1.06); }
@@ -399,6 +399,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fms.dropped .fidrow::before { content: "–" / "Dropped"; }
 .fms :is(.sid, .repo), .fms .foot .badge:not([data-reveal]) { background: none; padding-left: 0; padding-right: 0; }
 .fms .fincl { font-size: 11px; color: var(--text-3); }
+.fms .fcost { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .infra { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: var(--gray-soft); color: var(--text-3); cursor: help; }
 .fdecs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
 .fdecs .dhead { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
@@ -568,6 +569,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .gitwarn[hidden] { display: none; }
 .step .sdur { font-size: 11px; font-weight: 500; color: var(--text-3); margin-left: -2px; }
 .tsum { margin-left: 10px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.tsum.tcost { display: block; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
 .tl { display: grid; gap: 6px; }
 .trow { display: grid; grid-template-columns: 110px 1fr 118px; gap: 10px; align-items: center; font-size: 13px; }
 .trow .tv { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1095,6 +1097,7 @@ async function poll() {
       const g = await (await fetch("/git", { cache: "no-store" })).json();
       if (JSON.stringify(g) !== JSON.stringify(S.git)) { S.git = g; renderGit(); }
     } catch { /* an older server */ }
+    if (await loadCost()) changed = true;
     if (markSeen()) changed = true;
     if (changed) render();
   } catch {
@@ -1518,7 +1521,11 @@ function fullMs(m, all) {
   const expands = canExpand(m) && hasBody(m);
   const go = expands ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
   const title = expands ? `<button class="title" aria-expanded="false">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
-  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}${overlapPills(m)}</div>${includesLine(m)}${dots}</div>`;
+  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}${overlapPills(m)}</div>${includesLine(m)}${st === "done" ? cardCost(m) : ""}${dots}</div>`;
+}
+function cardCost(m) {
+  const c = msCost(m), line = costLine(c, { wall: false, here: "", time: shortDur });
+  return line ? `<div class="fcost"${c.split ? ` title="${esc(splitTip(c))}"` : ""}>${line}</div>` : "";
 }
 const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", parked: "not started", later: "not started" };
 const DOT_ROOM = 16;
@@ -2261,17 +2268,56 @@ function waveTimes(m) {
   });
   return waves;
 }
+async function loadCost() {
+  if (S.costAt === false || Date.now() - (S.costAt || 0) < (S.cost?.ready ? COST_MS : 5000)) return false;
+  try {
+    const r = await fetch("/cost", { cache: "no-store" });
+    if (r.status === 404) { S.costAt = false; return false; }
+    const c = await r.json();
+    S.costAt = Date.now();
+    if (JSON.stringify(c) === JSON.stringify(S.cost)) return false;
+    S.cost = c;
+    return true;
+  } catch { return false; }
+}
+const COST_MS = 60000;
+const count = (n) => (n < 999.5 ? String(Math.round(n)) : n < 999950 ? `${(n / 1000).toFixed(1)}k` : `${(n / 1e6).toFixed(1)}M`);
+const stamp = (t) => (typeof t === "string" ? Date.parse(t) : NaN);
+function msCost(m) {
+  const stories = (m.stories || []).filter((s) => s && typeof s === "object");
+  const spans = stories.map((s) => [stamp(s.startedAt), s.finishedAt ? stamp(s.finishedAt) : s.status === "working" ? Date.now() : NaN])
+    .filter(([a, b]) => !isNaN(a) && !isNaN(b) && b >= a);
+  const retried = stories.reduce((n, s) => n + (Number.isInteger(s.attempts) && s.attempts > 1 ? s.attempts - 1 : 0), 0);
+  const tok = S.cost?.milestones?.[m.id];
+  const tokens = tok && typeof tok === "object" ? SPLIT.reduce((n, k) => n + (Number(tok[k]) || 0), 0) : 0;
+  return {
+    wall: spans.length ? Math.max(...spans.map(([, b]) => b)) - Math.min(...spans.map(([a]) => a)) : 0,
+    agent: spans.reduce((n, [a, b]) => n + b - a, 0),
+    retries: Math.max(retried, S.events.filter((e) => e.type === "retry" && e.milestone === m.id).length),
+    tokens, split: tokens ? tok : null,
+  };
+}
+const SPLIT = ["input", "cache", "output"];
+const addSplit = (a, b) => (b ? dict(SPLIT.map((k) => [k, (Number(a?.[k]) || 0) + (Number(b[k]) || 0)])) : a);
+const sumCost = (list) => list.reduce((a, c) => ({ wall: 0, agent: a.agent + c.agent, retries: a.retries + c.retries, tokens: a.tokens + c.tokens, split: addSplit(a.split, c.split) }), { wall: 0, agent: 0, retries: 0, tokens: 0, split: null });
+const splitTip = (c) => (c.split ? `Tokens of this machine's Claude Code sessions only: input ${count(Number(c.split.input) || 0)} · cache ${count(Number(c.split.cache) || 0)} · output ${count(Number(c.split.output) || 0)}` : "");
+function costLine(c, { wall = true, here = " on this machine", time = dur } = {}) {
+  return [wall && c.wall && `${time(c.wall)} start to finish`, c.agent && `${time(c.agent)} agent time`,
+    c.retries && `${c.retries} ${c.retries === 1 ? "retry" : "retries"}`, c.tokens && `${count(c.tokens)} tokens${here}`].filter(Boolean).join(" · ");
+}
+const costSum = (c, opts) => ((line) => (line ? `<span class="muted tsum tcost"${c.split ? ` title="${esc(splitTip(c))}"` : ""}>${line}</span>` : ""))(costLine(c, opts));
 const shortDur = (ms) => { const m = Math.round(ms / 60000); return m < 1 ? "<1m" : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}`; };
 function timelineSec(m) {
   const pt = phaseTimes(m), wv = waveTimes(m);
   const rows = phases().filter(([k]) => pt[k]).map(([k, label]) => ({ k, label, ...pt[k] }));
-  if (!rows.length) return "";
+  const cost = costSum(msCost(m));
+  if (!rows.length) return cost ? `<div class="sec"><h3>Timeline${cost}</h3></div>` : "";
   // scaled to the finished phases, so a phase still waiting (on the user, say) doesn't flatten the rest; it fills the bar
   const done = [...rows.filter((r) => !r.open).map((r) => r.ms), ...wv.filter((w) => w && !w.open).map((w) => w.end - w.start)];
   const max = Math.max(1, ...(done.length ? done : rows.map((r) => r.ms)));
   const row = (label, ms, open, cls = "") => `<div class="trow ${cls} ${open ? "open" : ""}"><span class="tk">${label}</span><span class="tbar"><i style="width:${Math.min(100, Math.max(1.5, (ms / max) * 100))}%"></i></span><span class="tv">${dur(ms)}${open ? " so far" : ""}</span></div>`;
   const total = rows.reduce((n, r) => n + r.ms, 0);
-  return `<div class="sec"><h3>Timeline<span class="muted tsum">${dur(total)} in all</span></h3><div class="tl">${rows.map((r) =>
+  return `<div class="sec"><h3>Timeline<span class="muted tsum">${dur(total)} in all</span>${cost}</h3><div class="tl">${rows.map((r) =>
     row(esc(r.label), r.ms, r.open) + (r.k === "build" ? wv.map((w, i) => (w ? row(`Wave ${i + 1} <span class="muted">· ${w.n}</span>`, w.end - w.start, w.open, "wave") : "")).join("") : "")).join("")}</div></div>`;
 }
 
@@ -2743,7 +2789,7 @@ function epicSheet() {
   const e = S.epic, map = msById();
   $("sheet-head").innerHTML = `<span class="sid">Epic</span>${prioPick(`epic/${e.epic.id}`, e.epic)}<h2>${esc(e.epic.title)}</h2><div class="muted">${esc(e.epic.summary || "")}</div>`;
   $("sheet-body").innerHTML = `
-    <div class="sec"><h3>Milestones</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-reveal="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${esc(viewStatus(m, map))}">${esc(m.status)}</span></div>`).join("")}</div>
+    <div class="sec"><h3>Milestones${costSum(sumCost(e.milestones.map(msCost)), { wall: false })}</h3>${e.milestones.map((m) => `<div class="commit"><span class="sid">${esc(m.id)}</span><span>${ownerChip(m)} ${m.stories?.length ? `<a data-reveal="${esc(m.id)}">${esc(m.title)}</a>` : `<a data-open="${esc(m.id)}">${esc(m.title)}</a>`}</span><span class="badge ${esc(viewStatus(m, map))}">${esc(m.status)}</span></div>`).join("")}</div>
     ${epicRepoRows(e.milestones).length ? `<div class="sec"><h3>Repos touched</h3>${repoLines(epicRepoRows(e.milestones))}</div>` : ""}
     ${(e.uncovered || []).length ? `<div class="sec"><h3>Brief items no milestone covers yet</h3><div class="links">${e.uncovered.map((c) => `<span class="link-chip">${esc(c)}</span>`).join("")}</div></div>` : ""}
     <div class="sec"><h3>Run</h3><dl class="kv">${asanaRow(e.epic)}<dt>Active</dt><dd>${esc(e.active || "none")}</dd><dt>Podium</dt><dd class="mono">${esc(location.href)}</dd></dl></div>

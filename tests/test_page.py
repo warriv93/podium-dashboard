@@ -152,6 +152,18 @@ OPEN_RUN = {
                 {"id": "S4", "title": "four", "status": "todo", "deps": ["S3"]},
                 {"id": "S5", "title": "five", "status": "todo", "deps": ["S2"]}]},
             {"id": "M3", "title": "third", "status": "todo", "deps": ["M2"], "stories": [{"id": "S6", "title": "six", "status": "todo"}]}]}]}
+COST_RUN = {
+    "project": {"title": "T"}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M2"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "first", "status": "done", "shippedAt": "2026-10-21", "stories": [
+            {"id": "S1", "title": "a", "status": "done", "attempts": 2, "startedAt": "2026-10-20T08:00:00+00:00", "finishedAt": "2026-10-20T09:00:00+00:00"},
+            {"id": "S2", "title": "b", "status": "done", "attempts": 1, "startedAt": "2026-10-20T08:30:00+00:00", "finishedAt": "2026-10-20T10:00:00+00:00"},
+            {"id": "S3", "title": "c", "status": "done"}]},
+        {"id": "M2", "title": "second", "status": "done", "stories": [
+            {"id": "S4", "title": "d", "status": "done", "startedAt": "2026-10-22T08:00:00+00:00", "finishedAt": "2026-10-22T08:20:00+00:00"}]},
+        {"id": "M3", "title": "third", "status": "todo", "stories": [{"id": "S5", "title": "e", "status": "todo"}]}]}]}
+COST = {"ready": True, "milestones": {"M1": {"input": 1000, "cache": 3000000, "output": 99000, "stories": {}},
+                                      "__proto__": {"input": 5, "cache": 5, "output": 5}}}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
 
 CONSENT = "core-events/src/main/java/se/parkster/events/domain/parking/consent"
@@ -1269,6 +1281,53 @@ class HostileRun(unittest.TestCase):
     def test_a_repos_commits_given_as_one_bare_sha_read_as_that_commit(self):
         self.maps(probe='commitsOf({ commits: { core: 9359861629, web: "7f4b7858", api: [{ sha: "abc" }] } })')
         self.assertEqual(self.probe(), [{"repo": "core", "sha": "9359861629"}, {"repo": "web", "sha": "7f4b7858"}, {"repo": "api", "sha": "abc"}])
+
+    def cost_view(self, **files):
+        """The milestone sheets' Timeline headers, the landed cards' cost lines and the epic sheet's Milestones header."""
+        self.maps(COST_RUN, probe='(async () => { const sheet = async (sel) => { await openSheet(sel); renderSheet(); return document.getElementById("sheet-body").innerHTML; };'
+                                  ' const head = (html, name) => (html.match(new RegExp(`<h3>${name}(.*?)</h3>`)) || [])[1] ?? null;'
+                                  ' const out = {}; for (const id of ["M1", "M2", "M3"]) out[id] = head(await sheet({ ms: id }), "Timeline");'
+                                  ' out.epic = head(await sheet({ epic: "e1" }), "Milestones"); return out; })()', **files)
+        cards = {}
+        for card in re.split(r'(?=<div class="fms )', [h for h in self.html if 'class="fms ' in h][-1])[1:]:
+            line = re.search(r'<div class="fcost"[^>]*>(.*?)</div>', card)
+            cards[re.search(r'data-id="([^"]*)"', card).group(1)] = line and line.group(1)
+        return self.probe(), cards
+
+    def test_a_milestone_sheets_timeline_says_its_time_retries_and_this_machines_tokens(self):
+        sheets, _ = self.cost_view(**{"/cost": json.dumps(COST)})
+        self.assertIn("2 h 0 min start to finish · 2 h 30 min agent time · 1 retry · 3.1M tokens on this machine</span>", sheets["M1"])
+        self.assertIn('title="Tokens of this machine&#39;s Claude Code sessions only: input 1.0k · cache 3.0M · output 99.0k"', sheets["M1"])
+        self.assertIn("20 min start to finish · 20 min agent time</span>", sheets["M2"])
+        self.assertNotIn("tokens", sheets["M2"])
+        self.assertIsNone(sheets["M3"])
+
+    def test_a_landed_milestones_card_carries_a_quiet_cost_line_and_an_open_one_none(self):
+        _, cards = self.cost_view(**{"/cost": json.dumps(COST)})
+        self.assertEqual(cards, {"M1": "2h 30m agent time · 1 retry · 3.1M tokens", "M2": "20m agent time", "M3": None})
+
+    def test_the_epic_sheet_totals_its_milestones(self):
+        sheets, _ = self.cost_view(**{"/cost": json.dumps(COST)})
+        self.assertIn(">2 h 50 min agent time · 1 retry · 3.1M tokens on this machine</span>", sheets["epic"])
+
+    def test_a_server_without_cost_leaves_out_the_tokens_and_keeps_the_time(self):
+        sheets, cards = self.cost_view()
+        self.assertTrue(sheets["M1"].endswith("2 h 0 min start to finish · 2 h 30 min agent time · 1 retry</span>"), sheets["M1"])
+        self.assertEqual(cards["M1"], "2h 30m agent time · 1 retry")
+        self.assertNotIn("tokens", sheets["epic"])
+
+    ASK_COST = ('(async () => { const asked = []; const real = globalThis.fetch;'
+                ' globalThis.fetch = async (p, o) => (String(p) === "/cost" && asked.push(p), real(p, o));'
+                ' S.costAt = 0; await loadCost(); await loadCost(); const first = asked.length;'
+                ' if (S.costAt) S.costAt = Date.now() - COST_MS; await loadCost(); return [first, asked.length]; })()')
+
+    def test_cost_is_asked_again_only_after_a_minute(self):
+        self.maps(COST_RUN, probe=self.ASK_COST, **{"/cost": json.dumps(COST)})
+        self.assertEqual(self.probe(), [1, 2])
+
+    def test_cost_is_never_asked_again_of_a_server_without_it(self):
+        self.maps(COST_RUN, probe=self.ASK_COST)
+        self.assertEqual(self.probe(), [1, 1])
 
     def test_a_status_change_says_it_started_and_when_it_is_done(self):
         self.maps(probe='(async () => { const said = []; toast = (t) => said.push(t);'

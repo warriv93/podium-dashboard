@@ -102,9 +102,10 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | `overlapAfter` | story ids to wait for because they touch the same files |
 | `files` | files it is expected to touch: repo-prefixed paths or globs (`{a,b}` alternatives, `*` within a segment, `**` across segments). The Podium compares them for its conflict radar, see below |
 | `repos` | list of repo names it touches |
-| `model`, `attempts`, `startedAt`, `finishedAt` | |
+| `model`, `attempts`, `startedAt`, `finishedAt` | `startedAt` restarts with each attempt; the Podium adds the stories' durations up as a milestone's agent time, from the first start to the last finish as its wall-clock time |
+| `worktrees` | `{<repo>: <path>}`, the story's checkouts, relative to the run dir, `~`-based or absolute. `GET /cost` counts the tokens of this machine's Claude Code sessions whose cwd is in one |
 | `branch`, `brief` | its branch and its brief (`podium/stories/<milestone>/<id>.md`) |
-| `agent` | `{backend, id}` of the agent building it |
+| `agent` | `{backend, id}` of the agent building it; with `backend` `agent`, an Agent-tool subagent, `GET /cost` also counts its log `~/.claude/projects/*/<session>/subagents/agent-<id>.jsonl` |
 | `commits` | `[{sha, subject, plus, minus}]` |
 | `failure` | why it failed |
 
