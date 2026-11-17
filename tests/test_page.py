@@ -162,6 +162,7 @@ COST_RUN = {
         {"id": "M2", "title": "second", "status": "done", "stories": [
             {"id": "S4", "title": "d", "status": "done", "startedAt": "2026-10-22T08:00:00+00:00", "finishedAt": "2026-10-22T08:20:00+00:00"}]},
         {"id": "M3", "title": "third", "status": "todo", "stories": [{"id": "S5", "title": "e", "status": "todo"}]}]}]}
+HIDE_FINISHED = "podium-hide-finished:api"
 COST = {"ready": True, "milestones": {"M1": {"input": 1000, "cacheWrite": 100000, "cacheRead": 3000000, "output": 99000, "stories": {}},
                                       "__proto__": {"input": 5, "cacheWrite": 5, "cacheRead": 5, "output": 5}}}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
@@ -309,7 +310,7 @@ class HostileRun(unittest.TestCase):
         script = page[page.index("<script>") + len("<script>"):page.rindex("</script>")]
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)
-        files = {**files, "podium/podium.json": json.dumps(run), "podium/events.jsonl": "".join(json.dumps(e) + "\n" for e in events),
+        files = {**files, "localStorage": {HIDE_FINISHED: "0", **files.get("localStorage", {})}, "podium/podium.json": json.dumps(run), "podium/events.jsonl": "".join(json.dumps(e) + "\n" for e in events),
                  "/info": json.dumps({"runDir": "/run", "repoDir": "/repo", "run": "api", "watching": True, "me": "ann", "people": {},
                                       "orchestrator": run["orchestrator"], "paseoServer": X, "stale": False, **(info or {})}),
                  "/human": json.dumps({"mode": "available", "until": None, "source": "hours",
@@ -585,10 +586,9 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(set(labels), {"State"})
         self.assertNotIn('id="hide-finished"', open(PAGE).read())
 
-    def test_unticking_finished_is_read_from_podium_hide_finished(self):
+    def test_a_stored_unticked_finished_reads_as_the_default(self):
         self.assertIn('"podium-hide-finished"', open(PAGE).read())
-        labels = self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "1"})
-        self.assertIn("State · 3 hidden", labels)
+        self.assertEqual(set(self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "1"})), {"State"})
 
     def collapse_button(self, html):
         return re.search(r'<button class="share ?(on)?" data-collapse-map aria-pressed="(\w+)"[^>]*>Collapsed</button>', html)
@@ -683,13 +683,13 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(re.findall(r'<div class="fepic" data-epic-sheet="(\w+)"', maps[0]), ["e1", "e2"])
         self.assertEqual(sorted(self.shown(maps[0])), ["M1", "R1"])
 
-    def test_the_state_count_adds_up_what_the_tiers_and_finished_hide(self):
+    def test_the_state_count_leaves_out_the_finished_milestones_a_tier_also_hides(self):
         run = json.loads(json.dumps(HIDE_RUN))
         run["epics"][0]["milestones"][2]["priority"] = "must"
         shown, _, label = self.hidden_map({"podium-hide-finished:api": "1", "podium-priority-filter:api": '["must"]'}, run=run,
                                           probe='(closeSheet(), expand("M3"), 0)')
         self.assertEqual(shown, ["M3"])
-        self.assertEqual(label, "State · 6 hidden")
+        self.assertEqual(label, "State · 1 hidden")
 
     @staticmethod
     def paused_run():
@@ -702,6 +702,23 @@ class HostileRun(unittest.TestCase):
         shown, _, label = self.hidden_map({}, run=self.paused_run())
         self.assertEqual(shown, ["M1", "M2", "M3", "M4", "M5", "M6"])
         self.assertEqual(label, "State")
+
+    def test_finished_milestones_and_stories_are_hidden_until_the_user_ticks_finished(self):
+        shown, stories, label = self.hidden_map({HIDE_FINISHED: None}, run=self.paused_run())
+        self.assertEqual(shown, ["M3", "M4", "M5", "M6"])
+        self.assertEqual(stories, ["S4", "S5"])
+        self.assertEqual(label, "State")
+        self.assertEqual(self.state_filter()[0], "State")
+        self.assertNotIn('class="share on" data-state-menu', [h for h in self.html if "data-state-menu" in h][-1])
+
+    def test_ticking_finished_shows_them_and_marks_the_menu_as_changed(self):
+        shown, _, label = self.hidden_map({HIDE_FINISHED: "0"}, run=self.paused_run())
+        self.assertEqual(shown, ["M1", "M2", "M3", "M4", "M5", "M6"])
+        self.assertIn('class="share on" data-state-menu', [h for h in self.html if "data-state-menu" in h][-1])
+
+    def test_the_count_leaves_out_the_finished_milestones_hidden_by_default(self):
+        _, _, label = self.hidden_map({HIDE_FINISHED: None, "podium-hide-paused:api": "1"}, run=self.paused_run())
+        self.assertEqual(label, "State · 2 hidden")
 
     def test_unticking_paused_hides_parked_and_later_milestones_and_keeps_the_choice(self):
         maps, _ = self.maps(self.paused_run(), probe=self.PUT % 'closeSheet(); toggleState("paused"); render()')
@@ -767,8 +784,8 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(sorted(stories), ["S1", "S2", "S3", "S4", "S5"])
         self.assertEqual(label, "State")
 
-    def test_hide_finished_counts_the_milestones_and_stories_it_hides(self):
-        self.assertEqual(self.hidden_map()[2], "State · 5 hidden")
+    def test_hiding_finished_work_is_the_default_so_it_counts_nothing(self):
+        self.assertEqual(self.hidden_map()[2], "State")
 
     def test_hide_finished_keeps_the_story_whose_sheet_is_open(self):
         _, stories, label = self.hidden_map(probe='(openSheet({ ms: "M3", story: "S1" }), 0)')

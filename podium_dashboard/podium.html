@@ -966,7 +966,7 @@ function togglePrioTier(tier) {
   writeRun("podium-priority-filter", JSON.stringify(S.prioShown));
 }
 function loadRunChoices() {
-  S.hideFinished = readRun("podium-hide-finished") === "1";
+  S.hideFinished = readRun("podium-hide-finished") !== "0";
   S.hidePaused = readRun("podium-hide-paused") === "1";
   S.showClosed = readRun("podium-show-closed") === "1";
   S.collapsed = readRun("podium-collapsed") === "1";
@@ -1713,7 +1713,7 @@ function renderFull() {
   const om = openMs();
   renderCollapsed();
   const onMap = listed.filter((x) => !hidesClosed(x));
-  renderStateFilter(onMap.filter(hidesByState).length + (canExpand(om) ? (om.stories || []).filter((s) => hidesStory(om, s)).length : 0));
+  renderStateFilter(onMap.filter((x) => hidesByState(x) && !(S.hideFinished && ["done", "moved"].includes(x.status))).length);
   renderMine(onMap.filter(hidesForMine).length);
   const unstarted = (x) => !["done", "working", "moved", "dropped"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
@@ -2359,7 +2359,7 @@ function setStateMenu(open) {
 const STATUS_BOXES = [["paused", "Paused", "parked · later", "parked"], ["closed", "Closed", "dropped", "dropped"], ["finished", "Finished", "landed · moved", "done"]];
 const tierPill = (t) => prioPill({ priority: t }) || `<span class="prio nice" title="Nice to have">Nice to have</span>`;
 const statusShown = (k) => ({ __proto__: null, paused: !S.hidePaused, closed: S.showClosed, finished: !S.hideFinished }[k]);
-const stateIsDefault = () => S.prioShown.length === TIERS.length && !S.hidePaused && !S.showClosed && !S.hideFinished;
+const stateIsDefault = () => S.prioShown.length === TIERS.length && !S.hidePaused && !S.showClosed && S.hideFinished;
 function toggleState(key) {
   if (EVERY_TIER.includes(key)) togglePrioTier(key);
   else if (key === "paused") setHidePaused(!S.hidePaused);
