@@ -154,6 +154,24 @@ OPEN_RUN = {
             {"id": "M3", "title": "third", "status": "todo", "deps": ["M2"], "stories": [{"id": "S6", "title": "six", "status": "todo"}]}]}]}
 PROTO_PROGRESS = "".join(f"2026-10-20T0{i + 6}:00:00+00:00 {kind} note\n" for i, kind in enumerate(reversed(KEYS)))
 
+CONSENT = "core-events/src/main/java/se/parkster/events/domain/parking/consent"
+RADAR_RUN = {
+    "project": {"title": "T", "quest": {"doc": "q.md"}}, "orchestrator": {"name": "o", "command": "/o"}, "active": {"epic": "e1", "milestone": "M1"},
+    "epics": [{"id": "e1", "title": "E", "milestones": [
+        {"id": "M1", "title": "building", "status": "working", "phase": "build", "stories": [
+            {"id": "S1", "title": "a", "status": "todo", "files": [f"{CONSENT}/{{Email,Sms}}MarketingConsentGivenEvent.java"]},
+            {"id": "S2", "title": "b", "status": "working", "files": ["web-applications/M/messages/{en,sv}.json", "web-applications/A/lib/client.ts"]},
+            {"id": "S3", "title": "c", "status": "todo", "deps": ["S2"], "files": ["web-applications/A/lib/client.ts"]},
+            {"id": "S4", "title": "d", "status": "todo", "files": ["web-applications/M/messages/sv.json"]},
+            {"id": "S5", "title": "e", "status": "done", "files": ["app-messaging-service/controller/dto/AudienceDTO.kt"]}]},
+        {"id": "M2", "title": "up next", "status": "todo", "stories": [
+            {"id": "T1", "title": "f", "status": "todo", "files": [f"{CONSENT}/*.java"]},
+            {"id": "T2", "title": "g", "status": "todo", "files": ["app-messaging-service/controller/dto/AudienceDTO.kt"]}]},
+        {"id": "M3", "title": "parked", "status": "parked", "stories": [{"id": "P1", "title": "h", "status": "todo", "files": ["web-applications/A/lib/client.ts"]}]},
+        {"id": "M4", "title": "after", "status": "todo", "deps": ["M1"], "stories": [{"id": "Q1", "title": "i", "status": "todo", "files": ["web-applications/A/lib/client.ts"]}]},
+        {"id": "M5", "title": "dropped story", "status": "draft", "stories": [{"id": "R1", "title": "j", "status": "dropped", "files": ["web-applications/A/lib/client.ts"]}]},
+        {"id": "M6", "title": "landed", "status": "done", "stories": [{"id": "D1", "title": "k", "status": "todo", "files": ["web-applications/A/lib/client.ts"]}]}]}]}
+
 HARNESS = r"""
 const OUT = [];
 const LISTENERS = {};
@@ -2143,6 +2161,86 @@ class HostileRun(unittest.TestCase):
                 files = {"/runs/ops/start": body} if body else {}
                 self.assertEqual(self.switch('await setRunsMenu(true); await goRun("ops"); return location.href;', **files),
                                  "http://127.0.0.1:8765/")
+
+    GLOBS = [
+        ("web-applications/A/lib/client.ts", "web-applications/A/lib/client.ts", True),
+        ("web-applications/A/lib/client.ts", "web-applications/A/lib/schemas.ts", False),
+        ("web-applications/M/mock-ams/store.ts", "app-messaging-service/M/mock-ams/store.ts", False),
+        ("web-applications/M/messages/{en,sv,de,da}.json", "web-applications/M/messages/da.json", True),
+        ("web-applications/M/messages/{en,sv}.json", "web-applications/M/messages/{de,da}.json", False),
+        (f"{CONSENT}/{{Email,Sms,Push}}MarketingConsent{{Given,Revoked}}Event.java", f"{CONSENT}/PushMarketingConsentRevokedEvent.java", True),
+        (f"{CONSENT}/{{Email,Sms,Push}}MarketingConsent{{Given,Revoked}}Event.java", f"{CONSENT}/PushMarketingConsentWithdrawnEvent.java", False),
+        (f"{CONSENT}/{{Email,Sms,Push}}MarketingConsent{{Given,Revoked}}Event.java", f"{CONSENT}/*Revoked*.java", True),
+        ("core-events/src/main/java/se/parkster/events/domain/news/*.java", "core-events/src/main/java/se/parkster/events/domain/news/NewsCreatedEvent.java", True),
+        ("core-events/src/main/java/se/parkster/events/domain/news/*.java", "core-events/src/main/java/se/parkster/events/domain/news/v2/NewsCreatedEvent.java", False),
+        ("app-messaging-service/src/main/kotlin/*.kt", "app-messaging-service/src/main/kotlin/*.kts", False),
+        ("app-messaging-service/src/*Links.kt", "app-messaging-service/src/Supported*", True),
+        ("core/backend/**/consent/ConsentView.java", "core/backend/web/core/src/main/java/se/parkster/server/service/consent/ConsentView.java", True),
+        ("core/backend/**/ConsentView.java", "core/backend/ConsentView.java", True),
+        ("core/backend/**/ConsentView.java", "core/frontend/ConsentView.java", False),
+        ("web-applications/apps/**", "web-applications/apps/*/messages/{en,sv}.json", True),
+        ("web-applications/apps/in-app-messaging/src/app/(protected)/drafts/[id]/page.tsx", "web-applications/apps/in-app-messaging/src/app/(protected)/drafts/d/page.tsx", False),
+        ("web-applications/apps/in-app-messaging/src/app/(protected)/drafts/[id]/page.tsx", "web-applications/apps/in-app-messaging/src/app/(protected)/drafts/[id]/page.tsx", True),
+        ("web-applications/S/feature/drafts/lib/{load-draft-form,draft-form-{values,problems}}.ts", "web-applications/S/feature/drafts/lib/draft-form-problems.ts", True),
+        ("./web-applications/A/lib/client.ts", "web-applications/A/lib/client.ts", True),
+    ]
+
+    def test_two_file_patterns_overlap_when_some_path_matches_both(self):
+        self.maps(RADAR_RUN, probe=f"{json.dumps([[a, b] for a, b, _ in self.GLOBS])}.map(([a, b]) => [globsOverlap(a, b), globsOverlap(b, a)])")
+        for (a, b, want), got in zip(self.GLOBS, self.probe()):
+            with self.subTest(a=a, b=b):
+                self.assertEqual(got, [want, want])
+
+    def test_a_shared_path_names_the_narrower_pattern_or_both_when_both_are_wildcards(self):
+        m = "web-applications/M/messages"
+        pairs = [[f"{m}/{{en,sv}}.json", f"{m}/{{sv,de}}.json"], [f"{m}/{{en,sv}}.json", f"{m}/sv.json"], [f"{m}/*.json", f"{m}/{{en,sv}}.json"],
+                 [f"{m}/*.json", f"{m}/en.*"], [f"{m}/{{en,sv}}.json", f"{m}/{{en,sv}}.json"]]
+        self.maps(RADAR_RUN, probe=f"{json.dumps(pairs)}.map(([a, b]) => sharedFiles({{ files: [a] }}, {{ files: [b] }}))")
+        self.assertEqual(self.probe(), [[f"{m}/sv.json"], [f"{m}/sv.json"], [f"{m}/{{en,sv}}.json"], [f"{m}/*.json ∩ {m}/en.*"], [f"{m}/{{en,sv}}.json"]])
+
+    @staticmethod
+    def radar_cards(full):
+        return {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', full)[1:]}
+
+    def test_a_milestone_card_shows_an_amber_chip_for_each_active_milestone_its_open_stories_overlap(self):
+        maps, _ = self.maps(RADAR_RUN)
+        cards = self.radar_cards(maps[-1])
+        given = f"{CONSENT}/{{Email,Sms}}MarketingConsentGivenEvent.java"
+        self.assertIn(f'<span class="badge overlaps" data-reveal="M2" title="S1 ↔ T1: {given}">Overlaps M2</span>', cards["M1"])
+        self.assertIn(f'<span class="badge overlaps" data-reveal="M1" title="T1 ↔ S1: {given}">Overlaps M1</span>', cards["M2"])
+        self.assertEqual(re.findall(r">Overlaps (M\d)<", maps[-1]), ["M2", "M1"])
+
+    def test_finished_stories_paused_milestones_and_milestones_that_wait_for_the_other_are_left_off_the_radar(self):
+        self.maps(RADAR_RUN, probe="crossOverlaps().map((p) => [p.a.ms, p.a.story, p.b.ms, p.b.story])")
+        self.assertEqual(self.probe(), [["M1", "S1", "M2", "T1"]])
+
+    def test_the_milestone_sheet_lists_each_overlapping_pair_with_its_shared_paths_and_a_link_to_the_other_milestone(self):
+        self.maps(RADAR_RUN, probe='(openSheet({ ms: "M1" }), renderSheet(), document.getElementById("sheet-body").innerHTML)')
+        body = self.probe()
+        rows = re.findall(r'<div class="clash">(.*?)</div>', body[body.index("<h3>Overlaps</h3>"):])
+        self.assertEqual(rows, [
+            '<span><a data-open="M1" data-story="S2">S2</a> ↔ <a data-open="M1" data-story="S4">S4</a></span>'
+            '<span class="clash-files mono">web-applications/M/messages/sv.json</span>',
+            '<span><a data-open="M1" data-story="S1">S1</a> ↔ <a data-reveal="M2">M2</a> <a data-open="M2" data-story="T1">T1</a></span>'
+            f'<span class="clash-files mono">{CONSENT}/{{Email,Sms}}MarketingConsentGivenEvent.java</span>'])
+
+    def test_stories_in_one_milestone_overlap_only_when_they_share_a_wave(self):
+        self.maps(RADAR_RUN, probe='waveOverlaps(msOf("M1")).map((p) => [p.a.story, p.b.story, p.paths])')
+        self.assertEqual(self.probe(), [["S2", "S4", ["web-applications/M/messages/sv.json"]]])
+
+    def test_a_milestone_without_overlaps_has_no_overlaps_section(self):
+        self.maps(RADAR_RUN, probe='(openSheet({ ms: "M3" }), renderSheet(), document.getElementById("sheet-body").innerHTML)')
+        self.assertNotIn("Overlaps", self.probe())
+
+    def test_hostile_story_ids_and_paths_on_the_radar_are_escaped(self):
+        run = json.loads(json.dumps(RADAR_RUN))
+        run["epics"][0]["milestones"][0]["stories"][0].update(id=X, files=[X, f"{CONSENT}/*.java"])
+        run["epics"][0]["milestones"][1]["id"] = X
+        run["epics"][0]["milestones"][1]["stories"][0]["files"] = [X, f"{CONSENT}/*.java"]
+        maps, _ = self.maps(run, probe='(openSheet({ ms: "M1" }), renderSheet(), document.getElementById("sheet-body").innerHTML)')
+        self.assertIn('class="badge overlaps"', maps[-1])
+        self.assertIn("<h3>Overlaps</h3>", self.probe())
+        self.assertNotIn("<i id=pwn", maps[-1] + self.probe())
 
 
 STICKY_HARNESS = r"""

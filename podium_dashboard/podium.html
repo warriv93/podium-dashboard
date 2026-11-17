@@ -524,6 +524,10 @@ a.wchip { color: inherit; text-decoration: none; }
 .badge.goahead { background: var(--gray-soft); color: var(--text-2); }
 .badge.moved { background: var(--gray-soft); color: var(--text-2); }
 .badge.moved[data-reveal] { cursor: pointer; }
+.badge.overlaps { background: var(--amber-soft); color: var(--amber); cursor: pointer; }
+.clash { display: grid; gap: 2px; font-size: 13px; padding: 5px 0; }
+.clash a { color: var(--accent); cursor: pointer; text-decoration: none; font-weight: 600; }
+.clash-files { color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
 .badge.awaited { color: var(--amber); border: 1px dashed var(--amber-dot); }
 .badge.failed { background: var(--red-soft); color: var(--red); }
 .badge.blocked, .badge.waiting { color: var(--text-3); padding-left: 0; font-weight: 500; }
@@ -1392,6 +1396,85 @@ function wavesOf(list) {
   list.forEach((s) => (rows[r(s) - 1] ||= []).push(s));
   return rows.filter(Boolean);
 }
+const BRACE_ROOM = 256;
+function expandBraces(p) {
+  const open = p.indexOf("{");
+  if (open < 0) return [p];
+  const cuts = [];
+  let depth = 0, close = -1;
+  for (let i = open; i < p.length && close < 0; i++) {
+    if (p[i] === "{") depth++;
+    else if (p[i] === "}" && !--depth) close = i;
+    else if (p[i] === "," && depth === 1) cuts.push(i);
+  }
+  if (close < 0) return [p];
+  const head = p.slice(0, open), tail = p.slice(close + 1);
+  if (!cuts.length) return expandBraces(tail).map((t) => head + p.slice(open, close + 1) + t);
+  const ends = [...cuts, close];
+  return [open, ...cuts].flatMap((c, k) => expandBraces(head + p.slice(c + 1, ends[k]) + tail)).slice(0, BRACE_ROOM);
+}
+function overlapSeq(a, b, star, same) {
+  const memo = new Map();
+  const go = (i, j) => {
+    const k = i * (b.length + 1) + j;
+    if (!memo.has(k)) memo.set(k, i === a.length && j === b.length ? true
+      : i < a.length && star(a[i]) ? go(i + 1, j) || (j < b.length && go(i, j + 1))
+      : j < b.length && star(b[j]) ? go(i, j + 1) || (i < a.length && go(i + 1, j))
+      : i < a.length && j < b.length && same(a[i], b[j]) && go(i + 1, j + 1));
+    return memo.get(k);
+  };
+  return go(0, 0);
+}
+const segOverlap = (x, y) => x === y || overlapSeq([...x], [...y], (c) => c === "*", (c, d) => c === d);
+const compiled = new Map();
+function globParts(p) {
+  if (!compiled.has(p)) compiled.set(p, expandBraces(p.trim().replace(/^(\.\/)+/, "")).map((x) => x.split("/").filter(Boolean)));
+  return compiled.get(p);
+}
+const globsOverlap = (a, b) => globParts(a).some((x) => globParts(b).some((y) => overlapSeq(x, y, (g) => g === "**", segOverlap)));
+const filesOf = (s) => (Array.isArray(s.files) ? s.files : []).filter((f) => typeof f === "string" && f.trim());
+const wild = (p) => p.includes("*");
+const expandedPaths = (p) => globParts(p).map((x) => x.join("/"));
+function sharedShown(a, b) {
+  if (a === b) return [a];
+  if (wild(a) && wild(b)) return [`${a} ∩ ${b}`];
+  if (wild(a) || wild(b)) return [wild(a) ? b : a];
+  const xs = expandedPaths(a), ys = expandedPaths(b), both = xs.filter((x) => ys.includes(x));
+  return both.length === xs.length ? [a] : both.length === ys.length ? [b] : both;
+}
+function sharedFiles(s, t) {
+  const out = [];
+  for (const a of filesOf(s)) for (const b of filesOf(t)) {
+    if (!globsOverlap(a, b)) continue;
+    for (const shown of sharedShown(a, b)) if (!out.includes(shown)) out.push(shown);
+  }
+  return out;
+}
+const unfinished = (s) => !["done", "dropped"].includes(s.status) && filesOf(s).length > 0;
+const onRadar = (m) => !isResearch(m) && (m.status === "working" || (["todo", "draft"].includes(m.status) && (m.stories || []).length > 0)) && (m.stories || []).some(unfinished);
+const msAwaits = (m, n) => depsOf(m).map(String).includes(String(n.id)) || waitsOn(m).some((w) => w.id === String(n.id));
+const storyPairs = (m, ss, n, ts, alike) => ss.flatMap((s, i) => ts.slice(alike ? i + 1 : 0).map((t) => ({ a: { ms: m.id, story: s.id }, b: { ms: n.id, story: t.id }, paths: sharedFiles(s, t) })))
+  .filter((p) => p.paths.length);
+function crossOverlaps() {
+  const live = msList().filter(onRadar);
+  return live.flatMap((m, i) => live.slice(i + 1).filter((n) => !msAwaits(m, n) && !msAwaits(n, m))
+    .flatMap((n) => storyPairs(m, m.stories.filter(unfinished), n, n.stories.filter(unfinished))));
+}
+const waveOverlaps = (m) => (closedMs(m) ? [] : wavesOf(m.stories || []).flatMap((w) => ((ss) => storyPairs(m, ss, m, ss, true))(w.filter(unfinished))));
+const crossOf = (m) => crossOverlaps().filter((p) => p.a.ms === m.id || p.b.ms === m.id).map((p) => (p.a.ms === m.id ? p : { a: p.b, b: p.a, paths: p.paths }));
+const overlapsOf = (m) => [...waveOverlaps(m), ...crossOf(m)];
+function overlapPills(m) {
+  const by = dict();
+  for (const p of crossOf(m)) (by[p.b.ms] ||= []).push(`${p.a.story} ↔ ${p.b.story}: ${p.paths.join(", ")}`);
+  return Object.entries(by).map(([id, lines]) => `<span class="badge overlaps" data-reveal="${esc(id)}" title="${esc(lines.join("\n"))}">Overlaps ${esc(id)}</span>`).join("");
+}
+function overlapSec(m) {
+  const pairs = overlapsOf(m);
+  if (!pairs.length) return "";
+  const story = (r) => `<a data-open="${esc(r.ms)}" data-story="${esc(r.story)}">${esc(r.story)}</a>`;
+  const other = (r) => (r.ms === m.id ? "" : `<a data-reveal="${esc(r.ms)}">${esc(r.ms)}</a> `);
+  return `<div class="sec"><h3>Overlaps</h3>${pairs.map((p) => `<div class="clash"><span>${story(p.a)} ↔ ${other(p.b)}${story(p.b)}</span><span class="clash-files mono">${p.paths.map(esc).join("<br>")}</span></div>`).join("")}</div>`;
+}
 const depsLeft = (m, all) => (m.deps || []).map((d) => ({ id: moveChain(String(d), all).at(-1), was: String(d) }))
   .filter((w, i, on) => w.id !== String(m.id) && all[w.id] && !finished(w.id, all) && on.findIndex((x) => x.id === w.id) === i);
 const fullStatus = (x, map) => (x.status !== "todo" ? x.status : !depsLeft(x, map).length ? "ready" : "waiting");
@@ -1435,7 +1518,7 @@ function fullMs(m, all) {
   const expands = canExpand(m) && hasBody(m);
   const go = expands ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
   const title = expands ? `<button class="title" aria-expanded="false">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
-  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}</div>${includesLine(m)}${dots}</div>`;
+  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}${overlapPills(m)}</div>${includesLine(m)}${dots}</div>`;
 }
 const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", parked: "not started", later: "not started" };
 const DOT_ROOM = 16;
@@ -1496,7 +1579,7 @@ async function setMsState(id, to) {
   render();
 }
 function openHead(m, foot) {
-  const stories = m.stories || [], merged = stories.filter(isMerged).length, waits = waitPills(m);
+  const stories = m.stories || [], merged = stories.filter(isMerged).length, waits = waitPills(m) + overlapPills(m);
   const working = stories.filter((s) => ["working", "approval"].includes(s.status)).map((s) => s.id);
   const E = S.project.epics.find((x) => (x.milestones || []).includes(m));
   const build = !orch() || !isBuilding(m) || stories.every(isMerged) ? ""
@@ -2651,6 +2734,7 @@ function milestoneSheet(m) {
     ${timelineSec(m)}
     ${(m.covers || []).length ? `<div class="sec"><h3>Covers brief items</h3><div class="links">${m.covers.map((c) => `<span class="link-chip">${esc(c)}</span>`).join("")}</div></div>` : ""}
     <div class="sec"><h3>Dependencies</h3><dl class="kv"><dt>Depends on</dt><dd>${depChips(m.deps || [], map, "Nothing", "landed")}</dd><dt>Unblocks</dt><dd>${depChips(blocks.map((x) => x.id), map, "Nothing")}</dd></dl></div>
+    ${overlapSec(m)}
     ${(m.open || []).length ? `<div class="sec"><h3>Open questions</h3><ul class="md">${m.open.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
     ${briefSec(m.brief, isResearch(m) ? "Findings" : "Brief")}`;
 }
@@ -2799,7 +2883,7 @@ function questSec(ref) {
 const HEAD_ICONS = [["goal", "🎯"], ["objective", "🎯"], ["acceptance", "✅"], ["success criteria", "🏆"], ["files in scope", "📁"], ["files", "📁"],
   ["context", "🧭"], ["depends on", "🔗"], ["dependencies", "🔗"], ["contract", "📜"], ["done when", "🏁"], ["brief items", "📌"], ["covers", "📌"],
   ["brief", "📝"], ["document", "📄"], ["run", "⚙️"], ["progress", "⏱️"], ["timeline", "🗓️"], ["commits", "🔀"], ["where the time went", "⏳"], ["tasks", "🗂️"], ["open questions", "❓"],
-  ["unknowns", "❓"], ["milestones", "🗺️"], ["decisions", "⚖️"], ["constraints", "🚧"], ["non-goals", "🚫"], ["risks", "⚠️"],
+  ["unknowns", "❓"], ["milestones", "🗺️"], ["decisions", "⚖️"], ["constraints", "🚧"], ["non-goals", "🚫"], ["risks", "⚠️"], ["overlaps", "💥"],
   ["danger", "⚠️"], ["requirements", "📋"], ["edge cases", "🧩"], ["user scenarios", "👤"], ["user story", "👤"], ["reuse", "♻️"],
   ["budget", "💰"], ["data sources", "🛰️"], ["module", "🧱"], ["shape", "🧱"], ["seams", "🧵"], ["story graph", "🕸️"], ["quality gate", "🛡️"]];
 const headIcon = (text) => HEAD_ICONS.find(([k]) => text.trim().toLowerCase().startsWith(k))?.[1];

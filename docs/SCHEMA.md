@@ -100,13 +100,15 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 | `status` | `todo`, `working`, `approval`, `done`, `failed`, `blocked` |
 | `deps` | story ids that must be done first |
 | `overlapAfter` | story ids to wait for because they touch the same files |
-| `files` | files it is expected to touch |
+| `files` | files it is expected to touch: repo-prefixed paths or globs (`{a,b}` alternatives, `*` within a segment, `**` across segments). The Podium compares them for its conflict radar, see below |
 | `repos` | list of repo names it touches |
 | `model`, `attempts`, `startedAt`, `finishedAt` | |
 | `branch`, `brief` | its branch and its brief (`podium/stories/<milestone>/<id>.md`) |
 | `agent` | `{backend, id}` of the agent building it |
 | `commits` | `[{sha, subject, plus, minus}]` |
 | `failure` | why it failed |
+
+The conflict radar compares the `files` of unfinished stories (not `done` or `dropped`). Across milestones it takes those that are active, `working` or a `todo`/`draft` milestone with stories, and skips a pair where one milestone lists the other in `deps` or `waitsFor`; within a milestone it takes stories in the same wave, so a story never clashes with one it waits for through `deps` or `overlapAfter`. Two patterns clash when some path could match both; other glob syntax (`?`, `[id]`) is read literally.
 
 Setting a story to `failed` sets every story that depends on it, directly or through others, to `blocked`. `podium ready` lists `todo` stories whose `deps` and `overlapAfter` are all `done`, leaving out stories handed off to a session of the user's own (`handoffs.json`).
 

@@ -64,6 +64,8 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 
 A milestone may wait for another without being held back: its `waitsFor` puts a "Waiting for M10" pill and a banner on the dashboard, whose Go ahead queues a `proceed` request, and `status` appends ` · waiting for M10` (see `docs/SCHEMA.md`).
 
+The dashboard also runs a conflict radar over the stories' `files`. An active milestone whose unfinished stories may touch the same path as another active milestone's gets an amber "Overlaps M49" chip, with the shared paths in its tooltip; the chip opens M49. The milestone sheet's Overlaps section lists each story ↔ story pair with its shared paths, including stories of the same wave that collide, so you can add an `overlapAfter` or a dep before both start (see `docs/SCHEMA.md`).
+
 `podium move M10 --to M11 [--pattern <slug>]` folds a milestone into another: M10 turns `moved`, M11 `includes` it, and a wait on M10 becomes "waiting for M11 (was M10)".
 
 Questions that touch two or more milestones of an epic are settled first, as decisions: `podium decision add "Which auth?" --type discussion --affects "M1,M2"` prints `DECISION D1 open` (at most 6 open per epic without `--force`), `decision claim D1` makes it yours, and `resolve`, `outscope` or `invalidate` close it with the outcome (`unresolved` keeps it open with what is missing); on a decision someone else claimed, these need `--force`. `podium decisions` lists them and ends with `FRONTIER D1,D4` (open, unclaimed, every blocker closed) and `STATE ACTIVE|WAITING|BLOCKED|CLEAR`; cut the epic once it is `CLEAR`.
