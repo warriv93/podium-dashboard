@@ -114,9 +114,9 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .share { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; color: var(--text); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .share i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
 .share.on i { background: var(--green-dot); opacity: 1; }
-:is(#map-sort, #state-filter) { position: relative; display: inline-flex; }
-:is(#map-sort, #state-filter) .share::after { content: ""; width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .6; }
-:is(#map-sort, #state-filter) .share.on { border-color: var(--text); font-weight: 600; }
+:is(#map-sort, #state-filter, #people-filter) { position: relative; display: inline-flex; }
+:is(#map-sort, #state-filter, #people-filter) .share::after { content: ""; width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .6; }
+:is(#map-sort, #state-filter, #people-filter) .share.on { border-color: var(--text); font-weight: 600; }
 .sort-menu input { position: absolute; opacity: 0; pointer-events: none; }
 .sort-menu label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
 .sort-menu label:has(input:checked) { font-weight: 600; }
@@ -132,6 +132,20 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .prio-pick-menu button .badge { pointer-events: none; background: none; padding: 0; color: var(--text); text-decoration: none; font-size: 13px; font-weight: 500; }
 .prio-menu .mhead { padding: 6px 8px 2px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .prio-menu .mhead + label { margin-top: 0; }
+#people-filter .prio-menu { left: auto; right: 0; min-width: 240px; }
+.people-menu .prow { display: flex; align-items: center; gap: 8px; padding: 2px 4px 2px 8px; border-radius: 8px; }
+.people-menu .prow:hover { background: var(--gray-soft); }
+.people-menu .prow input { margin: 0; accent-color: var(--accent); }
+.people-menu .prow button { flex: 1; display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 4px 4px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; text-align: left; white-space: nowrap; }
+.people-menu .prow .n { margin-left: auto; padding-left: 12px; color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.people-menu .prow .live { width: 7px; height: 7px; border-radius: 50%; background: var(--green-dot); flex: none; }
+.people-menu .owner.dot { cursor: pointer; }
+.people-menu .owner.dot.none, #people-filter .share .owner.dot.none { background: var(--gray-soft); color: var(--text-3); }
+.people-menu .pfoot { display: flex; justify-content: space-between; gap: 12px; padding: 6px 8px 2px; margin-top: 4px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--text-3); }
+.people-menu .pfoot button { border: 0; background: none; padding: 0; font: inherit; color: var(--accent); cursor: pointer; }
+#people-filter .share .faces { display: inline-flex; }
+#people-filter .share .owner.dot { width: 16px; height: 16px; min-width: 16px; font-size: 7.5px; box-shadow: 0 0 0 1.5px var(--card); }
+#people-filter .share .owner.dot + .owner.dot { margin-left: -5px; }
 .prio-menu .mhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
 .prio-menu small { margin-left: auto; padding-left: 12px; font-size: 11.5px; color: var(--text-3); }
 .fms:has(:is(.owner-menu, .prio-pick-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }
@@ -876,7 +890,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
           <button class="search-btn" id="search-toggle" aria-expanded="false" aria-controls="map-search" title="Search (⌘K)" aria-label="Search"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
         </div>
         <div class="map-tools">
-          <span id="collapse-map"></span><span id="map-sort"></span><span id="state-filter"></span><span id="mine-filter"></span><span id="flaky-gates"></span>
+          <span id="collapse-map"></span><span id="map-sort"></span><span id="state-filter"></span><span id="people-filter"></span><span id="flaky-gates"></span>
           <div class="legend">
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
@@ -967,10 +981,19 @@ function setCollapsed(on) {
   S.collapsed = on;
   writeRun("podium-collapsed", on ? "1" : "0");
 }
-function setMine(on) {
-  S.mine = on;
-  writeRun("podium-mine", on ? "1" : "0");
+const ME = "@me";
+function readPeople() {
+  try {
+    const stored = JSON.parse(readRun("podium-people"));
+    if (Array.isArray(stored)) return [...new Set(stored.filter((x) => typeof x === "string"))];
+  } catch {}
+  return readRun("podium-mine") === "1" ? [ME] : [];
 }
+function setPeople(list) {
+  S.people = [...new Set(list)];
+  writeRun("podium-people", JSON.stringify(S.people));
+}
+const togglePerson = (who) => setPeople(S.people.includes(who) ? S.people.filter((x) => x !== who) : [...S.people, who]);
 const TIERS = [["must", "Must have"], ["should", "Should have"], ["nice", "Nice to have"]], EVERY_TIER = TIERS.map(([t]) => t);
 function readPrioShown() {
   try {
@@ -998,7 +1021,7 @@ function loadRunChoices() {
   S.wrapLanded = readRun("podium-wrap-landed") === "1";
   S.showClosed = readRun("podium-show-closed") === "1";
   S.collapsed = readRun("podium-collapsed") === "1";
-  S.mine = readRun("podium-mine") === "1";
+  S.people = readPeople();
   S.prioShown = readPrioShown();
   S.sort = readSort();
   S.handedSeen = undefined;
@@ -1652,8 +1675,9 @@ const hidesByState = (x) => hidesClosed(x) || (!keeps(x.id) && ((S.hideFinished 
   || (S.hidePaused && PAUSED.includes(x.status)) || !S.prioShown.includes(tierOf(x))));
 const tierOf = (x) => (PRIO[x?.priority] ? x.priority : "nice");
 const mine = (x) => isMe(x.owner) || prsToReview().some((pr) => pr.ms === x.id);
-const hidesForMine = (x) => S.mine && !mine(x) && !keeps(x.id);
-const hidesMs = (x) => hidesByState(x) || hidesForMine(x);
+const ownedBy = (who, x) => (who === ME ? mine(x) : who ? x.owner === who && !isMe(who) : !x.owner);
+const hidesForPeople = (x) => S.people.length > 0 && !S.people.some((who) => ownedBy(who, x)) && !keeps(x.id);
+const hidesMs = (x) => hidesByState(x) || hidesForPeople(x);
 const hidesStory = (m, s) => S.hideFinished && ["done", "dropped"].includes(s.status) && !keeps(m.id, s.id);
 function treeRows(m) {
   const rows = wavesOf(m.stories || []), col = dict();
@@ -1755,7 +1779,7 @@ function renderFull() {
   const onMap = listed.filter((x) => !hidesClosed(x));
   renderSort();
   renderStateFilter(onMap.filter((x) => hidesByState(x) && !(S.hideFinished && ["done", "moved"].includes(x.status))).length);
-  renderMine(onMap.filter(hidesForMine).length);
+  renderPeopleFilter(onMap, onMap.filter(hidesForPeople).length);
   const unstarted = (x) => !["done", "working", "moved", "dropped"].includes(x.status);
   const awaited = order.findIndex((x) => unstarted(x) && waitersOf(x.id).length);
   const next = awaited >= 0 ? awaited : order.findIndex(unstarted);
@@ -2436,9 +2460,38 @@ function renderStateFilter(hidden) {
   el.innerHTML = `<button class="share ${some ? "on" : ""}" data-state-menu aria-expanded="${!!S.stateMenu}" aria-controls="state-menu" title="Show milestones by priority and status">${some && hidden ? `Filter · ${hidden} hidden` : "Filter"}</button>${S.stateMenu ? menu : ""}`;
   if (had) el.querySelector(had.dataset.stateShow ? `[data-state-show="${had.dataset.stateShow}"]` : "[data-state-menu]")?.focus();
 }
-function renderMine(hidden) {
-  const on = S.mine;
-  $("mine-filter").innerHTML = `<button class="share ${on ? "on" : ""}" data-mine aria-pressed="${on}" title="${on ? "Show everyone's milestones again" : "Show only your milestones and what waits on you"}">${on && hidden ? `Mine · ${hidden} hidden` : "Mine"}</button>`;
+function setPeopleMenu(open) {
+  S.peopleMenu = open;
+  render();
+}
+function peopleRows(onMap) {
+  const live = dict(crew().filter((p) => Date.now() - p.last < RECENT_MS).map((p) => [p.name, true]));
+  const owners = onMap.map((x) => x.owner).filter((o) => typeof o === "string" && o && !isMe(o));
+  const others = [...new Set([...runPeople().filter((w) => !isMe(w)), ...owners, ...S.people.filter((w) => w && w !== ME)])];
+  const count = (who) => onMap.filter((x) => ownedBy(who, x)).length;
+  const row = (who, name, face) => ({ who, name, face, n: count(who), live: !!live[who === ME ? S.info?.me : who] });
+  return [
+    ...(S.info?.me ? [row(ME, `${S.info.me} (you)`, S.info.me)] : []),
+    ...others.map((w) => row(w, w, w)).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)),
+    row("", "No owner", ""),
+  ];
+}
+const personFace = (face) => (face ? ownerDot(face, face) : `<span class="owner dot none">–</span>`);
+function peopleLabel(rows) {
+  const picked = rows.filter((r) => S.people.includes(r.who));
+  if (!picked.length) return "Everyone";
+  if (picked.length > 1) return `${picked.length} people`;
+  return picked[0].who === ME ? "Mine" : esc(picked[0].who ? picked[0].who.split(/[.@]/)[0] : "No owner");
+}
+function renderPeopleFilter(onMap, hidden) {
+  const el = $("people-filter"), on = S.people.length > 0, rows = peopleRows(onMap), had = document.activeElement?.closest?.("#people-filter") && document.activeElement;
+  const item = (r) => `<div class="prow"><input type="checkbox" data-people-add="${esc(r.who)}"${S.people.includes(r.who) ? " checked" : ""} aria-label="Also show ${esc(r.name)}"><button data-people-only="${esc(r.who)}" title="Show only ${esc(r.name)}">${personFace(r.face)}<span>${esc(r.name)}</span>${r.live ? `<i class="live" title="Active in the last 15 minutes"></i>` : ""}<span class="n">${r.n}</span></button></div>`;
+  const you = rows.filter((r) => r.who === ME), rest = rows.filter((r) => r.who && r.who !== ME), none = rows.filter((r) => r.who === "");
+  const menu = `<div class="prio-menu people-menu" id="people-menu" role="group" aria-label="Show the milestones of">${you.length ? `<span class="mhead">You</span>${you.map(item).join("")}` : ""}${rest.length ? `<span class="mhead">Colleagues</span>${rest.map(item).join("")}` : ""}<span class="mhead"></span>${none.map(item).join("")}<div class="pfoot"><button data-people-all>Show everyone</button><span>name: only them · box: add</span></div></div>`;
+  const faces = rows.filter((r) => S.people.includes(r.who)).slice(0, 3).map((r) => personFace(r.face)).join("");
+  const label = peopleLabel(rows) + (on && hidden ? ` · ${hidden} hidden` : "");
+  el.innerHTML = `<button class="share ${on ? "on" : ""}" data-people-menu aria-expanded="${!!S.peopleMenu}" aria-controls="people-menu" title="Show only some people's milestones">${faces ? `<span class="faces">${faces}</span>` : ""}${label}</button>${S.peopleMenu ? menu : ""}`;
+  if (had) el.querySelector(had.dataset.peopleAdd !== undefined ? `[data-people-add="${CSS.escape(had.dataset.peopleAdd)}"]` : "[data-people-menu]")?.focus();
 }
 function renderFetch() {
   const el = $("fetch"), on = !!S.project.sync?.enabled, last = S.info?.pull;
@@ -3196,6 +3249,7 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 document.addEventListener("click", (ev) => {
   if (S.stateMenu && !ev.target.closest("#state-filter")) setStateMenu(false);
   if (S.sortMenu && !ev.target.closest("#map-sort")) setSortMenu(false);
+  if (S.peopleMenu && !ev.target.closest("#people-filter")) setPeopleMenu(false);
   if (S.runsMenu && !ev.target.closest("#runs")) setRunsMenu(false);
   const rg = ev.target.closest("[data-run-go]");
   if (rg) { goRun(rg.dataset.runGo); return; }
@@ -3223,7 +3277,12 @@ document.addEventListener("click", (ev) => {
   }
   if (ev.target.closest("[data-wrap-landed]")) { S.wrapLanded = !S.wrapLanded; writeRun("podium-wrap-landed", S.wrapLanded ? "1" : "0"); render(); return; }
   if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
-  if (ev.target.closest("[data-mine]")) { setMine(!S.mine); render(); return; }
+  if (ev.target.closest("[data-people-menu]")) { setPeopleMenu(!S.peopleMenu); return; }
+  const padd = ev.target.closest("[data-people-add]"), ponly = ev.target.closest("[data-people-only]");
+  if (padd) { togglePerson(padd.dataset.peopleAdd); render(); return; }
+  if (ponly) { setPeople([ponly.dataset.peopleOnly]); S.peopleMenu = false; render(); return; }
+  if (ev.target.closest("[data-people-all]")) { setPeople([]); S.peopleMenu = false; render(); return; }
+  if (ev.target.closest("#people-filter")) return;
   if (ev.target.closest("[data-sort-menu]")) { setSortMenu(!S.sortMenu); return; }
   const sort = ev.target.closest("[data-sort]");
   if (sort) { setSort(sort.dataset.sort); render(); return; }
@@ -3305,6 +3364,7 @@ function onEscape() {
   if (S.runsMenu) { setRunsMenu(false); $("runs").querySelector("[data-runs-menu]")?.focus(); }
   else if (S.stateMenu) { setStateMenu(false); $("state-filter").querySelector("[data-state-menu]")?.focus(); }
   else if (S.sortMenu) { setSortMenu(false); $("map-sort").querySelector("[data-sort-menu]")?.focus(); }
+  else if (S.peopleMenu) { setPeopleMenu(false); $("people-filter").querySelector("[data-people-menu]")?.focus(); }
   else if (S.ownerMenu) setOwnerMenu(null);
   else if (S.prioPick) setPrioPick(null);
   else if (S.sel) closeSheet();

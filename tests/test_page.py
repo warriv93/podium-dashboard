@@ -1267,24 +1267,52 @@ class HostileRun(unittest.TestCase):
         e2["milestones"][0]["owner"] = e2["milestones"][1]["owner"] = "bo"
         return run
 
-    def mine_button(self):
-        html = [h for h in self.html if "data-mine" in h][-1]
-        return re.search(r'<button class="share ?(on)?" data-mine aria-pressed="(\w+)"[^>]*>(.*?)</button>', html).groups()
+    def people_button(self):
+        html = [h for h in self.html if "data-people-menu" in h][-1]
+        return re.search(r'<button class="share ?(on)?" data-people-menu aria-expanded="(\w+)"[^>]*>(?:<span class="faces">(?:<span[^>]*>[^<]*</span>)*</span>)?(.*?)</button>', html).groups()
 
-    def test_a_mine_toggle_sits_beside_state_and_starts_off(self):
-        self.assertIn('<span id="state-filter"></span><span id="mine-filter"></span>', open(PAGE).read())
+    def people_menu(self):
+        html = [h for h in self.html if 'id="people-menu"' in h][-1]
+        return re.findall(r'data-people-add="([^"]*)"( checked)?.*?<span>([^<]*)</span>(?:<i class="live"[^>]*></i>)?<span class="n">(\d+)</span>', html)
+
+    def test_a_people_menu_sits_beside_filter_and_starts_on_everyone(self):
+        self.assertIn('<span id="state-filter"></span><span id="people-filter"></span>', open(PAGE).read())
         maps, _ = self.maps(self.mine_run(), probe="(closeSheet(), render(), 0)")
-        self.assertEqual(self.mine_button(), (None, "false", "Mine"))
+        self.assertEqual(self.people_button(), (None, "false", "Everyone"))
         self.assertEqual(sorted(self.shown(maps[-1])), ["M1", "M2", "M3", "R1"])
+
+    def test_the_people_menu_lists_you_then_colleagues_by_milestones_owned_then_no_owner(self):
+        self.maps(self.mine_run(), probe="(closeSheet(), setPeopleMenu(true), 0)")
+        self.assertEqual(self.people_menu(), [("@me", "", "ann (you)", "1"), ("bo", "", "bo", "2"), ("", "", "No owner", "1")])
 
     def test_mine_shows_your_milestones_and_what_waits_on_you_and_is_kept(self):
         maps, _ = self.maps(self.mine_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; }; closeSheet();'
-                                                    ' S.project.needsYou = { reason: "look", story: "M3/S6" }; setMine(true); render(); return put["podium-mine:api"]; })()')
-        self.assertEqual(self.probe(), "1")
+                                                    ' S.project.needsYou = { reason: "look", story: "M3/S6" }; setPeople(["@me"]); render(); return put["podium-people:api"]; })()')
+        self.assertEqual(self.probe(), '["@me"]')
         self.assertEqual(self.shown(maps[-1]), ["M1", "M3"])
-        self.assertEqual(self.mine_button(), ("on", "true", "Mine · 2 hidden"))
-        maps, _ = self.maps(self.mine_run(), localStorage={"podium-mine:api": "1"}, probe="(closeSheet(), render(), 0)")
+        self.assertEqual(self.people_button(), ("on", "false", "Mine · 2 hidden"))
+        maps, _ = self.maps(self.mine_run(), localStorage={"podium-people:api": '["@me"]'}, probe="(closeSheet(), render(), 0)")
         self.assertEqual(self.shown(maps[-1]), ["M1"])
+
+    def test_mine_kept_from_before_the_people_menu_carries_over(self):
+        maps, _ = self.maps(self.mine_run(), localStorage={"podium-mine:api": "1"}, probe="(closeSheet(), render(), S.people)")
+        self.assertEqual(self.probe(), ["@me"])
+        self.assertEqual(self.shown(maps[-1]), ["M1"])
+
+    def test_picking_colleagues_and_no_owner_shows_only_their_milestones(self):
+        maps, _ = self.maps(self.mine_run(), probe="(closeSheet(), setPeople([\"bo\"]), render(), 0)")
+        self.assertEqual(sorted(self.shown(maps[-1])), ["M2", "M3"])
+        self.assertEqual(self.people_button(), ("on", "false", "bo · 2 hidden"))
+        maps, _ = self.maps(self.mine_run(), probe="(closeSheet(), setPeople([\"@me\", \"\"]), render(), 0)")
+        self.assertEqual(sorted(self.shown(maps[-1])), ["M1", "R1"])
+        self.assertEqual(self.people_button()[2], "2 people · 2 hidden")
+
+    def test_a_name_shows_only_them_and_a_box_adds_them(self):
+        page = open(PAGE).read()
+        self.assertIn('if (padd) { togglePerson(padd.dataset.peopleAdd); render(); return; }', page)
+        self.assertIn('if (ponly) { setPeople([ponly.dataset.peopleOnly]); S.peopleMenu = false; render(); return; }', page)
+        self.maps(self.mine_run(), probe='(setPeople(["bo"]), togglePerson("@me"), togglePerson("bo"), S.people)')
+        self.assertEqual(self.probe(), ["@me"])
 
     def test_a_bullet_that_wraps_onto_the_next_line_stays_one_bullet(self):
         self.maps(probe=r'md("- Copy (P1\n  P2; copy and shots) last\n- two\n  - nested\n\nafter")')
@@ -2325,16 +2353,16 @@ class HostileRun(unittest.TestCase):
     PUT = '(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; }; %s; return Object.keys(put).sort(); })()'
 
     def test_the_runs_own_choices_carry_its_slug_and_the_theme_stays_global(self):
-        self.maps(probe=self.PUT % ('closeSheet(); setTheme("dark"); setHideFinished(true); setCollapsed(true); setMine(true);'
+        self.maps(probe=self.PUT % ('closeSheet(); setTheme("dark"); setHideFinished(true); setCollapsed(true); setPeople(["@me"]);'
                                     ' togglePrioTier("nice"); toggleState("paused"); toggleState("closed"); setSort("owner"); seeHanded(); markSeen()'))
         self.assertEqual(self.probe(), ["podium-collapsed:api", "podium-handed-seen:api", "podium-hide-finished:api", "podium-hide-paused:api",
-                                        "podium-mine:api", "podium-priority-filter:api", "podium-seen:api", "podium-show-closed:api", "podium-sort:api", "podium-theme"])
+                                        "podium-people:api", "podium-priority-filter:api", "podium-seen:api", "podium-show-closed:api", "podium-sort:api", "podium-theme"])
 
     def test_a_value_kept_without_the_slug_or_under_another_run_is_not_read(self):
-        for stored in ({"podium-collapsed": "1", "podium-mine": "1"}, {"podium-collapsed:web": "1", "podium-mine:web": "1"}):
+        for stored in ({"podium-collapsed": "1", "podium-people": '["@me"]'}, {"podium-collapsed:web": "1", "podium-people:web": '["@me"]'}):
             with self.subTest(stored=stored):
-                self.maps(localStorage=stored, probe="[S.collapsed, S.mine]")
-                self.assertEqual(self.probe(), [False, False])
+                self.maps(localStorage=stored, probe="[S.collapsed, S.people]")
+                self.assertEqual(self.probe(), [False, []])
         self.maps(localStorage={"podium-collapsed:web": "1"}, info={"run": "web"}, probe="S.collapsed")
         self.assertTrue(self.probe())
 
