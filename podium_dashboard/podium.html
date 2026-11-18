@@ -77,6 +77,8 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .corner .bell { width: 26px; height: 26px; }
 .controls { grid-column: 1 / 4; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
 .controls #feed-toggle { margin-left: auto; }
+#feed-toggle .chev { margin-right: 5px; vertical-align: -1px; transition: transform .15s ease; }
+#feed-toggle[aria-pressed="true"] .chev { transform: rotate(180deg); }
 .logo { width: 34px; height: 34px; flex: none; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
 .brand { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .brand .eyebrow { display: flex; align-items: center; gap: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
@@ -238,10 +240,6 @@ a.wchip { color: inherit; text-decoration: none; }
 .search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; color: var(--text); font-size: 14px; min-width: 0; }
 .search input::placeholder { color: var(--text-3); }
 .kbd { font-size: 11px; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; }
-.seg { display: inline-flex; background: var(--gray-soft); border-radius: 10px; padding: 3px; gap: 2px; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
-.seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--text-2); white-space: nowrap; }
-.seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
-.seg .n { color: var(--text-3); margin-left: 4px; font-variant-numeric: tabular-nums; }
 
 .dsbtn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px 2px 7px; border-radius: 999px; background: var(--card-2); color: var(--text-2); border: 1px solid var(--line-2); font: inherit; font-size: 12px; font-weight: 600; line-height: 18px; letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer; }
 .dsbtn:hover { border-color: var(--accent); color: var(--accent); }
@@ -705,6 +703,17 @@ a.mocklink:hover code { text-decoration: underline; }
 .qw-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--text-2); }
 .qw-head b { color: var(--text); }
 .qw-row { display: grid; grid-template-columns: 84px 1fr; gap: 8px; align-items: baseline; padding: 3px 0; }
+.qw-fold { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.qw-fold::before { content: "▸"; font-size: 10px; transition: transform .15s ease; }
+.qw-fold[aria-expanded="true"]::before { transform: rotate(90deg); }
+.qw-folded { color: var(--text-3); font-size: 12.5px; }
+.qwrap .wchip::before { content: "○"; flex: none; font-size: 11px; font-weight: 800; color: var(--text-3); margin-right: -2px; }
+.qwrap .wchip.done { background: var(--green-soft); border-color: transparent; }
+.qwrap .wchip.done::before { content: "✓"; color: var(--green); }
+.qwrap .wchip.working { background: var(--accent-soft); border-color: var(--accent); }
+.qwrap .wchip.working::before { content: "●"; color: var(--accent); }
+.qwrap .wchip.moved { background: transparent; box-shadow: none; opacity: .6; }
+.qwrap .wchip.moved::before { content: "→"; }
 .qw-k { color: var(--text-3); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
 .qw-v { display: flex; flex-wrap: wrap; gap: 4px 6px; }
 .qwrap .pace { display: inline-block; padding: 1px 8px; border-radius: 999px; background: rgba(91,110,225,.14); color: var(--quest-ink); font-weight: 650; font-size: 11px; }
@@ -846,7 +855,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <span class="crew" id="crew" hidden></span>
       <span id="share" hidden></span>
       <span id="fetch" hidden></span>
-      <button class="icon-btn" id="feed-toggle">Activity</button>
+      <button class="icon-btn" id="feed-toggle"><svg class="chev" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8 10 12.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Activity</button>
     </div>
   </div>
 </header>
@@ -861,7 +870,6 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
         <input id="q" type="search" placeholder="Search milestones, stories, files, ids" autocomplete="off">
         <span class="kbd">⌘K</span>
       </label>
-      <div class="seg" id="filters" role="tablist"></div>
     </div>
     <section class="card map-card">
       <div class="map-sentinel" id="map-sentinel"></div>
@@ -917,7 +925,6 @@ const maxAttempts = () => Number(S.project?.orchestrator?.maxAttempts) || 2;
 const orch = () => [S.info?.orchestrator, S.project?.orchestrator].find((o) => o?.command) || null;
 const orchCmd = () => orch()?.command || "";
 const SERVER_DOWN = "The Podium server didn't accept that: is it running? Start it with podium server --detach";
-const FILTERS = [["all", "All"], ["working", "Working"], ["todo", "To do"], ["done", "Done"], ["failed", "Failed"]];
 const UNSTARTED = ["draft", "parked", "later"];
 const POLL_MS = 2000;
 const HIDDEN_POLL_MS = 30000;
@@ -925,7 +932,7 @@ let lastPoll = 0;
 
 /* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
 const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
-const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: null, unfold: dict(), query: "", filter: "all", online: true };
+const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: null, unfold: dict(), query: "", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -981,6 +988,7 @@ function setSort(k) {
 function loadRunChoices() {
   S.hideFinished = readRun("podium-hide-finished") !== "0";
   S.hidePaused = readRun("podium-hide-paused") === "1";
+  S.wrapLanded = readRun("podium-wrap-landed") === "1";
   S.showClosed = readRun("podium-show-closed") === "1";
   S.collapsed = readRun("podium-collapsed") === "1";
   S.mine = readRun("podium-mine") === "1";
@@ -1189,17 +1197,13 @@ function viewStatus(s, map, ms) {
   if (ms !== undefined && S.handoffs[key(ms, s.id)]) return "elsewhere";
   return depsOf(s).every((d) => !map[d] || ["done", "dropped"].includes(map[d].status)) ? "ready" : "waiting";
 }
-function filterKey(st) {
-  return { __proto__: null, ready: "todo", waiting: "todo", todo: "todo", draft: "todo", parked: "todo", later: "todo", approval: "working", elsewhere: "working", blocked: "failed" }[st] || st;
-}
 function storyMatches(m, s) {
   const q = S.query.trim().toLowerCase();
-  if (S.filter !== "all" && filterKey(viewStatus(s, storyIndex(m), m.id)) !== S.filter) return false;
   if (!q) return true;
   return [s.id, s.title, s.summary, ...(s.files || []), ...(s.covers || []), ...repoNames(s)].join(" ").toLowerCase().includes(q);
 }
 const msMatches = (m, text) => (m.stories || []).some((s) => storyMatches(m, s))
-  || (S.filter === "all" && String(text).toLowerCase().includes(S.query.trim().toLowerCase()));
+  || String(text).toLowerCase().includes(S.query.trim().toLowerCase());
 
 const msRepos = (m) => Object.entries(m?.repos || {}).map(([repo, r]) => ({ repo, ...(r || {}) }));
 const repoNames = (x) => (Array.isArray(x.repos) ? x.repos : Object.keys(x.repos || {}));
@@ -1357,7 +1361,6 @@ function render() {
   renderFetch();
   renderCrew();
   renderDs();
-  renderFilters();
   renderFull();
   renderQuality();
   if (S.sel) renderSheet();
@@ -2020,15 +2023,6 @@ function workingBanner(working) {
   return `<div class="banner working"><span class="label"><span class="pulse"></span>Working on${S.epic.single ? "" : ` · ${esc(ids.join(", "))}`}</span><div class="chips">${chips}</div></div>`;
 }
 
-function renderFilters() {
-  const counts = dict([["all", 0]]);
-  for (const m of msList().filter((x) => x.status !== "dropped")) {
-    const map = storyIndex(m);
-    for (const s of m.stories || []) { counts.all++; const k = filterKey(viewStatus(s, map, m.id)); counts[k] = (counts[k] || 0) + 1; }
-  }
-  $("filters").innerHTML = FILTERS.map(([k, l]) => `<button class="${S.filter === k ? "on" : ""}" data-filter="${k}">${l}<span class="n">${counts[k] || 0}</span></button>`).join("");
-}
-
 /* a mock path is relative to the run dir, which this server hosts; "../" reaches the repo, hosted under /repo/ */
 function mockOf(x) {
   const a = (x?.artifacts || []).find((a) => a.phase === "mock" || /mock/i.test(a.name || ""));
@@ -2432,7 +2426,7 @@ function renderStateFilter(hidden) {
   const tiers = TIERS.map(([t]) => box(t, tierPill(t), shown.includes(t), shown.length === 1 && shown.includes(t))).join("");
   const statuses = STATUS_BOXES.map(([k, label, hint, badge]) => box(k, `<span class="badge ${badge}">${label}</span>`, statusShown(k), false, hint)).join("");
   const menu = `<div class="prio-menu" id="state-menu" role="group" aria-label="Show milestones that are"><span class="mhead">Priority</span>${tiers}<span class="mhead">Status</span>${statuses}</div>`;
-  el.innerHTML = `<button class="share ${some ? "on" : ""}" data-state-menu aria-expanded="${!!S.stateMenu}" aria-controls="state-menu" title="Show milestones by priority and status">${some && hidden ? `State · ${hidden} hidden` : "State"}</button>${S.stateMenu ? menu : ""}`;
+  el.innerHTML = `<button class="share ${some ? "on" : ""}" data-state-menu aria-expanded="${!!S.stateMenu}" aria-controls="state-menu" title="Show milestones by priority and status">${some && hidden ? `Filter · ${hidden} hidden` : "Filter"}</button>${S.stateMenu ? menu : ""}`;
   if (had) el.querySelector(had.dataset.stateShow ? `[data-state-show="${had.dataset.stateShow}"]` : "[data-state-menu]")?.focus();
 }
 function renderMine(hidden) {
@@ -2963,12 +2957,13 @@ const WRAP_ROWS = [["Landed", "landed"], ["Still open", "open"], ["Moved", "move
 function questWrap(q, ms, now) {
   const c = questClock(q, now);
   if (!c || c.today < c.questDays - 7 || c.today >= c.allDays) return "";
-  const w = wrapUp(ms), chip = (x) => `<span class="wchip" data-reveal="${esc(x.id)}"><b>${esc(x.id)}</b> ${esc(x.title || "")}</span>`;
+  const w = wrapUp(ms), chip = (x) => `<span class="wchip ${esc(x.status || "")}" data-reveal="${esc(x.id)}"><b>${esc(x.id)}</b> ${esc(x.title || "")}</span>`;
   const row = (k, v) => (v ? `<div class="qw-row"><span class="qw-k">${k}</span><span class="qw-v">${v}</span></div>` : "");
+  const landed = (v) => (v ? `<div class="qw-row"><span class="qw-k"><button class="qw-fold" data-wrap-landed aria-expanded="${S.wrapLanded}">Landed</button></span><span class="qw-v">${S.wrapLanded ? v : `<span class="qw-folded">${w.landed.length} milestones</span>`}</span></div>` : "");
   const when = c.today < c.questDays ? `last week, ${c.left(c.questDays)}` : `open weeks, ${c.left(c.allDays)}`;
   return `<div class="qwrap"><div class="qw-head"><span><b>Quest wrap-up</b> · ${when}</span><button class="share" data-quest-copy title="Copy the wrap-up as text, for the presentation">Copy as text</button></div>`
     + row("Tally", w.tally.map((t) => `<span class="pace">${esc(t)}</span>`).join(""))
-    + WRAP_ROWS.map(([k, f]) => row(k, w[f].map(chip).join(""))).join("")
+    + WRAP_ROWS.map(([k, f]) => (f === "landed" ? landed : (v) => row(k, v))(w[f].map(chip).join(""))).join("")
     + row("Landed by", w.by.map(([who, n]) => `${who ? personName(who) : "no owner"} ${n}`).join(" · ")) + `</div>`;
 }
 function wrapText(ms) {
@@ -3219,6 +3214,7 @@ document.addEventListener("click", (ev) => {
     if (inCard) scrollToMs(inCard.dataset.ms);
     return;
   }
+  if (ev.target.closest("[data-wrap-landed]")) { S.wrapLanded = !S.wrapLanded; writeRun("podium-wrap-landed", S.wrapLanded ? "1" : "0"); render(); return; }
   if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
   if (ev.target.closest("[data-mine]")) { setMine(!S.mine); render(); return; }
   if (ev.target.closest("[data-sort-menu]")) { setSortMenu(!S.sortMenu); return; }
@@ -3262,8 +3258,6 @@ document.addEventListener("click", (ev) => {
   if (st) { ev.stopPropagation(); settle(st.dataset.settle, st.dataset.id); return; }
   const a = ev.target.closest("[data-act]");
   if (a) { ev.stopPropagation(); if (!a.disabled) act(a.dataset.act, a.dataset.id); return; }
-  const f = ev.target.closest("[data-filter]");
-  if (f) { S.filter = f.dataset.filter; renderFilters(); applyFilter(); return; }
   const aq = ev.target.closest("[data-asana-ask]");
   if (aq) { openSheet({ ms: aq.dataset.asanaAsk }); return; }
   const ad = ev.target.closest("[data-asana-done]");

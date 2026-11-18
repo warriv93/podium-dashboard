@@ -378,7 +378,7 @@ class HostileRun(unittest.TestCase):
         return "".join(scan.text), dict((k, v) for tag, k, v in scan.attrs if tag == "button")["title"]
 
     def state_labels(self, run, stored=None):
-        """The label of every State button the page rendered, in render order."""
+        """The label of every Filter button the page rendered, in render order."""
         self.rendered(run, [], PROGRESS, (), localStorage=stored or {})
         return [re.search(r"data-state-menu [^>]*>(.*?)</button>", html).group(1) for html in self.html if "data-state-menu" in html]
 
@@ -591,12 +591,12 @@ class HostileRun(unittest.TestCase):
     def test_the_map_header_has_no_hide_finished_button_and_shows_everything_by_default(self):
         labels = self.state_labels(FINISHED_RUN)
         self.assertTrue(labels)
-        self.assertEqual(set(labels), {"State"})
+        self.assertEqual(set(labels), {"Filter"})
         self.assertNotIn('id="hide-finished"', open(PAGE).read())
 
     def test_a_stored_unticked_finished_reads_as_the_default(self):
         self.assertIn('"podium-hide-finished"', open(PAGE).read())
-        self.assertEqual(set(self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "1"})), {"State"})
+        self.assertEqual(set(self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "1"})), {"Filter"})
 
     def collapse_button(self, html):
         return re.search(r'<button class="share ?(on)?" data-collapse-map aria-pressed="(\w+)"[^>]*>Collapsed</button>', html)
@@ -622,12 +622,12 @@ class HostileRun(unittest.TestCase):
             self.assertRegex(css, r"\.full\[data-collapsed\] \.fms:not\(\.open\) " + re.escape(hidden) + r"\b[^{]*\{ display: none")
 
     def prio_filter(self):
-        """The State pull-down's priority half as the last render put it: its label, aria-expanded, and each box as (tier, label, checked, disabled)."""
+        """The Filter pull-down's priority half as the last render put it: its label, aria-expanded, and each box as (tier, label, checked, disabled)."""
         label, expanded, boxes = self.state_filter()
         return label, expanded, [b for b in boxes if b[0] in ("must", "should", "nice")]
 
     def state_filter(self):
-        """The State pull-down as the last render put it: its label, aria-expanded, and each box as (key, label, checked, disabled)."""
+        """The Filter pull-down as the last render put it: its label, aria-expanded, and each box as (key, label, checked, disabled)."""
         html = [h for h in self.html if "data-state-menu" in h][-1]
         button = re.search(r'<button class="share ?(?:on)?" data-state-menu aria-expanded="(\w+)"[^>]*>(.*?)</button>', html)
         boxes = re.findall(r'<label><input type="checkbox" data-state-show="(\w+)"( checked)?( disabled)?>(.*?)(?:<small>.*?</small>)?</label>', html)
@@ -640,13 +640,13 @@ class HostileRun(unittest.TestCase):
     def test_a_state_pull_down_sits_after_collapsed_and_sort_closed_and_showing_every_tier(self):
         self.assertIn('<span id="collapse-map"></span><span id="map-sort"></span><span id="state-filter"></span>', open(PAGE).read())
         maps, _ = self.maps(self.priority_run())
-        self.assertEqual(self.prio_filter(), ("State", "false", []))
+        self.assertEqual(self.prio_filter(), ("Filter", "false", []))
         self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
 
     def test_opening_the_state_menu_lists_the_tiers_then_paused_closed_and_finished(self):
         self.maps(self.priority_run(), probe="(setStateMenu(true), S.stateMenu)")
         self.assertTrue(self.probe())
-        self.assertEqual(self.state_filter(), ("State", "true", [("must", "★Must", True, False), ("should", "★Should", True, False),
+        self.assertEqual(self.state_filter(), ("Filter", "true", [("must", "★Must", True, False), ("should", "★Should", True, False),
                                                                  ("nice", "Nice to have", True, False), ("paused", "Paused", True, False),
                                                                  ("closed", "Closed", False, False), ("finished", "Finished", True, False)]))
         menu = [h for h in self.html if "data-state-menu" in h][-1]
@@ -659,26 +659,26 @@ class HostileRun(unittest.TestCase):
                                                        ' closeSheet(); togglePrioTier("nice"); render(); return put["podium-priority-filter:api"]; })()')
         self.assertEqual(json.loads(self.probe()), ["must", "should"])
         self.assertEqual(self.shown(maps[-1]), ["M2", "M3"])
-        self.assertEqual(self.prio_filter()[0], "State · 2 hidden")
+        self.assertEqual(self.prio_filter()[0], "Filter · 2 hidden")
 
     def test_the_priority_filter_is_read_from_podium_priority_filter(self):
         maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["should"]'})
         self.assertEqual(self.shown(maps[0]), ["M3"])
-        self.assertEqual(self.prio_filter()[0], "State · 3 hidden")
+        self.assertEqual(self.prio_filter()[0], "Filter · 3 hidden")
 
     def test_a_missing_broken_or_hostile_priority_filter_shows_every_tier(self):
         for stored in ("", "{", '"must"', '{"0": "must", "length": 1}', "[]", "null", "[1, 2]", json.dumps(["__proto__", X]), json.dumps(X)):
             with self.subTest(stored=stored):
                 maps, _ = self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": stored})
                 self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
-                self.assertEqual(self.prio_filter()[0], "State")
+                self.assertEqual(self.prio_filter()[0], "Filter")
                 self.assertNotIn("pwn", "".join(h for h in self.html if "data-state-menu" in h))
 
     def test_the_last_ticked_tier_cannot_be_unticked(self):
         self.maps(self.priority_run(), localStorage={"podium-priority-filter:api": '["must"]'},
                   probe='(togglePrioTier("must"), setStateMenu(true), S.prioShown)')
         self.assertEqual(self.probe(), ["must"])
-        self.assertEqual(self.prio_filter(), ("State · 2 hidden", "true", [("must", "★Must", True, True), ("should", "★Should", False, False),
+        self.assertEqual(self.prio_filter(), ("Filter · 2 hidden", "true", [("must", "★Must", True, True), ("should", "★Should", False, False),
                                                                             ("nice", "Nice to have", False, False)]))
 
     def test_the_open_milestone_stays_on_the_map_when_its_tier_is_unticked(self):
@@ -697,7 +697,7 @@ class HostileRun(unittest.TestCase):
         shown, _, label = self.hidden_map({"podium-hide-finished:api": "1", "podium-priority-filter:api": '["must"]'}, run=run,
                                           probe='(closeSheet(), expand("M3"), 0)')
         self.assertEqual(shown, ["M3"])
-        self.assertEqual(label, "State · 1 hidden")
+        self.assertEqual(label, "Filter · 1 hidden")
 
     @staticmethod
     def paused_run():
@@ -709,14 +709,14 @@ class HostileRun(unittest.TestCase):
     def test_paused_and_finished_milestones_show_and_closed_ones_stay_off_by_default(self):
         shown, _, label = self.hidden_map({}, run=self.paused_run())
         self.assertEqual(shown, ["M1", "M2", "M3", "M4", "M5", "M6"])
-        self.assertEqual(label, "State")
+        self.assertEqual(label, "Filter")
 
     def test_finished_milestones_and_stories_are_hidden_until_the_user_ticks_finished(self):
         shown, stories, label = self.hidden_map({HIDE_FINISHED: None}, run=self.paused_run())
         self.assertEqual(shown, ["M3", "M4", "M5", "M6"])
         self.assertEqual(stories, ["S4", "S5"])
-        self.assertEqual(label, "State")
-        self.assertEqual(self.state_filter()[0], "State")
+        self.assertEqual(label, "Filter")
+        self.assertEqual(self.state_filter()[0], "Filter")
         self.assertNotIn('class="share on" data-state-menu', [h for h in self.html if "data-state-menu" in h][-1])
 
     def test_ticking_finished_shows_them_and_marks_the_menu_as_changed(self):
@@ -726,13 +726,13 @@ class HostileRun(unittest.TestCase):
 
     def test_the_count_leaves_out_the_finished_milestones_hidden_by_default(self):
         _, _, label = self.hidden_map({HIDE_FINISHED: None, "podium-hide-paused:api": "1"}, run=self.paused_run())
-        self.assertEqual(label, "State · 2 hidden")
+        self.assertEqual(label, "Filter · 2 hidden")
 
     def test_unticking_paused_hides_parked_and_later_milestones_and_keeps_the_choice(self):
         maps, _ = self.maps(self.paused_run(), probe=self.PUT % 'closeSheet(); toggleState("paused"); render()')
         self.assertEqual(self.probe(), ["podium-hide-paused:api"])
         self.assertEqual(self.shown(maps[-1]), ["M1", "M2", "M3", "M4"])
-        self.assertEqual(self.state_filter()[0], "State · 2 hidden")
+        self.assertEqual(self.state_filter()[0], "Filter · 2 hidden")
 
     def test_ticking_closed_shows_dropped_milestones_with_a_dropped_badge(self):
         maps, _ = self.maps(self.paused_run(), localStorage={"podium-show-closed:api": "1"}, probe="(closeSheet(), render(), 0)")
@@ -740,7 +740,7 @@ class HostileRun(unittest.TestCase):
         cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[-1])[1:]}
         self.assertTrue(cards["M7"].startswith('<div class="fms dropped'))
         self.assertIn('<span class="badge dropped">Dropped</span>', cards["M7"])
-        self.assertEqual(self.state_filter()[0], "State")
+        self.assertEqual(self.state_filter()[0], "Filter")
 
     def test_a_dropped_milestone_is_never_up_next(self):
         run = self.paused_run()
@@ -849,11 +849,11 @@ class HostileRun(unittest.TestCase):
 
     def test_a_stored_podium_hide_finished_stories_changes_nothing_and_the_page_no_longer_names_it(self):
         labels = self.state_labels(FINISHED_RUN, {"podium-hide-finished-stories": "1"})
-        self.assertEqual(set(labels), {"State"})
+        self.assertEqual(set(labels), {"Filter"})
         self.assertNotIn("podium-hide-finished-stories", open(PAGE).read())
 
     def hidden_map(self, stored=None, run=HIDE_RUN, probe='(expand("M3"), 0)'):
-        """The last full map's milestone ids, the story ids inside the open milestone, and the State label."""
+        """The last full map's milestone ids, the story ids inside the open milestone, and the Filter label."""
         stored = {"podium-hide-finished:api": "1"} if stored is None else stored
         maps, _ = self.maps(run, localStorage=stored, probe=probe)
         full = maps[-1]
@@ -872,10 +872,10 @@ class HostileRun(unittest.TestCase):
         shown, stories, label = self.hidden_map({})
         self.assertEqual(shown, ["M1", "M2", "M3", "M4"])
         self.assertEqual(sorted(stories), ["S1", "S2", "S3", "S4", "S5"])
-        self.assertEqual(label, "State")
+        self.assertEqual(label, "Filter")
 
     def test_hiding_finished_work_is_the_default_so_it_counts_nothing(self):
-        self.assertEqual(self.hidden_map()[2], "State")
+        self.assertEqual(self.hidden_map()[2], "Filter")
 
     def test_hide_finished_keeps_the_story_whose_sheet_is_open(self):
         _, stories, label = self.hidden_map(probe='(openSheet({ ms: "M3", story: "S1" }), 0)')
@@ -901,7 +901,7 @@ class HostileRun(unittest.TestCase):
         self.assertIn("folded", self.feed_classes({"podium-feed-open": "0"}))
 
     def test_hide_finished_is_off_for_any_other_stored_value(self):
-        self.assertEqual(set(self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "0"})), {"State"})
+        self.assertEqual(set(self.state_labels(FINISHED_RUN, {"podium-hide-finished:api": "0"})), {"Filter"})
 
     def test_a_missing_document_of_a_colleagues_milestone_is_not_synced_from_their_machine_yet(self):
         run = {**CYCLIC_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
@@ -1181,8 +1181,8 @@ class HostileRun(unittest.TestCase):
                ' { id: "M5", title: "Theme", priority: "should", status: "todo" }, { id: "M6", title: "Old flow", status: "moved", owner: "cy" },'
                ' { id: "M7", title: "Confetti", status: "done" }]')
 
-    def wrap(self, y, m, d, quest=None):
-        self.maps(probe=f"questWrap({json.dumps({'start': '2026-10-12'} if quest is None else quest)}, {self.WRAP_MS}, new Date({y}, {m - 1}, {d}, 12))")
+    def wrap(self, y, m, d, quest=None, landed_open=True):
+        self.maps(probe=f"(S.wrapLanded = {json.dumps(landed_open)}, questWrap({json.dumps({'start': '2026-10-12'} if quest is None else quest)}, {self.WRAP_MS}, new Date({y}, {m - 1}, {d}, 12)))")
         return self.probe()
 
     def test_the_quest_wrap_up_shows_from_the_last_quest_week_until_the_open_weeks_end(self):
@@ -1197,8 +1197,8 @@ class HostileRun(unittest.TestCase):
     def test_the_quest_wrap_up_tallies_what_landed_moved_is_still_open_and_who_landed_it(self):
         w = self.wrap(2026, 11, 18)
         self.assertIn('<b>Quest wrap-up</b> · last week, 4 days left', w)
-        rows = dict(re.findall(r'<div class="qw-row"><span class="qw-k">([^<]*)</span><span class="qw-v">(.*?)</span></div>', w))
-        chips = lambda k: re.findall(r'<span class="wchip" data-reveal="(M\d)"><b>M\d</b> ([^<]*)</span>', rows[k])
+        rows = dict(re.findall(r'<div class="qw-row"><span class="qw-k">(?:<button[^>]*>)?([^<]*)(?:</button>)?</span><span class="qw-v">(.*?)</span></div>', w))
+        chips = lambda k: re.findall(r'<span class="wchip [a-z]*" data-reveal="(M\d)"><b>M\d</b> ([^<]*)</span>', rows[k])
         self.assertEqual(chips("Landed"), [("M1", "Login"), ("M2", "Pay"), ("M4", "Badge"), ("M7", "Confetti")])
         self.assertEqual(chips("Still open"), [("M3", "Receipt"), ("M5", "Theme")])
         self.assertEqual(chips("Moved"), [("M6", "Old flow")])
@@ -1217,6 +1217,33 @@ class HostileRun(unittest.TestCase):
             "Still open: M3 Receipt, M5 Theme",
             "Moved: M6 Old flow",
             "Landed by: ann 2 · bo 1 · no owner 1"])
+
+    def test_the_landed_row_starts_folded_to_its_count_behind_an_arrow(self):
+        folded = self.wrap(2026, 11, 18, landed_open=False)
+        self.assertIn('<button class="qw-fold" data-wrap-landed aria-expanded="false">Landed</button>', folded)
+        self.assertIn('<span class="qw-folded">4 milestones</span>', folded)
+        self.assertNotIn('data-reveal="M1"', folded)
+        self.assertIn('data-reveal="M3"', folded)
+        self.assertIn('aria-expanded="true">Landed</button>', self.wrap(2026, 11, 18))
+        self.maps(probe="S.wrapLanded")
+        self.assertFalse(self.probe())
+
+    def test_the_wrap_up_chips_carry_the_milestone_status_like_the_map(self):
+        w = self.wrap(2026, 11, 18)
+        self.assertIn('<span class="wchip done" data-reveal="M1">', w)
+        self.assertIn('<span class="wchip working" data-reveal="M3">', w)
+        self.assertIn('<span class="wchip todo" data-reveal="M5">', w)
+        self.assertIn('<span class="wchip moved" data-reveal="M6">', w)
+
+    def test_opening_the_landed_row_is_kept_for_the_run(self):
+        page = open(PAGE).read()
+        self.assertIn('S.wrapLanded = readRun("podium-wrap-landed") === "1"', page)
+        self.assertIn('writeRun("podium-wrap-landed", S.wrapLanded ? "1" : "0")', page)
+
+    def test_the_activity_button_carries_an_arrow_that_turns_when_open(self):
+        page = open(PAGE).read()
+        self.assertRegex(page, r'<button class="icon-btn" id="feed-toggle"><svg class="chev"')
+        self.assertIn('#feed-toggle[aria-pressed="true"] .chev { transform: rotate(180deg); }', page)
 
     def test_the_wrap_up_sits_beside_the_quest_tile_not_inside_it(self):
         self.assertRegex(open(PAGE).read(), r'questTile\(P\) \+ questWrap\(')
@@ -1819,44 +1846,30 @@ class HostileRun(unittest.TestCase):
 
     def test_the_page_has_no_story_map(self):
         page = open(PAGE).read()
-        for gone in ("data-drill", "Full map", "S.view"):
+        for gone in ("data-drill", "Full map", "S.view", 'id="filters"', "data-filter"):
             self.assertNotIn(gone, page)
 
-    def filter_counts(self, html):
-        return {k: (label, int(n)) for k, label, n in re.findall(r'data-filter="(\w+)">([^<]*)<span class="n">(\d+)</span>', html)}
-
-    def test_the_filters_count_every_milestones_stories_and_always_say_done(self):
-        self.maps()
-        shown = [h for h in self.html if 'data-filter="all"' in h]
-        self.assertTrue(shown)
-        self.assertEqual(self.filter_counts(shown[0]), {"all": ("All", 6), "working": ("Working", 1), "todo": ("To do", 3),
-                                                        "done": ("Done", 2), "failed": ("Failed", 0)})
-        run = json.loads(json.dumps(OPEN_RUN))
-        run["epics"][0]["milestones"].append({"id": "M9", "title": "gone", "status": "dropped", "stories": [{"id": "S9", "title": "x", "status": "failed"}]})
-        self.maps(run)
-        self.assertEqual(self.filter_counts([h for h in self.html if 'data-filter="all"' in h][-1])["all"], ("All", 6))
-
-    def test_a_filter_dims_the_stories_dots_and_milestones_that_miss_it_and_removes_none(self):
+    def test_a_search_dims_the_stories_dots_and_milestones_that_miss_it_and_removes_none(self):
         maps, _ = self.maps(probe='(() => { const cards = msList().map((m) => Object.assign(element(), { dataset: { id: m.id }, textContent: m.title,'
                                   ' kids: (m.stories || []).map((s) => Object.assign(element(), { dataset: { story: s.id } })) }));'
                                   ' cards.forEach((c) => (c.querySelectorAll = () => c.kids));'
-                                  ' const out = []; for (const [f, q] of [["working", ""], ["all", "six"], ["all", "second"], ["done", "one"]]) {'
-                                  ' S.filter = f; S.query = q; render(); document.querySelectorAll = (sel) => (sel === "#map .fms[data-id]" ? cards : []); applyFilter();'
+                                  ' const out = []; for (const q of ["six", "second", "one"]) {'
+                                  ' S.query = q; render(); document.querySelectorAll = (sel) => (sel === "#map .fms[data-id]" ? cards : []); applyFilter();'
                                   ' document.querySelectorAll = () => [];'
                                   ' out.push([cards.flatMap((c) => c.kids.filter((k) => !k.classes.has("dim")).map((k) => `${c.dataset.id}/${k.dataset.story}`)),'
                                   ' cards.filter((c) => !c.classes.has("dim")).map((c) => c.dataset.id)]); } return out; })()')
-        self.assertEqual(self.probe(), [[["M2/S2"], ["M2"]], [["M3/S6"], ["M3"]], [[], ["M2"]], [["M1/S1"], ["M1"]]])
+        self.assertEqual(self.probe(), [[["M3/S6"], ["M3"]], [[], ["M2"]], [["M1/S1"], ["M1"]]])
         for ms, story in (("M1", "S1"), ("M2", "S2"), ("M2", "S3"), ("M2", "S4"), ("M2", "S5"), ("M3", "S6")):
             self.assertEqual(len(re.findall(f'data-(?:open|ms)="{ms}" data-story="{story}"', maps[-1])), 1, story)
         self.assertEqual(re.findall(r'<div class="fms [^"]*"[^>]* data-id="(\w+)"', maps[-1]), ["R1", "M1", "M2", "M3"])
 
-    def test_the_search_names_the_whole_map_and_the_filters_and_legend_always_show(self):
+    def test_the_search_names_the_whole_map_and_the_legend_always_shows(self):
         page = open(PAGE).read()
         self.assertIn('<input id="q" type="search" placeholder="Search milestones, stories, files, ids"', page)
         self.assertNotIn(".placeholder =", page)
         self.maps(probe='(() => { const out = []; for (const go of [() => {}, () => collapse(), () => expand("M3")]) {'
-                        ' go(); out.push([$("filters").hidden, document.querySelector(".legend").hidden]); } return out; })()')
-        self.assertEqual(self.probe(), [[False, False]] * 3)
+                        ' go(); out.push(document.querySelector(".legend").hidden); } return out; })()')
+        self.assertEqual(self.probe(), [False] * 3)
 
     def test_the_quality_panel_follows_the_open_milestone(self):
         self.maps(probe='(() => { const out = []; for (const go of [() => {}, () => expand("M2"), () => collapse(), () => expand("M3"), () => reveal("R1")]) {'
