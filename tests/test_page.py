@@ -602,7 +602,7 @@ class HostileRun(unittest.TestCase):
         return re.search(r'<button class="share ?(on)?" data-collapse-map aria-pressed="(\w+)"[^>]*>Collapsed</button>', html)
 
     def test_a_collapsed_button_opens_the_map_header_filters_and_is_off_by_default(self):
-        self.assertIn('<span id="collapse-map"></span><span id="state-filter"></span>', open(PAGE).read())
+        self.assertIn('<span id="collapse-map"></span><span id="map-sort"></span><span id="state-filter"></span>', open(PAGE).read())
         maps, _ = self.maps()
         self.assertEqual(self.collapse_button("".join(self.html)).group(2), "false")
         self.assertNotIn("data-collapsed", maps[-1])
@@ -637,8 +637,8 @@ class HostileRun(unittest.TestCase):
     def shown(full):
         return re.findall(r'<div class="fms [^"]*" [^>]*?data-id="([^"]*)"', full)
 
-    def test_a_state_pull_down_sits_after_collapsed_closed_and_showing_every_tier(self):
-        self.assertIn('<span id="collapse-map"></span><span id="state-filter"></span>', open(PAGE).read())
+    def test_a_state_pull_down_sits_after_collapsed_and_sort_closed_and_showing_every_tier(self):
+        self.assertIn('<span id="collapse-map"></span><span id="map-sort"></span><span id="state-filter"></span>', open(PAGE).read())
         maps, _ = self.maps(self.priority_run())
         self.assertEqual(self.prio_filter(), ("State", "false", []))
         self.assertEqual(sorted(self.shown(maps[0])), ["M1", "M2", "M3", "R1"])
@@ -764,6 +764,88 @@ class HostileRun(unittest.TestCase):
                                              ' closeSheet(); const opened = click("#state-filter", "[data-state-menu]"); const ticked = click("#state-filter", "[data-state-show]");'
                                              ' const shown = [...S.prioShown]; return [opened, ticked, shown, click()]; })()')
         self.assertEqual(self.probe(), [True, True, ["must", "nice"], False])
+
+    @staticmethod
+    def sort_run():
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["needsYou"] = {"story": "A4/S1"}
+        run["epics"][0]["milestones"] = [
+            {"id": "A1", "title": "landed", "status": "done", "owner": "bob"},
+            {"id": "A2", "title": "building", "status": "working", "phase": "build", "owner": "ann", "priority": "should"},
+            {"id": "A3", "title": "ready", "status": "todo", "owner": "cy", "priority": "must"},
+            {"id": "A4", "title": "draft", "status": "draft", "priority": "must"},
+            {"id": "A5", "title": "parked", "status": "parked", "owner": "bob", "priority": "should"},
+            {"id": "A6", "title": "waiting", "status": "todo", "deps": ["A3"], "owner": "ann"}]
+        return run
+
+    def sorted_lanes(self, sort, probe="(closeSheet(), render(), 0)"):
+        maps, _ = self.maps(self.sort_run(), localStorage={"podium-sort:api": sort}, probe=probe)
+        cols = re.findall(r'<div class="fcol" data-lane="(\d)">(.*?)</div><!--fcol-->', maps[-1], re.S)
+        return maps[-1], [re.findall(r'<div class="fms [^"]*"[^>]* data-id="(\w+)"', html) for _, html in cols]
+
+    def sort_menu(self):
+        """The Sort pull-down as the last render put it: its label, aria-expanded, and each row as (key, label, checked)."""
+        html = [h for h in self.html if "data-sort-menu" in h][-1]
+        button = re.search(r'<button class="share ?(?:on)?" data-sort-menu aria-expanded="(\w+)"[^>]*>(.*?)</button>', html)
+        rows = re.findall(r'<label><input type="radio" name="podium-sort" data-sort="(\w+)"( checked)?><b class="tick">(?:✓)?</b>(.*?)<small>', html)
+        return button.group(2), button.group(1), [(key, label, bool(on)) for key, on, label in rows]
+
+    def test_a_sort_pull_down_sits_before_state_and_keeps_run_order_by_default(self):
+        self.assertIn('<span id="collapse-map"></span><span id="map-sort"></span><span id="state-filter"></span>', open(PAGE).read())
+        _, lanes = self.sorted_lanes("run")
+        self.assertEqual(lanes, [["A1", "A2", "A3", "A4", "A5", "A6"], ["M2", "M3"]])
+        self.assertEqual(self.sort_menu(), ("Sort", "false", []))
+        self.assertNotIn('class="share on" data-sort-menu', [h for h in self.html if "data-sort-menu" in h][-1])
+
+    def test_opening_the_sort_menu_lists_run_order_mine_priority_status_and_owner_with_a_tick_on_the_choice(self):
+        self.maps(self.sort_run(), probe="(setSortMenu(true), S.sortMenu)")
+        self.assertTrue(self.probe())
+        self.assertEqual(self.sort_menu(), ("Sort", "true", [("run", "Run order", True), ("mine", "Mine first", False), ("priority", "Priority", False),
+                                                             ("status", "Status", False), ("owner", "Owner", False)]))
+        menu = [h for h in self.html if "data-sort-menu" in h][-1]
+        self.assertIn('role="radiogroup"', menu)
+        self.assertIn('data-sort="run" checked><b class="tick">✓</b>', menu)
+        self.assertIn('data-sort="priority"><b class="tick"></b>Priority<small><span class="prio must"', menu)
+
+    def test_sorting_reorders_cards_within_each_epic_and_keeps_run_order_inside_a_group(self):
+        for sort, first in (("mine", ["A2", "A6", "A4", "A1", "A3", "A5"]), ("priority", ["A3", "A4", "A2", "A5", "A1", "A6"]),
+                            ("status", ["A2", "A3", "A6", "A4", "A5", "A1"]), ("owner", ["A2", "A6", "A1", "A5", "A3", "A4"])):
+            with self.subTest(sort=sort):
+                _, lanes = self.sorted_lanes(sort)
+                self.assertEqual(lanes, [first, ["M2", "M3"]])
+
+    def test_a_sort_shows_on_its_button_and_up_next_stays_on_the_milestone_really_next(self):
+        full, _ = self.sorted_lanes("status")
+        self.assertEqual(self.sort_menu()[0], "Sort · Status")
+        self.assertIn('class="share on" data-sort-menu', [h for h in self.html if "data-sort-menu" in h][-1])
+        self.assertRegex(full, r'<div class="fnext">Up next</div><div class="fms [^"]*"[^>]* data-id="A3"')
+        self.assertEqual(full.count('<div class="fnext">'), 1)
+
+    def test_a_sort_drops_the_queue_lines_and_keeps_the_cross_epic_deps(self):
+        cards = '[{ id: "A", lane: "0", deps: [] }, { id: "B", lane: "0", deps: ["A"] }, { id: "U1", lane: "1", deps: ["B"] }]'
+        self.maps(probe=f'(() => {{ const before = queuePairs({cards}); setSort("priority"); return [before, queuePairs({cards})]; }})()')
+        self.assertEqual(self.probe(), [[["A", "B", "queue"], ["B", "U1", "dep"]], [["B", "U1", "dep"]]])
+
+    def test_picking_a_sort_keeps_it_under_podium_sort_and_the_menu_stays_open_until_a_click_outside(self):
+        self.maps(self.sort_run(), probe='(() => { const put = {}; localStorage.setItem = (k, v) => { put[k] = v; };'
+                                         ' const click = (...hits) => { const target = { dataset: { sort: "owner" }, closest: (s) => (hits.includes(s) ? target : null) };'
+                                         ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return S.sortMenu; };'
+                                         ' closeSheet(); const opened = click("#map-sort", "[data-sort-menu]"); const picked = click("#map-sort", "[data-sort]");'
+                                         ' return [opened, picked, put["podium-sort:api"], click()]; })()')
+        self.assertEqual(self.probe(), [True, True, "owner", False])
+
+    def test_a_missing_broken_or_hostile_stored_sort_reads_as_run_order(self):
+        for stored in ("", "{", "null", "Priority", "__proto__", "constructor", "toString", X):
+            with self.subTest(stored=stored):
+                _, lanes = self.sorted_lanes(stored, probe="S.sort")
+                self.assertEqual(self.probe(), "run")
+                self.assertEqual(lanes[0], ["A1", "A2", "A3", "A4", "A5", "A6"])
+                self.assertEqual(self.sort_menu()[0], "Sort")
+
+    def test_escape_closes_the_sort_menu_before_the_open_milestone(self):
+        self.maps(self.sort_run(), probe='(() => { closeSheet(); expand("M2"); setSortMenu(true); onEscape(); return [S.sortMenu, S.open]; })()')
+        self.assertEqual(self.probe(), [False, "M2"])
+        self.assertEqual(self.sort_menu()[1], "false")
 
     def test_a_stored_podium_hide_finished_stories_changes_nothing_and_the_page_no_longer_names_it(self):
         labels = self.state_labels(FINISHED_RUN, {"podium-hide-finished-stories": "1"})
@@ -2222,9 +2304,9 @@ class HostileRun(unittest.TestCase):
 
     def test_the_runs_own_choices_carry_its_slug_and_the_theme_stays_global(self):
         self.maps(probe=self.PUT % ('closeSheet(); setTheme("dark"); setHideFinished(true); setCollapsed(true); setMine(true);'
-                                    ' togglePrioTier("nice"); toggleState("paused"); toggleState("closed"); seeHanded(); markSeen()'))
+                                    ' togglePrioTier("nice"); toggleState("paused"); toggleState("closed"); setSort("owner"); seeHanded(); markSeen()'))
         self.assertEqual(self.probe(), ["podium-collapsed:api", "podium-handed-seen:api", "podium-hide-finished:api", "podium-hide-paused:api",
-                                        "podium-mine:api", "podium-priority-filter:api", "podium-seen:api", "podium-show-closed:api", "podium-theme"])
+                                        "podium-mine:api", "podium-priority-filter:api", "podium-seen:api", "podium-show-closed:api", "podium-sort:api", "podium-theme"])
 
     def test_a_value_kept_without_the_slug_or_under_another_run_is_not_read(self):
         for stored in ({"podium-collapsed": "1", "podium-mine": "1"}, {"podium-collapsed:web": "1", "podium-mine:web": "1"}):

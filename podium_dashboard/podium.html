@@ -112,9 +112,14 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .share { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; color: var(--text); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .share i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); opacity: .45; }
 .share.on i { background: var(--green-dot); opacity: 1; }
-#state-filter { position: relative; display: inline-flex; }
-#state-filter .share::after { content: ""; width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .6; }
-#state-filter .share.on { border-color: var(--text); font-weight: 600; }
+:is(#map-sort, #state-filter) { position: relative; display: inline-flex; }
+:is(#map-sort, #state-filter) .share::after { content: ""; width: 0; height: 0; border: 4px solid transparent; border-top-color: currentColor; border-bottom: 0; opacity: .6; }
+:is(#map-sort, #state-filter) .share.on { border-color: var(--text); font-weight: 600; }
+.sort-menu input { position: absolute; opacity: 0; pointer-events: none; }
+.sort-menu label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sort-menu label:has(input:checked) { font-weight: 600; }
+.sort-menu .tick { width: 12px; color: var(--accent); }
+.sort-menu small .prio { margin-left: 4px; }
 .prio-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; display: flex; flex-direction: column; gap: 2px; min-width: 160px; padding: 6px; background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow-hi); }
 .prio-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .prio-menu label:hover { background: var(--gray-soft); }
@@ -863,7 +868,7 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
       <div class="map-head">
         <h2 id="map-title">Topology</h2>
         <div class="map-tools">
-          <span id="collapse-map"></span><span id="state-filter"></span><span id="mine-filter"></span><span id="flaky-gates"></span>
+          <span id="collapse-map"></span><span id="map-sort"></span><span id="state-filter"></span><span id="mine-filter"></span><span id="flaky-gates"></span>
           <div class="legend">
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5"/></svg>depends on</span>
             <span><svg width="26" height="2"><line x1="0" y1="1" x2="26" y2="1" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/></svg>shares files</span>
@@ -965,6 +970,14 @@ function togglePrioTier(tier) {
   S.prioShown = EVERY_TIER.filter((t) => (t === tier ? !on : S.prioShown.includes(t)));
   writeRun("podium-priority-filter", JSON.stringify(S.prioShown));
 }
+const SORTS = [["run", "Run order", "as it gets built"], ["mine", "Mine first", "yours · waits on you"], ["priority", "Priority", ""],
+  ["status", "Status", "working · ready · draft · paused · finished"], ["owner", "Owner", "by name · unowned last"]];
+const SORT_KEYS = SORTS.map(([k]) => k);
+const readSort = () => ((v) => (SORT_KEYS.includes(v) ? v : "run"))(readRun("podium-sort"));
+function setSort(k) {
+  S.sort = SORT_KEYS.includes(k) ? k : "run";
+  writeRun("podium-sort", S.sort);
+}
 function loadRunChoices() {
   S.hideFinished = readRun("podium-hide-finished") !== "0";
   S.hidePaused = readRun("podium-hide-paused") === "1";
@@ -972,6 +985,7 @@ function loadRunChoices() {
   S.collapsed = readRun("podium-collapsed") === "1";
   S.mine = readRun("podium-mine") === "1";
   S.prioShown = readPrioShown();
+  S.sort = readSort();
   S.handedSeen = undefined;
 }
 loadRunChoices();
@@ -1729,6 +1743,7 @@ function renderFull() {
   const om = openMs();
   renderCollapsed();
   const onMap = listed.filter((x) => !hidesClosed(x));
+  renderSort();
   renderStateFilter(onMap.filter((x) => hidesByState(x) && !(S.hideFinished && ["done", "moved"].includes(x.status))).length);
   renderMine(onMap.filter(hidesForMine).length);
   const unstarted = (x) => !["done", "working", "moved", "dropped"].includes(x.status);
@@ -1739,16 +1754,32 @@ function renderFull() {
   const drow = strips.some(Boolean) ? strips.map((x) => `<div class="fdrow">${x}</div>`).join("") : "";
   const rrow = research.length ? `${P.epics.map((E, c) => `<div class="fres">${research.filter((x) => lane[x.id] === c && !hidesMs(x)).map((x) => fullMs(x, all)).join("")}</div>`).join("")}` : "";
   const card = (x) => `${x === order[next] && next > 0 ? `<div class="fnext">Up next</div>` : ""}${fullMs(x, all)}`;
-  const rows = P.epics.map((E, c) => `<div class="fcol" data-lane="${c}">${order.filter((x) => lane[x.id] === c && !hidesMs(x)).map(card).join("")}</div><!--fcol-->`).join("");
+  const rows = P.epics.map((E, c) => `<div class="fcol" data-lane="${c}">${sortCards(order.filter((x) => lane[x.id] === c && !hidesMs(x)), all).map(card).join("")}</div><!--fcol-->`).join("");
   const min = 12 + P.epics.reduce((n, E) => n + colOf(E)[0] + 20, 0);
   m.innerHTML = `<div class="full"${S.collapsed ? " data-collapsed" : ""} style="grid-template-columns:${cols};min-width:${min}px">${head}${drow}${rrow}${rows}</div>`;
   requestAnimationFrame(drawLines);
   applyFilter();
 }
 function drawLines() { drawQueue(); drawTree(); }
+const STATUS_RANK = { __proto__: null, waits: 0, working: 0, ready: 1, waiting: 2, draft: 3, parked: 4, later: 4, done: 5, moved: 5, dropped: 6 };
+const waitsOnMe = (x) => needsMs() === x.id || prsToReview().some((pr) => pr.ms === x.id);
+const SORT_RANK = {
+  __proto__: null,
+  mine: (x) => [isMe(x.owner) ? 0 : waitsOnMe(x) ? 1 : 2],
+  priority: (x) => [EVERY_TIER.indexOf(tierOf(x))],
+  status: (x, all) => [STATUS_RANK[x.status === "working" && msWaits(x) ? "waits" : fullStatus(x, all)] ?? 1],
+  owner: (x) => (typeof x.owner === "string" && x.owner ? [0, x.owner.toLowerCase(), x.owner] : [1]),
+};
+const byRank = (a, b) => { const i = a.findIndex((v, n) => v !== b[n]); return i < 0 ? 0 : a[i] < b[i] ? -1 : 1; };
+function sortCards(list, all) {
+  const rank = SORT_RANK[S.sort];
+  if (!rank) return list;
+  const ranks = new Map(list.map((x) => [x, rank(x, all)]));
+  return [...list].sort((a, b) => byRank(ranks.get(a), ranks.get(b)));
+}
 function queuePairs(cards) {
   const lanes = [...new Set(cards.map((c) => c.lane))], at = dict(cards.map((c) => [c.id, c]));
-  const queue = lanes.flatMap((l) => ((col) => col.slice(1).map((c, i) => [col[i].id, c.id, "queue"]))(cards.filter((c) => c.lane === l)));
+  const queue = SORT_RANK[S.sort] ? [] : lanes.flatMap((l) => ((col) => col.slice(1).map((c, i) => [col[i].id, c.id, "queue"]))(cards.filter((c) => c.lane === l)));
   const deps = cards.flatMap((c) => c.deps.filter((d) => at[d] && at[d].lane !== c.lane).map((d) => [d, c.id, "dep"]));
   return [...queue, ...deps];
 }
@@ -2367,6 +2398,19 @@ const FETCH_TIP = "Pull your colleagues' latest changes to this run. The Podium 
 function renderCollapsed() {
   const on = S.collapsed;
   $("collapse-map").innerHTML = `<button class="share ${on ? "on" : ""}" data-collapse-map aria-pressed="${on}" title="${on ? "Show milestones in full again" : "Show each milestone as one line: id, priority, title and owner"}">Collapsed</button>`;
+}
+function setSortMenu(open) {
+  S.sortMenu = open;
+  render();
+}
+function renderSort() {
+  const el = $("map-sort"), now = S.sort, on = now !== "run", had = document.activeElement?.closest?.("#map-sort") && document.activeElement;
+  const hint = (k, text) => (k === "priority" ? TIERS.map(([t]) => tierPill(t)).join("") : esc(text));
+  const row = ([k, label, text]) => `<label><input type="radio" name="podium-sort" data-sort="${k}"${now === k ? " checked" : ""}><b class="tick">${now === k ? "✓" : ""}</b>${label}<small>${hint(k, text)}</small></label>`;
+  const menu = `<div class="prio-menu sort-menu" id="sort-menu" role="radiogroup" aria-label="Order the milestones in each epic by">${SORTS.map(row).join("")}</div>`;
+  const label = on ? `Sort · ${SORTS.find(([k]) => k === now)[1]}` : "Sort";
+  el.innerHTML = `<button class="share ${on ? "on" : ""}" data-sort-menu aria-expanded="${!!S.sortMenu}" aria-controls="sort-menu" title="Order the milestones in each epic">${label}</button>${S.sortMenu ? menu : ""}`;
+  if (had) el.querySelector(had.dataset.sort ? `[data-sort="${had.dataset.sort}"]` : "[data-sort-menu]")?.focus();
 }
 function setStateMenu(open) {
   S.stateMenu = open;
@@ -3149,6 +3193,7 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 
 document.addEventListener("click", (ev) => {
   if (S.stateMenu && !ev.target.closest("#state-filter")) setStateMenu(false);
+  if (S.sortMenu && !ev.target.closest("#map-sort")) setSortMenu(false);
   if (S.runsMenu && !ev.target.closest("#runs")) setRunsMenu(false);
   const rg = ev.target.closest("[data-run-go]");
   if (rg) { goRun(rg.dataset.runGo); return; }
@@ -3176,6 +3221,10 @@ document.addEventListener("click", (ev) => {
   }
   if (ev.target.closest("[data-collapse-map]")) { setCollapsed(!S.collapsed); render(); return; }
   if (ev.target.closest("[data-mine]")) { setMine(!S.mine); render(); return; }
+  if (ev.target.closest("[data-sort-menu]")) { setSortMenu(!S.sortMenu); return; }
+  const sort = ev.target.closest("[data-sort]");
+  if (sort) { setSort(sort.dataset.sort); render(); return; }
+  if (ev.target.closest("#map-sort")) return;
   if (ev.target.closest("[data-state-menu]")) { setStateMenu(!S.stateMenu); return; }
   const state = ev.target.closest("[data-state-show]");
   if (state) { toggleState(state.dataset.stateShow); render(); return; }
@@ -3254,6 +3303,7 @@ document.addEventListener("keydown", (ev) => {
 function onEscape() {
   if (S.runsMenu) { setRunsMenu(false); $("runs").querySelector("[data-runs-menu]")?.focus(); }
   else if (S.stateMenu) { setStateMenu(false); $("state-filter").querySelector("[data-state-menu]")?.focus(); }
+  else if (S.sortMenu) { setSortMenu(false); $("map-sort").querySelector("[data-sort-menu]")?.focus(); }
   else if (S.ownerMenu) setOwnerMenu(null);
   else if (S.prioPick) setPrioPick(null);
   else if (S.sel) closeSheet();
