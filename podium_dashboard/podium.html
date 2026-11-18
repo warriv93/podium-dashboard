@@ -1223,7 +1223,7 @@ const ownerPill = (who, title) => `<span class="owner" style="background:${perso
 const ownerDot = (who, title) => `<span class="owner dot${isMe(who) ? " me" : ""}" style="background:${personColor(who)}" title="${esc(title)}">${esc(initials(who))}</span>`;
 const ownerChip = (m, chip = ownerDot) => (m?.owner ? chip(m.owner, isMe(m.owner) ? `Yours (${m.owner}): only you plan and build it` : `${m.owner}'s: only they plan and build it`) : "");
 const shared = () => !!S.project && (!!S.project.people && typeof S.project.people === "object" || S.project.epics.some((E) => (E.milestones || []).some((m) => m.owner)));
-const claimBtn = (m) => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<span class="ownwrap"><button class="claim" data-owner-menu="${esc(m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === m.id}" title="Claim it, or give it to a colleague">Claim</button>${S.ownerMenu === m.id ? ownerMenu(m) : ""}</span>` : "");
+const claimBtn = (m, where = "") => (shared() && !m.owner && !["done", "dropped", "moved"].includes(m.status) ? `<span class="ownwrap"><button class="claim" data-owner-menu="${esc(where + m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === where + m.id}" title="Claim it, or give it to a colleague">Claim</button>${S.ownerMenu === where + m.id ? ownerMenu(m) : ""}</span>` : "");
 const runPeople = () => [...new Set([...Object.keys(S.project?.people || {}), S.info?.me].filter(Boolean))].sort();
 const stillBuilding = (m) => (m.stories || []).some((s) => ["working", "approval"].includes(s.status));
 function ownerMenu(m) {
@@ -1231,7 +1231,7 @@ function ownerMenu(m) {
   const row = (who, label) => `<button role="menuitemradio" aria-checked="${owner === who}" data-give="${esc(m.id)}" data-to="${esc(who)}"${busy ? " disabled" : ""}>${who ? ownerDot(who, who) : `<span class="owner dot none">–</span>`}<span>${esc(label)}</span>${owner === who ? `<b class="tick">✓</b>` : ""}</button>`;
   return `<div class="owner-menu" role="menu" aria-label="Owner of ${esc(m.id)}">${busy ? `<div class="owner-note">${esc(m.id)} is building: stop it first</div>` : ""}${[...new Set([...runPeople(), owner].filter(Boolean))].sort().map((who) => row(who, isMe(who) ? `${who} (you)` : who)).join("")}${owner ? row("", "Unassign") : ""}</div>`;
 }
-const ownerMenuBtn = (m, chip) => `<span class="ownwrap"><button class="ownbtn" data-owner-menu="${esc(m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === m.id}" title="Change who owns ${esc(m.id)}">${chip}</button>${S.ownerMenu === m.id ? ownerMenu(m) : ""}</span>`;
+const ownerMenuBtn = (m, chip, where = "") => `<span class="ownwrap"><button class="ownbtn" data-owner-menu="${esc(where + m.id)}" aria-haspopup="menu" aria-expanded="${S.ownerMenu === where + m.id}" title="Change who owns ${esc(m.id)}, or unassign it">${chip}</button>${S.ownerMenu === where + m.id ? ownerMenu(m) : ""}</span>`;
 const ownerOrClaim = (m, chip) => ((c) => (c ? ownerMenuBtn(m, c) : claimBtn(m)))(ownerChip(m, chip));
 function setOwnerMenu(id) { S.ownerMenu = id; render(); }
 async function setRunsMenu(open) {
@@ -1278,6 +1278,7 @@ function handedBanner() {
 }
 async function giveMs(id, to) {
   setOwnerMenu(null);
+  toast(to ? `Giving ${id} to ${isMe(to) ? "you" : to}…` : `Unassigning ${id}…`);
   try {
     const r = await fetch(`/owner/${encodeURIComponent(id)}?to=${encodeURIComponent(to)}`, { method: "POST" });
     const body = await r.json().catch(() => ({}));
@@ -2790,10 +2791,10 @@ function milestoneSheet(m) {
   const blocks = S.epic.milestones.filter((x) => (x.deps || []).includes(m.id));
   const actions = [
     orch() && !isResearch(m) && [...UNSTARTED, "ready"].includes(st) && !planAsked(m) && ["", "ready to plan"].includes(grilledWaits(m)) ? `<button class="btn big ${stories.length ? "ghost" : ""}" data-act="plan" data-id="${esc(m.id)}">Plan milestone</button>${copyBtn("plan", m.id)}` : "",
-    claimBtn(m),
+    claimBtn(m, "sheet:"),
   ].join(" ");
   const q = m.quality?.gate;
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${ownerChip(m)}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${((c) => (c ? ownerMenuBtn(m, c, "sheet:") : ""))(ownerChip(m))}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
   $("sheet-body").innerHTML = `
     ${asanaAsk(m)}
     ${m.note ? `<div class="sec"><div class="muted">${esc(m.note)}</div></div>` : ""}

@@ -1499,7 +1499,7 @@ class HostileRun(unittest.TestCase):
 
     def test_the_owner_badge_opens_a_menu_of_the_runs_people_with_the_owner_ticked_and_unassign(self):
         card, menu = self.owner_menu("M3")
-        self.assertIn('<button class="ownbtn" data-owner-menu="M3" aria-haspopup="menu" aria-expanded="true" title="Change who owns M3">', card)
+        self.assertIn('<button class="ownbtn" data-owner-menu="M3" aria-haspopup="menu" aria-expanded="true" title="Change who owns M3, or unassign it">', card)
         self.assertEqual(re.findall(r'aria-checked="(\w+)" data-give="M3" data-to="([^"]*)">', menu),
                          [("false", "ann"), ("true", "bo.berg"), ("false", "cy"), ("false", "")])
         self.assertIn("<span>ann (you)</span>", menu)
@@ -1526,6 +1526,26 @@ class HostileRun(unittest.TestCase):
                         ' setOwnerMenu("M3"); await giveMs("M3", "cy"); const closed = S.ownerMenu; await giveMs("M3", "");'
                         ' return [calls, closed]; })()')
         self.assertEqual(self.probe(), [[["/owner/M3?to=cy", "POST"], ["/owner/M3?to=", "POST"]], None])
+
+    def test_the_side_panels_owner_opens_its_own_menu_with_unassign_and_the_card_keeps_its_closed(self):
+        self.maps(probe=f'({self.OWNED}, openSheet({{ ms: "M3" }}), setOwnerMenu("sheet:M3"), renderSheet(),'
+                        ' [document.getElementById("sheet-head").innerHTML, $("map").innerHTML])')
+        head, card = self.probe()
+        self.assertIn('<button class="ownbtn" data-owner-menu="sheet:M3" aria-haspopup="menu" aria-expanded="true"', head)
+        self.assertIn('data-give="M3" data-to=""><span class="owner dot none">–</span><span>Unassign</span>', head)
+        self.assertNotIn('class="owner-menu"', card)
+
+    def test_the_side_panels_claim_opens_its_own_menu(self):
+        self.maps(probe=f'({self.OWNED}, delete msOf("M3").owner, openSheet({{ ms: "M3" }}), setOwnerMenu("sheet:M3"), renderSheet(),'
+                        ' document.getElementById("sheet-head").innerHTML)')
+        self.assertIn('<button class="claim" data-owner-menu="sheet:M3" aria-haspopup="menu" aria-expanded="true"', self.probe())
+        self.assertIn('<div class="owner-menu" role="menu" aria-label="Owner of M3">', self.probe())
+
+    def test_an_owner_change_says_it_started_before_the_server_answers(self):
+        self.maps(probe=f'(async () => {{ {self.OWNED}; const said = []; toast = (t) => said.push(t); poll = () => {{}};'
+                        ' fetch = async () => ({ ok: true, json: async () => ({}) });'
+                        ' await giveMs("M3", ""); await giveMs("M3", "cy"); return said; })()')
+        self.assertEqual(self.probe(), ["Unassigning M3…", "M3 is up for Claim again", "Giving M3 to cy…", "M3 is now cy's"])
 
     def test_claim_opens_the_owner_menu_without_a_tick_or_unassign(self):
         self.maps(probe=f'({self.OWNED}, delete msOf("M3").owner, setOwnerMenu("M3"), $("map").innerHTML)')
