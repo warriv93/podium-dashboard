@@ -200,7 +200,7 @@ function element() {
     classes: new Set(),
     classList: { toggle(c, force) { const on = force ?? !e.classes.has(c); if (on) e.classes.add(c); else e.classes.delete(c); return on; },
                  add(c) { e.classes.add(c); }, remove(c) { e.classes.delete(c); }, contains: (c) => e.classes.has(c) },
-    setAttribute() {}, removeAttribute() {}, addEventListener() {}, querySelector() { return null; }, querySelectorAll() { return []; },
+    setAttribute() {}, removeAttribute() {}, addEventListener() {}, focus() {}, blur() {}, select() {}, querySelector() { return null; }, querySelectorAll() { return []; },
     getBoundingClientRect() { return { top: 0, left: 0, width: 0, height: 0 }; },
   };
   e.parentElement = e; e.lastElementChild = e;
@@ -1815,7 +1815,7 @@ class HostileRun(unittest.TestCase):
                         ' location.hash = "#/M2/S4"; S.route = parseRoute(); await goTo(S.route); return order; })()')
         self.assertEqual(self.probe(), ["open", "scroll", "opened"])
 
-    def test_scrolling_to_a_milestone_clears_the_sticky_map_head_as_well_as_the_toolbar(self):
+    def test_scrolling_to_a_milestone_clears_the_sticky_map_head(self):
         self.maps(probe='(() => { const scrolls = []; scrollTo = (o) => scrolls.push(o.top);'
                         ' document.querySelector(".map-head").getBoundingClientRect = () => ({ top: 0, height: 50 });'
                         ' collapse(); reveal("M3"); return scrolls; })()')
@@ -2017,6 +2017,15 @@ class HostileRun(unittest.TestCase):
                         ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return [S.hideFinished, scrolls.splice(0)]; };'
                         ' return [click("[data-hide-finished]", ".mtree[data-ms]"), click("[data-hide-finished]")]; })()')
         self.assertEqual(self.probe(), [[False, ["smooth"]], [True, []]])
+
+    def test_search_sits_behind_an_icon_beside_the_map_title_and_closing_it_clears_the_query(self):
+        page = open(PAGE).read()
+        self.assertRegex(page, r'<h2 id="map-title">Topology</h2>\s*<button class="search-btn" id="search-toggle" aria-expanded="false"')
+        self.assertRegex(page, r'<div class="map-search" id="map-search" hidden>\s*<label class="search">')
+        self.assertNotIn("toolbar", page)
+        self.maps(probe='(() => { const out = []; S.query = "six"; $("q").value = "six"; setSearch(false);'
+                        ' out.push([$("map-search").hidden, S.query, $("q").value]); setSearch(true); out.push($("map-search").hidden); return out; })()')
+        self.assertEqual(self.probe(), [[True, "", ""], False])
 
     def test_enter_in_search_goes_to_the_one_milestone_left_or_the_one_it_names(self):
         self.maps(probe='(() => { const card = (id, dim) => ({ dataset: { id }, classList: { contains: (c) => c === "dim" && dim } });'
@@ -2476,10 +2485,10 @@ class HostileRun(unittest.TestCase):
 STICKY_HARNESS = r"""
 const src = require("fs").readFileSync(process.argv[2], "utf8");
 const fn = src.slice(src.indexOf("function trackStickyBar()"), src.indexOf("trackStickyBar();\n"));
-const bar = { offsetHeight: 50, position: "sticky" }, toolbar = { offsetHeight: 40 }, vars = {}, head = { style: {}, classList: { toggle() {} } };
+const bar = { offsetHeight: 50, position: "sticky" }, vars = {}, head = { style: {}, classList: { toggle() {} } };
 const watchers = [], resizers = [];
 globalThis.window = { addEventListener: (_, f) => resizers.push(f) };
-globalThis.document = { documentElement: { style: { setProperty: (k, v) => (vars[k] = v) } }, querySelector: (s) => (s === ".topbar" ? bar : s === ".toolbar" ? toolbar : head) };
+globalThis.document = { documentElement: { style: { setProperty: (k, v) => (vars[k] = v) } }, querySelector: (s) => (s === ".topbar" ? bar : head) };
 globalThis.$ = () => ({});
 globalThis.getComputedStyle = (el) => ({ position: el.position });
 globalThis.IntersectionObserver = class { constructor(_, o) { this.margin = o.rootMargin; this.live = true; watchers.push(this); } observe() {} disconnect() { this.live = false; } };
@@ -2487,12 +2496,10 @@ let resized;
 const observed = [];
 globalThis.ResizeObserver = class { constructor(f) { resized = f; } observe(el) { observed.push(el); } };
 eval(fn + "; trackStickyBar();");
-const snap = (...extra) => [vars["--bar-h"], vars["--toolbar-h"], watchers.at(-1).margin, ...extra];
+const snap = (...extra) => [vars["--bar-h"], watchers.at(-1).margin, ...extra];
 const out = [snap(observed.length)];
 bar.offsetHeight = 90; resized();
 out.push(snap(watchers[0].live, watchers.filter((w) => w.live).length));
-toolbar.offsetHeight = 80; resized();
-out.push(snap());
 bar.position = "static"; resizers[0]();
 out.push(snap());
 process.stdout.write(JSON.stringify(out));
@@ -2501,7 +2508,7 @@ process.stdout.write(JSON.stringify(out));
 
 @unittest.skipUnless(shutil.which("node"), "needs Node to run the page's script")
 class StickyBar(unittest.TestCase):
-    def test_the_toolbar_and_map_head_offsets_follow_the_header_and_toolbar_heights(self):
+    def test_the_map_head_offset_follows_the_header_height(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)
         with open(os.path.join(tmp, "harness.js"), "w") as f:
@@ -2509,10 +2516,9 @@ class StickyBar(unittest.TestCase):
         r = subprocess.run(["node", os.path.join(tmp, "harness.js"), PAGE], capture_output=True, text=True, cwd=tmp, timeout=60)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(json.loads(r.stdout), [
-            ["50px", "40px", "-90px 0px 0px 0px", 2],
-            ["90px", "40px", "-130px 0px 0px 0px", False, 1],
-            ["90px", "80px", "-170px 0px 0px 0px"],
-            ["0px", "80px", "-80px 0px 0px 0px"],
+            ["50px", "-50px 0px 0px 0px", 1],
+            ["90px", "-90px 0px 0px 0px", False, 1],
+            ["0px", "-0px 0px 0px 0px"],
         ])
 
 
