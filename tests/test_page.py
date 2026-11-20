@@ -1322,6 +1322,23 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("rp-riskline", self.tier([]))
         self.assertIn('<span class="tally">1 of 3 delivered</span>', self.tier([blocks, other, {"bucket": "done", "head": "d"}]))
 
+    def details(self, setup):
+        draft = {"name": "n", "kind": "sync", "tiers": {"must": [{"bucket": "done", "head": "h", "why": X}, {"bucket": "done", "head": "bare"}]}}
+        self.maps(probe=f'(() => {{ {setup}; return reportTier({json.dumps(draft)}, "must", "★ Must have"); }})()')
+        return self.probe()
+
+    def test_a_rows_details_sit_folded_under_an_arrow_and_open_alone_or_all_together_as_text(self):
+        folded = self.details("")
+        self.assertNotIn("rp-desc", folded)
+        self.assertIn('<button class="rp-fold" data-report-fold="tiers/must/0" aria-expanded="false"', folded)
+        self.assertIn('<span class="rp-fold none"></span>', folded)
+        one = self.details('S.reportOpen.add("tiers/must/0")')
+        self.assertIn('<button class="rp-fold on" data-report-fold="tiers/must/0" aria-expanded="true"', one)
+        self.assertEqual(one.count('<div class="rp-desc why">'), 1)
+        self.assertIn(esc(X), one.split('<div class="rp-desc why">')[1])
+        self.assertNotIn("<i id=", one)
+        self.assertEqual(self.details("S.reportAllOpen = true").count('<div class="rp-desc why">'), 1)
+
     def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
         t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
                        {"bucket": "done", "head": "d2", "role": "Admin"}, {"bucket": "done", "head": "d3", "role": "Driver"},

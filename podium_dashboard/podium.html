@@ -854,6 +854,11 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rp-items li .t b { font-weight: 600; }
 .rp-role { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); background: var(--wash); border-radius: 4px; padding: 1px 5px; margin-right: 6px; vertical-align: 1px; }
 .rp-paper .why { color: var(--muted); }
+.rp-fold { flex: none; width: 18px; height: 18px; margin-top: 2px; border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 15px; line-height: 1; border-radius: 4px; transition: transform .15s; padding: 0; }
+.rp-fold:hover { background: var(--wash); color: var(--text); }
+.rp-fold.on { transform: rotate(90deg); }
+.rp-fold.none { visibility: hidden; }
+.rp-desc { margin: 3px 0 4px; font-size: 13px; line-height: 1.45; }
 .rp-new { font-size: 10px; font-weight: 700; color: #fff; background: #0071e3; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 .rp-out { display: none; position: absolute; right: 4px; top: 4px; border: 0; background: var(--wash); border-radius: 6px; color: var(--faint); cursor: pointer; font-size: 11px; padding: 1px 6px; }
 .rp-paper.editing .rp-items li:hover { background: #fafafa; }
@@ -1073,7 +1078,7 @@ let lastPoll = 0;
 
 /* a map keyed by the run's strings: no prototype, so an id like `constructor` or `__proto__` finds nothing it didn't put there */
 const dict = (entries = []) => Object.setPrototypeOf(Object.fromEntries(entries), null);
-const S = { base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: null, unfold: dict(), query: "", online: true };
+const S = { reportOpen: new Set(), reportAllOpen: false, base: "podium/", handoffs: dict(), human: null, info: null, project: null, epic: null, raw: "", events: [], eventsRaw: "", progress: dict(), briefs: dict(), sel: null, doc: null, back: [], open: null, unfold: dict(), query: "", online: true };
 const $ = (id) => document.getElementById(id);
 function setTheme(t) {
   if (t === "system") document.documentElement.removeAttribute("data-theme");
@@ -3215,7 +3220,10 @@ function reportComments(q) {
 
 function reportRow([x, path], bucket, mark, extra = "") {
   const risk = bucket !== "done" && RISK_TEXT[x.risk?.level] ? `<span class="rp-risk ${x.risk.level}">${esc(x.risk.text || RISK_TEXT[x.risk.level])}</span>` : "";
-  return `<li class="${bucket}"><span class="mk">${mark}</span><span class="t">${x.role ? `<span class="rp-role">${esc(x.role)}</span>` : ""}<b>${reportEd([...path, "head"], x.head)}</b>${x.isNew ? `<span class="rp-new">NEW</span>` : ""}${x.why ? ` <span class="why">· ${reportEd([...path, "why"], x.why)}</span>` : ""}${risk}${extra}</span><button class="rp-out" data-report-out="${esc(path.join("/"))}" title="Leave out of this report">Leave out</button></li>`;
+  const key = path.join("/"), open = !!x.why && (S.reportAllOpen || S.reportOpen.has(key));
+  const toggle = x.why ? `<button class="rp-fold${open ? " on" : ""}" data-report-fold="${esc(key)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} the details" title="${open ? "Hide" : "Show"} the details">›</button>` : `<span class="rp-fold none"></span>`;
+  const more = open ? `<div class="rp-desc why">${reportEd([...path, "why"], x.why)}</div>` : "";
+  return `<li class="${bucket}"><span class="mk">${mark}</span>${toggle}<span class="t"><span class="rp-line">${x.role ? `<span class="rp-role">${esc(x.role)}</span>` : ""}<b>${reportEd([...path, "head"], x.head)}</b>${x.isNew ? `<span class="rp-new">NEW</span>` : ""}${risk}${extra}</span>${more}</span><button class="rp-out" data-report-out="${esc(key)}" title="Leave out of this report">Leave out</button></li>`;
 }
 function reportBuckets(rows, buckets, bucketOf, internal, extra = () => "", tail = dict()) {
   let html = "";
@@ -3411,13 +3419,15 @@ function renderReport() {
   const side = d ? `<h4>Covers</h4><div class="rs-cover"><b>${esc(d.cover?.label || (d.cover?.from ? `From ${dayLabel(d.cover.from)}` : "The whole quest"))}</b><button class="rlink" data-report-new>Change</button></div>${last ? `<div class="note">Last report: ${esc(last.name || "")}${dayLabel(last.publishedAt) ? `, ${esc(dayLabel(last.publishedAt))}` : ""}. New items since then are marked.</div>` : ""}`
     + `<h4>Sections</h4>${REPORT_SECTIONS.map(([k, label]) => `<label><input type="checkbox" data-report-sec="${k}"${secs.includes(k) ? " checked" : ""}>${label}${["must", "should", "nice"].includes(k) ? ` <small>${counts(k)}</small>` : ""}</label>`).join("")}`
     + `<h4>Unfinished work is tagged</h4><div class="rlegend"><span><span class="rp-risk blocks">Blocks …</span> a launch or a launch step</span><span><span class="rp-risk waits">Waits on …</span> another team or system</span><span><span class="rp-risk later">Can ship without</span> next quest, parked</span></div>`
-    + `<h4>Detail</h4><label><input type="checkbox" data-report-internal${d.showInternal ? " checked" : ""}>Show internal groundwork</label><div class="note">Sign-in, roles, config and refactors fold into one line by default.</div>`
+    + `<h4>Detail</h4><label><input type="checkbox" data-report-allopen${S.reportAllOpen ? " checked" : ""}>Open every row's details</label><label><input type="checkbox" data-report-internal${d.showInternal ? " checked" : ""}>Show internal groundwork</label><div class="note">Sign-in, roles, config and refactors fold into one line by default.</div>`
     + `<h4>Draft</h4><div class="note">Written by Claude from each milestone's brief and PRs, in product terms. Click any sentence to change it; hover a line to leave it out. Edits are saved with the draft.</div>${left ? `<button class="rbtn wide" data-report-restore>Put back ${left} left out</button>` : ""}<button class="rbtn wide" data-report-rewrite>↻ Rewrite the draft</button>`
     : `<div class="note">The draft shows here once Claude has written it.</div>`;
   const foot = d ? `<label class="rconfirm"><input type="checkbox" data-report-ok${S.report.ok ? " checked" : ""}${published ? " disabled" : ""}>I've read it through</label><span class="rdest">→ <code>Development › Quests › ${esc(S.project?.project?.title || "")} › ${esc(name)}</code></span><span class="sp"></span><button class="rbtn" data-report-copy>Copy for Slack</button>`
     + (published ? (url ? `<a class="rbtn primary" href="${esc(url)}" target="_blank" rel="noopener">Published ↗</a>` : `<button class="rbtn primary" disabled>Published</button>`) : `<button class="rbtn primary" data-report-publish${S.report.ok && r?.status === "ready" ? "" : " disabled"}>Publish to Outline</button>`)
     : `<span class="sp"></span><button class="rbtn" data-report-close>Close</button>`;
+  const scrolled = [".rpreview", ".rside"].map((q) => el.querySelector?.(q)?.scrollTop || 0);
   el.innerHTML = `<div class="rmodal" role="dialog" aria-modal="true" aria-label="Quest report"><div class="rmhead"><b>${final ? "Quest report" : "Status report"}${name ? ` · ${esc(name)}` : ""}</b><span class="sub">${esc(d?.cover?.label || "")}</span><span class="sp"></span><button class="close-x" data-report-close aria-label="Close">✕</button></div><aside class="rside">${side}</aside><div class="rpreview">${body}</div><div class="rmfoot">${foot}</div></div>`;
+  [".rpreview", ".rside"].forEach((q, i) => { const box = el.querySelector?.(q); if (box) box.scrollTop = scrolled[i]; });
 }
 function reportAt(path) {
   const keys = String(path).split("/");
@@ -3698,6 +3708,8 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-report-cancel]") || ev.target === $("report-start")) { S.reportStart = null; renderReportStart(); return; }
   if (ev.target.closest("[data-report-go]")) { startReport(); return; }
   if (ev.target.closest("[data-report-close]") || ev.target === $("report")) { closeReport(); return; }
+  const fold = ev.target.closest("[data-report-fold]");
+  if (fold) { const k = fold.dataset.reportFold; S.reportOpen.has(k) || S.reportAllOpen ? (S.reportOpen.delete(k), S.reportAllOpen = false) : S.reportOpen.add(k); renderReport(); return; }
   const rout = ev.target.closest("[data-report-out]");
   if (rout) { leaveOut(rout.dataset.reportOut); return; }
   if (ev.target.closest("[data-report-restore]")) { restoreReport(); return; }
@@ -3832,6 +3844,7 @@ document.addEventListener("change", (ev) => {
   if (t.dataset?.reportCover && S.reportStart) { S.reportStart.cover = t.dataset.reportCover; renderReportStart(); }
   else if (t.id === "report-from" && S.reportStart) { S.reportStart.from = t.value; S.reportStart.cover = "from"; renderReportStart(); }
   else if (t.dataset?.reportSec) setReportSection(t.dataset.reportSec, t.checked);
+  else if (t.dataset?.reportAllopen !== undefined) { S.reportAllOpen = t.checked; S.reportOpen.clear(); renderReport(); }
   else if (t.dataset?.reportInternal !== undefined && S.report?.draft) { S.report.draft.showInternal = t.checked; renderReport(); saveReport(); }
   else if (t.dataset?.reportOk !== undefined && S.report) { S.report.ok = t.checked; renderReport(); }
 });
