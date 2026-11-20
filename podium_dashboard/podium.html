@@ -861,7 +861,7 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rp-add { display: flex; align-items: center; gap: 8px; width: 100%; margin: 2px 0 8px; padding: 6px; border: 1px dashed var(--line); border-radius: 6px; background: none; color: var(--faint); font: inherit; font-size: 13px; text-align: left; cursor: pointer; opacity: .7; }
 .rp-add span { width: 16px; text-align: center; font-weight: 600; }
 .rp-add:hover { opacity: 1; color: #0071e3; border-color: #0071e3; background: #f7fbff; }
-.rp-items button.mk { border: 0; background: none; padding: 0; font: inherit; cursor: pointer; border-radius: 4px; }
+.rp-items button.mk { border: 0; background: none; padding: 0; font: inherit; line-height: inherit; color: inherit; cursor: pointer; border-radius: 4px; align-self: flex-start; }
 .rp-items button.mk:hover { background: var(--wash); }
 .rp-paper [data-redit$="/head"]:empty::before { content: "Should be able to …"; color: var(--faint); font-weight: 400; }
 .rp-paper [data-redit$="/role"]:empty::before { content: "Who"; }
@@ -917,6 +917,28 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rbtn.busy { display: inline-flex; align-items: center; gap: 8px; opacity: 1 !important; }
 .rspin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; animation: rspin .8s linear infinite; }
 @keyframes rspin { to { transform: rotate(360deg); } }
+body.print-report > *:not(#report) { display: none !important; }
+body.print-report #report { position: static !important; inset: auto; background: none !important; display: block !important; overflow: visible !important; }
+body.print-report .rmodal { display: block; width: auto; height: auto; margin: 0 auto; max-width: 900px; box-shadow: none; border-radius: 0; overflow: visible; background: #fff; }
+body.print-report .rmhead, body.print-report .rside, body.print-report .rmfoot, body.print-report .rp-out, body.print-report .rp-grip, body.print-report .rp-add, body.print-report .rp-fold, body.print-report .rp-empty { display: none !important; }
+body.print-report .rpreview { overflow: visible; padding: 0; }
+body.print-report .rp-paper { box-shadow: none; }
+body.print-report .rp-paper [contenteditable]:empty::before { content: none; }
+body.print-report .rp-paper [contenteditable] { outline: none !important; }
+body.print-report .rp-items li, body.print-report .rp-title, body.print-report .rp-box { break-inside: avoid; }
+body.print-report * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+@media print {
+body > *:not(#report) { display: none !important; }
+body #report { position: static !important; inset: auto; background: none !important; display: block !important; overflow: visible !important; }
+body .rmodal { display: block; width: auto; height: auto; margin: 0 auto; max-width: 900px; box-shadow: none; border-radius: 0; overflow: visible; background: #fff; }
+body .rmhead, body .rside, body .rmfoot, body .rp-out, body .rp-grip, body .rp-add, body .rp-fold, body .rp-empty { display: none !important; }
+body .rpreview { overflow: visible; padding: 0; }
+body .rp-paper { box-shadow: none; }
+body .rp-paper [contenteditable]:empty::before { content: none; }
+body .rp-paper [contenteditable] { outline: none !important; }
+body .rp-items li, body .rp-title, body .rp-box { break-inside: avoid; }
+body * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 .rp-desc { margin: 3px 0 4px; font-size: 13px; line-height: 1.45; }
 .rp-new { font-size: 10px; font-weight: 700; color: #fff; background: #0071e3; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 .rp-out { display: none; position: absolute; right: 4px; top: 4px; border: 0; background: var(--wash); border-radius: 6px; color: var(--faint); cursor: pointer; font-size: 11px; padding: 1px 6px; }
@@ -3579,7 +3601,7 @@ function renderReport() {
     + `<h4>Detail</h4><label><input type="checkbox" data-report-allopen${S.reportAllOpen ? " checked" : ""}>Open every row's details</label><div class="rs-sub">Internal groundwork</div><div class="rs-seg">${GROUND_MODES.map(([k, label]) => `<button data-report-ground="${k}"${groundMode(d) === k ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}>${label}</button>`).join("")}</div><div class="note">Sign-in, roles, config and refactors readers don't see. Hidden by default.</div>`
     + `<h4>Draft</h4><div class="note">Written by Claude from each milestone's brief and PRs, in product terms. Click any sentence to change it; hover a line to leave it out. Edits are saved with the draft.</div>${left.length ? `<div class="rs-restore"><button class="rbtn wide" data-report-restore-menu aria-expanded="${!!S.reportRestoreOpen}">Put back… <small>${left.length} left out</small><span class="chev">${S.reportRestoreOpen ? "▴" : "▾"}</span></button>${S.reportRestoreOpen ? `<div class="rs-menu">${left.map(([path, label, where]) => `<button data-report-restore-one="${esc(path)}"><span>${esc(label)}</span><small>${esc(where)}</small></button>`).join("")}${left.length > 1 ? `<button class="all" data-report-restore>Put back all ${left.length}</button>` : ""}</div>` : ""}</div>` : ""}<button class="rbtn wide" data-report-rewrite>↻ Rewrite the draft</button>`
     : `<div class="note">The draft shows here once Claude has written it.</div>`;
-  const foot = d ? `<label class="rconfirm"><input type="checkbox" data-report-ok${S.report.ok ? " checked" : ""}${published ? " disabled" : ""}>I've read it through</label><span class="rdest">→ <code>Development › Quests › ${esc(S.project?.project?.title || "")} › ${esc(name)}</code></span><span class="sp"></span><button class="rbtn" data-report-copy>Copy for Slack</button>`
+  const foot = d ? `<label class="rconfirm"><input type="checkbox" data-report-ok${S.report.ok ? " checked" : ""}${published ? " disabled" : ""}>I've read it through</label><span class="rdest">→ <code>Development › Quests › ${esc(S.project?.project?.title || "")} › ${esc(name)}</code></span><span class="sp"></span><button class="rbtn" data-report-pdf title="Print the report as you see it, details open, and save it as PDF">Download PDF</button><button class="rbtn" data-report-copy>Copy for Slack</button>`
     + (published ? (url ? `<a class="rbtn primary" href="${esc(url)}" target="_blank" rel="noopener">Published ↗</a>` : `<button class="rbtn primary" disabled>Published</button>`) : publishing ? `<button class="rbtn primary busy" disabled aria-busy="true"><span class="rspin"></span>Publishing…</button>` : `<button class="rbtn primary" data-report-publish${S.report.ok && r?.status === "ready" ? "" : " disabled"}>Publish to Outline</button>`)
     : `<span class="sp"></span><button class="rbtn" data-report-close>Close</button>`;
   const scrolled = [".rpreview", ".rside"].map((q) => el.querySelector?.(q)?.scrollTop || 0);
@@ -3919,6 +3941,7 @@ document.addEventListener("click", (ev) => {
   const rone = ev.target.closest("[data-report-restore-one]");
   if (rone) { restoreOne(rone.dataset.reportRestoreOne); return; }
   if (ev.target.closest("[data-report-rewrite]")) { rewriteReport(); return; }
+  if (ev.target.closest("[data-report-pdf]")) { window.print(); return; }
   if (ev.target.closest("[data-report-copy]")) { if (S.report?.draft) copyText(reportText(S.report.draft), "Copied as text, ready for Slack"); return; }
   if (ev.target.closest("[data-report-publish]")) { publishReport(); return; }
   if (ev.target.closest("[data-report-comments]")) { reportPost("/report-comments", "Queued: the orchestrator reads the comments in Outline again"); return; }
@@ -4096,6 +4119,17 @@ $("sheet-link").innerHTML = LINK_ICON;
 $("sheet-link").addEventListener("click", copyLink);
 S.route = parseRoute();
 window.addEventListener("hashchange", () => { S.route = parseRoute(); followLink(); });
+const printing = {};
+window.addEventListener("beforeprint", () => {
+  if (!S.report?.draft) return;
+  Object.assign(printing, { open: S.reportAllOpen, title: document.title });
+  S.reportAllOpen = true; document.title = S.report.draft.name || document.title; renderReport();
+});
+window.addEventListener("afterprint", () => {
+  if (!("open" in printing)) return;
+  S.reportAllOpen = printing.open; document.title = printing.title; delete printing.open; renderReport();
+});
+if (new URLSearchParams(location.search).get("print") === "report") { document.body.classList.add("print-report"); S.reportAllOpen = true; openReport(); }
 $("feed-close").addEventListener("click", () => $("feed").classList.remove("on"));
 const FEED_OPEN_KEY = "podium-feed-open";
 const foldFeed = (folded) => {

@@ -1470,6 +1470,15 @@ class HostileRun(unittest.TestCase):
         self.assertIn('if (!(await reportPost("/report-publish", ""))) { S.reportPublishing = 0; renderReport(); return; }', page)
         self.assertIn('const PUBLISH_WAIT = 5 * 60 * 1000;', page)
 
+    def test_the_report_prints_as_its_paper_alone_with_details_open_from_the_button_or_a_print_url(self):
+        page = open(PAGE).read()
+        self.assertIn('<button class="rbtn" data-report-pdf', page)
+        self.assertIn('if (ev.target.closest("[data-report-pdf]")) { window.print(); return; }', page)
+        self.assertIn('body.print-report > *:not(#report) { display: none !important; }', page)
+        self.assertRegex(page, r'@media print \{\nbody > \*:not\(#report\) \{ display: none !important; \}')
+        self.assertIn('S.reportAllOpen = true; document.title = S.report.draft.name || document.title; renderReport();', page)
+        self.assertIn('if (new URLSearchParams(location.search).get("print") === "report") { document.body.classList.add("print-report"); S.reportAllOpen = true; openReport(); }', page)
+
     def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
         t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
                        {"bucket": "done", "head": "d2", "role": "Admin"}, {"bucket": "done", "head": "d3", "role": "Driver"},
