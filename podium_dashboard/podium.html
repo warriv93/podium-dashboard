@@ -757,6 +757,124 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .failbox { background: var(--red-soft); color: var(--text); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
 .approvalbox { background: var(--amber-soft); border-radius: 12px; padding: 10px 12px; font-size: 13px; }
 
+.quest .rlast { font-size: 12px; color: var(--accent); text-decoration: none; margin-right: 4px; white-space: nowrap; }
+.share.report { background: var(--text); border-color: var(--text); color: var(--card); font-weight: 600; }
+.share.report:hover { filter: brightness(1.2); }
+.rcomments { margin-top: 4px; border: 1px solid var(--amber-soft); background: var(--amber-soft); border-radius: 12px; padding: 10px 12px; cursor: default; font-size: 13px; }
+.rc-head { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--amber); }
+.rc-head .sp, .rmhead .sp, .rmfoot .sp { flex: 1; }
+.rc-head a { font-weight: 500; font-size: 12px; color: var(--accent); text-decoration: none; }
+.rc-refresh { border: 0; background: none; color: var(--text-3); cursor: pointer; font-size: 14px; padding: 0 4px; }
+.rc { display: grid; grid-template-columns: 28px 1fr; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-2); }
+.rc-av { width: 28px; height: 28px; border-radius: 50%; background: var(--card); border: 1px solid var(--line-2); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--text-2); }
+.rc-who { color: var(--text-3); font-size: 12px; }
+.rc-who b { color: var(--text); font-weight: 600; }
+.rc q { display: block; quotes: none; margin: 3px 0; padding-left: 8px; border-left: 3px solid var(--line-2); color: var(--text-3); font-size: 12px; }
+.rc-acts { display: flex; gap: 6px; margin-top: 6px; }
+.rc-acts button, .rc-acts a { font: inherit; font-size: 12px; border: 1px solid var(--line-2); background: var(--card); border-radius: 999px; padding: 2px 10px; cursor: pointer; color: var(--text); text-decoration: none; }
+.rc-acts .on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.roverlay, .rstart { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; z-index: 50; }
+.rstart { z-index: 55; }
+.roverlay.on, .rstart.on { display: flex; }
+.rmodal { margin: 28px auto; width: min(1180px, calc(100vw - 40px)); height: calc(100vh - 56px); background: var(--bg); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.35); display: grid; grid-template-columns: 290px 1fr; grid-template-rows: auto 1fr auto; overflow: hidden; }
+.rmhead { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+.rmhead b { font-size: 15px; }
+.rmhead .sub { color: var(--text-3); font-size: 12px; }
+.rside { padding: 16px 18px; overflow: auto; background: var(--card); border-right: 1px solid var(--line); font-size: 13px; }
+.rside h4 { margin: 14px 0 6px; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.rside h4:first-child { margin-top: 0; }
+.rside label { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+.rside label small { color: var(--text-3); margin-left: auto; }
+.rside input { accent-color: var(--text); margin: 0; }
+.rside .note { color: var(--text-3); font-size: 12px; line-height: 1.4; margin-top: 6px; }
+.rs-cover { display: flex; align-items: center; gap: 8px; }
+.rlink { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
+.rlegend { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.rlegend .rp-risk { margin-left: 0; display: inline-block; }
+.rpreview { overflow: auto; padding: 24px; }
+.rp-wait { margin: 80px auto; max-width: 420px; text-align: center; color: var(--text-2); font-size: 14px; }
+.rmfoot { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 12px 20px; background: var(--card); border-top: 1px solid var(--line); }
+.rbtn { border: 1px solid var(--line-2); background: var(--card); color: var(--text); border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; }
+.rbtn.primary { background: var(--text); color: var(--card); border-color: var(--text); font-weight: 600; }
+.rbtn.wide { margin-top: 8px; width: 100%; }
+.rbtn:disabled { opacity: .4; cursor: not-allowed; }
+.rconfirm { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.rdest { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rdest code { background: var(--bg); border-radius: 6px; padding: 2px 6px; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rsbox { margin: auto; width: 460px; max-width: calc(100vw - 32px); background: var(--card); border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.35); padding: 22px 24px; }
+.rsbox h3 { margin: 0 0 4px; font-size: 17px; }
+.rs-sub { color: var(--text-3); font-size: 13px; margin-bottom: 14px; }
+.ropt { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
+.ropt.on { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
+.ropt.off { opacity: .45; cursor: not-allowed; }
+.ropt b { display: block; font-size: 14px; }
+.ropt span span { color: var(--text-2); font-size: 12.5px; }
+.ropt input[type=date] { display: block; margin-top: 6px; font: inherit; font-size: 12.5px; border: 1px solid var(--line-2); border-radius: 6px; padding: 2px 6px; background: var(--card); color: var(--text); }
+.rs-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.rp-paper { background: #fff; color: #1d1d1f; width: 794px; max-width: 100%; margin: 0 auto; box-shadow: 0 4px 24px rgba(0,0,0,.12); border-radius: 4px; padding: 0 0 36px; font-size: 13.5px; line-height: 1.5; --muted: #515154; --faint: #8e8e93; --wash: #f5f5f7; }
+.rp-banner { position: relative; min-height: 300px; overflow: hidden; border-radius: 4px 4px 0 0; background: linear-gradient(135deg, #0f3d2e, #1d6b4f 55%, #2c8f68); color: #fff; }
+.rp-shot { position: absolute; right: -40px; top: 34px; width: 430px; border-radius: 10px; box-shadow: 0 18px 40px rgba(0,0,0,.35); transform: rotate(-2deg); border: 6px solid rgba(255,255,255,.9); }
+.rp-txt { position: relative; padding: 30px 36px; width: 400px; }
+.rp-kicker { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; opacity: .75; font-weight: 700; }
+.rp-banner h1 { margin: 8px 0; font-size: 24px; line-height: 1.15; }
+.rp-banner p { margin: 0 0 14px; opacity: .9; font-size: 13px; }
+.rp-try { display: inline-flex; align-items: center; gap: 6px; background: #fff; color: #1d6b4f; font-weight: 700; text-decoration: none; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; }
+.rp-body { padding: 26px 36px 0; }
+.rp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+.rp-stat { background: var(--wash); border-radius: 12px; padding: 12px 14px; }
+.rp-stat b { display: block; font-size: 26px; line-height: 1.1; }
+.rp-stat span { color: var(--muted); font-size: 12px; }
+.rp-paper h3 { margin: 22px 0 8px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.rp-paper h3 .tally { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--faint); }
+.rp-prio { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 9px; }
+.rp-prio.must { background: #ffcc00; color: #3d2e00; }
+.rp-prio.should { background: #e8ecff; color: #3a4fd0; }
+.rp-prio.nice { background: var(--wash); color: var(--muted); }
+.rp-prio.app { background: #eef7f2; color: #1d6b4f; }
+.rp-plats { margin-left: 8px; display: inline-flex; gap: 4px; vertical-align: 1px; }
+.rp-plat { font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 1px 7px; text-decoration: none; white-space: nowrap; }
+.rp-plat.done { background: #e9f6ec; color: #248a3d; }
+.rp-plat.flag { background: #fff4e5; color: #b25000; }
+.rp-plat.open { background: #e8f1fc; color: #0071e3; }
+.rp-plat.none { background: var(--wash); color: var(--faint); }
+.rp-risk { margin-left: 8px; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 8px; white-space: nowrap; vertical-align: 1px; }
+.rp-risk.blocks { background: #fdecee; color: #d70015; }
+.rp-risk.waits { background: #fff4e5; color: #b25000; }
+.rp-risk.later { background: #f5f5f7; color: #515154; }
+.rp-riskline { font-size: 12px; color: var(--muted); margin: 2px 6px 8px; }
+.rp-riskline b.blocks { color: #d70015; }
+.rp-blockers { margin: 2px 0 0; padding-left: 18px; }
+.rp-riskline b.ok { color: #248a3d; background: none; }
+.rp-bucket { margin: 6px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.rp-bucket.done { color: #248a3d; } .rp-bucket.working { color: #0071e3; } .rp-bucket.open { color: #b25000; }
+.rp-items { list-style: none; margin: 0 0 6px; padding: 0; }
+.rp-items li { display: flex; gap: 8px; padding: 4px 6px; border-radius: 6px; position: relative; }
+.rp-items li .mk { width: 16px; flex: none; text-align: center; }
+.rp-items li.done .mk { color: #248a3d; } .rp-items li.working .mk { color: #0071e3; } .rp-items li.open .mk { color: #b25000; } .rp-items li.moved .mk { color: var(--faint); }
+.rp-items li .t b { font-weight: 600; }
+.rp-role { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); background: var(--wash); border-radius: 4px; padding: 1px 5px; margin-right: 6px; vertical-align: 1px; }
+.rp-paper .why { color: var(--muted); }
+.rp-new { font-size: 10px; font-weight: 700; color: #fff; background: #0071e3; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+.rp-out { display: none; position: absolute; right: 4px; top: 4px; border: 0; background: var(--wash); border-radius: 6px; color: var(--faint); cursor: pointer; font-size: 11px; padding: 1px 6px; }
+.rp-paper.editing .rp-items li:hover { background: #fafafa; }
+.rp-paper.editing .rp-items li:hover .rp-out { display: block; }
+.rp-paper [contenteditable="true"] { outline: 1px dashed transparent; border-radius: 4px; }
+.rp-paper [contenteditable="true"]:hover { outline-color: #d1d1d6; }
+.rp-paper [contenteditable="true"]:focus { outline: 2px solid #0071e3; background: #f7fbff; color: #1d1d1f; }
+.rp-more { color: var(--faint); font-size: 12px; padding: 2px 6px; }
+.rp-more a { color: #0071e3; }
+.rp-lede-s { margin: 0 0 6px; color: var(--muted); }
+.rp-box { border-radius: 12px; padding: 12px 16px; margin: 18px 0 0; }
+.rp-box.ask { background: #fff4e5; }
+.rp-box.next, .rp-box.replies { background: #e8f1fc; }
+.rp-box h4 { margin: 0 0 6px; font-size: 13px; }
+.rp-box ul { margin: 0; padding-left: 18px; }
+.rp-box.replies .q { color: var(--faint); font-size: 13px; }
+.rp-box.replies li { margin-bottom: 8px; }
+.rp-asks { list-style: none; padding: 0 !important; display: flex; flex-direction: column; gap: 8px; }
+.rp-asks li { display: flex; gap: 14px; align-items: baseline; justify-content: space-between; }
+.rp-owner { flex: none; font-size: 12px; color: var(--muted); background: rgba(255,255,255,.7); border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+.rp-foot { margin: 22px 36px 0; padding-top: 12px; border-top: 1px solid #e5e5ea; color: var(--faint); font-size: 11.5px; display: flex; gap: 16px; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 13px; transition: .25s; z-index: 60; pointer-events: none; max-width: calc(100vw - 32px); }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 
@@ -930,6 +1048,8 @@ a.pr:hover { filter: brightness(1.12); text-decoration: underline; }
   <div class="sheet-body" id="sheet-body"></div>
 </aside>
 <div class="toast" id="toast"></div>
+<div class="roverlay" id="report"></div>
+<div class="rstart" id="report-start"></div>
 
 <script>
 const DEFAULT_PHASES = [
@@ -1394,6 +1514,7 @@ function render() {
   renderFull();
   renderQuality();
   if (S.sel) renderSheet();
+  if (S.report) syncReport();
   celebrate(landings(S.landedSeen, msList()));
 }
 
@@ -3036,7 +3157,7 @@ function questTile(P) {
   const rs = all.filter(isResearch), ms = all.filter((x) => !isResearch(x)), open = (q.tasks || []).filter((t) => !t.asana?.completed).length;
   const counts = [`${P.epics.length} epics`, rs.length && `${rs.filter((x) => x.status === "done").length} of ${rs.length} research answered`,
     `${ms.filter((x) => x.status === "done").length} of ${ms.length} milestones landed`, open && `${open} open quest ${open === 1 ? "task" : "tasks"}`].filter(Boolean);
-  return `<div class="quest" data-quest tabindex="0"><span class="eyebrow">Quest<span class="ftools">${asanaBtn(P.project, true)}${syncBtn(P.project)}</span></span><span class="title">${esc(P.project.title)}</span>${P.project.summary ? `<span class="gist">${esc(P.project.summary)}</span>` : ""}<div class="qfoot">${counts.map((c) => `<span>${c}</span>`).join("")}${asanaMeta(P.project)}<span class="qlinks">${questLinks(q)}</span></div>${questTimeline(q, ms, new Date())}</div>`;
+  return `<div class="quest" data-quest tabindex="0"><span class="eyebrow">Quest<span class="ftools">${reportTools(q, new Date())}${asanaBtn(P.project, true)}${syncBtn(P.project)}</span></span><span class="title">${esc(P.project.title)}</span>${P.project.summary ? `<span class="gist">${esc(P.project.summary)}</span>` : ""}<div class="qfoot">${counts.map((c) => `<span>${c}</span>`).join("")}${asanaMeta(P.project)}<span class="qlinks">${questLinks(q)}</span></div>${questTimeline(q, ms, new Date())}${reportComments(q)}</div>`;
 }
 function syncBtn(x) {
   if (!x.asana?.url) return "";
@@ -3050,6 +3171,313 @@ async function asanaSync() {
     S.asanaSync = new Date().toISOString(); render();
     toast(S.info?.watching ? "Queued: the orchestrator re-reads the quest's Asana subtasks" : `Queued: picked up the next time ${orchCmd() || "the orchestrator"} runs`);
   } catch { toast(SERVER_DOWN); }
+}
+const REPORT_SECTIONS = [["banner", "Banner with test link"], ["stats", "Headline numbers"], ["must", "Must have"], ["should", "Should have"],
+  ["nice", "Nice to have & groundwork"], ["moved", "Moved out of the quest"], ["ask", "Decisions we need"], ["next", "Next up"], ["app", "App teams"]];
+const REPORT_TIERS = [["must", "★ Must have"], ["should", "☆ Should have"], ["nice", "Nice to have & groundwork"]];
+const REPORT_BUCKETS = [["done", "Delivered", "✓"], ["working", "Being worked on", "●"], ["open", "Not finished", "○"]];
+const APP_BUCKETS = [["done", "Live", "✓"], ["working", "Built, behind a switch", "●"], ["open", "Not finished", "○"]];
+const ROLE_ORDER = ["Driver", "Marketing", "Support", "Admin", "Staff"];
+const RISK_TEXT = dict([["blocks", "Blocks a launch step"], ["waits", "Waits on others"], ["later", "Can ship without"]]);
+const PLATFORM_MARK = dict([["done", "✓"], ["flag", "◐"], ["open", "○"], ["none", "–"]]);
+const REPORT_EDITABLE = new Set(["head", "why", "answer", "question", "title", "lede", "groundwork", "n", "label"]);
+const objs = (x) => (Array.isArray(x) ? x.filter((y) => y && typeof y === "object" && !Array.isArray(y)) : []);
+const reportOf = (q) => (q?.report && typeof q.report === "object" && !Array.isArray(q.report) ? q.report : null);
+const lastReport = (q) => objs(q?.reports).reduce((a, x) => (!a || String(x.publishedAt || "") >= String(a.publishedAt || "") ? x : a), null);
+const reportKind = (q, now) => ((c) => (c && c.today >= c.questDays ? "final" : "sync"))(questClock(q, now));
+const isoDay = (s) => ((m) => (m ? `${m[1]}-${m[2]}-${m[3]}` : ""))(/^(\d{4})-(\d{2})-(\d{2})/.exec(typeof s === "string" ? s : ""));
+const dayLabel = (s) => ((d) => (d ? dayMonth(new Date(+d.slice(0, 4), d.slice(5, 7) - 1, +d.slice(8))) : ""))(isoDay(s));
+const runFile = (path) => typeof path === "string" && /^[\w.-]+(\/[\w.-]+)*$/.test(path) && !path.split("/").some((x) => x === "." || x === "..");
+const reportImage = (src) => (typeof src !== "string" ? "" : /^https:\/\//i.test(src) ? safeUrl(src) : runFile(src) ? runHref(src) : "");
+const reportBucket = (x) => (REPORT_BUCKETS.some(([b]) => b === x.bucket) ? x.bucket : "open");
+const shownRows = (arr, path) => (Array.isArray(arr) ? arr.map((x, i) => [x, [...path, i]]).filter(([x]) => x && typeof x === "object" && !Array.isArray(x) && !x.hidden) : []);
+const roleRank = (x) => ((i) => (i < 0 ? ROLE_ORDER.length : i))(ROLE_ORDER.indexOf(x.role));
+const byRole = (rows) => rows.map((r, i) => [r, i]).sort((a, b) => roleRank(a[0][0]) - roleRank(b[0][0]) || a[1] - b[1]).map(([r]) => r);
+const reportEd = (path, text) => `<span contenteditable="true" data-redit="${esc(path.join("/"))}">${esc(text)}</span>`;
+const reportSections = (d) => (Array.isArray(d.sections) ? d.sections : REPORT_SECTIONS.map(([k]) => k));
+
+function reportTools(q, now) {
+  const r = reportOf(q), last = lastReport(q), lastUrl = safeUrl(last?.url);
+  const draft = r?.status === "ready" ? `<button class="share" data-report-open>Draft ready ↗</button>` : r?.status === "drafting" ? `<button class="share" data-report-open>Drafting report…</button>` : "";
+  return `${draft}${lastUrl ? `<a class="rlast" href="${esc(lastUrl)}" target="_blank" rel="noopener">Last report: ${esc(last.name || "report")} ↗</a>` : ""}<button class="share report" data-report-new>${reportKind(q, now) === "final" ? "📄 New quest report" : "📄 New status report"}</button>`;
+}
+function reportComments(q) {
+  const open = objs(q?.reportComments).filter((c) => !c.handled);
+  if (!open.length) return "";
+  const last = lastReport(q), lastUrl = safeUrl(last?.url);
+  const one = (c) => {
+    const url = safeUrl(c.url), id = esc(c.id);
+    const reply = url ? `<a href="${esc(url)}" target="_blank" rel="noopener" data-report-reply="${id}">Reply in Outline ↗</a>` : `<button data-report-reply="${id}">Mark handled</button>`;
+    return `<div class="rc"><span class="rc-av">${esc(initials(String(c.author || "?")))}</span><div><div class="rc-who"><b>${esc(c.author || "Someone")}</b>${c.role ? ` · ${esc(c.role)}` : ""}${when(c.at) ? ` · ${esc(when(c.at))}` : ""}</div>${c.quote ? `<q>${esc(c.quote)}</q>` : ""}<div>${esc(c.body)}</div><div class="rc-acts"><button data-report-answer="${id}"${c.answer ? ' class="on"' : ""}>${c.answer ? "✓ Answered in the next report" : "Answer in the next report"}</button>${reply}</div></div></div>`;
+  };
+  return `<div class="rcomments"><div class="rc-head">💬 ${open.length} ${open.length === 1 ? "question" : "questions"}${last ? ` on ${esc(last.name || "the last report")}` : ""}<span class="sp"></span><button class="rc-refresh" data-report-comments title="Read the comments in Outline again" aria-label="Read the comments again">↻</button>${lastUrl ? `<a href="${esc(lastUrl)}" target="_blank" rel="noopener">Open in Outline ↗</a>` : ""}</div>${open.map(one).join("")}</div>`;
+}
+
+function reportRow([x, path], bucket, mark, extra = "") {
+  const risk = bucket !== "done" && RISK_TEXT[x.risk?.level] ? `<span class="rp-risk ${x.risk.level}">${esc(x.risk.text || RISK_TEXT[x.risk.level])}</span>` : "";
+  return `<li class="${bucket}"><span class="mk">${mark}</span><span class="t">${x.role ? `<span class="rp-role">${esc(x.role)}</span>` : ""}<b>${reportEd([...path, "head"], x.head)}</b>${x.isNew ? `<span class="rp-new">NEW</span>` : ""}${x.why ? ` <span class="why">· ${reportEd([...path, "why"], x.why)}</span>` : ""}${risk}${extra}</span><button class="rp-out" data-report-out="${esc(path.join("/"))}" title="Leave out of this report">Leave out</button></li>`;
+}
+function reportBuckets(rows, buckets, bucketOf, internal, extra = () => "", tail = dict()) {
+  let html = "";
+  for (const [b, name, mark] of buckets) {
+    const all = rows.filter(([x]) => bucketOf(x) === b);
+    if (!all.length && !tail[b]) continue;
+    const folded = internal ? [] : all.filter(([x]) => x.internal), shown = byRole(internal ? all : all.filter(([x]) => !x.internal));
+    html += `<div class="rp-bucket ${b}">${name} · ${all.length}</div><ul class="rp-items">${shown.map((r) => reportRow(r, b, mark, extra(r[0]))).join("")}`
+      + (folded.length ? `<li class="${b}"><span class="mk">${mark}</span><span class="t why">Plus ${folded.length} ${folded.length === 1 ? "piece" : "pieces"} of internal groundwork the features above stand on.</span></li>` : "")
+      + (tail[b] || "") + `</ul>`;
+  }
+  return html;
+}
+function reportTier(d, tier, label) {
+  const rows = shownRows(d.tiers?.[tier], ["tiers", tier]);
+  const unfinished = rows.filter(([x]) => reportBucket(x) !== "done"), blockers = unfinished.filter(([x]) => x.risk?.level === "blocks").map(([x]) => x);
+  const blocker = (x) => `${esc(x.head)} — ${esc(String(x.risk.text || RISK_TEXT.blocks).replace(/\.$/, ""))}.`;
+  let html = `<h3><span class="rp-prio ${tier}">${label}</span><span class="tally">${rows.length - unfinished.length} of ${rows.length} delivered</span></h3>`;
+  if (unfinished.length) html += `<div class="rp-riskline">${blockers.length > 1 ? `<b class="blocks">${blockers.length} unfinished items block a launch step:</b><ul class="rp-blockers">${blockers.map((x) => `<li>${blocker(x)}</li>`).join("")}</ul>`
+    : blockers.length ? `<b class="blocks">Blocks a launch step:</b> ${blocker(blockers[0])}` : `<b class="ok">Nothing unfinished here blocks launch.</b>`}</div>`;
+  html += reportBuckets(rows, REPORT_BUCKETS, reportBucket, !!d.showInternal);
+  const earlier = Math.max(0, Math.floor(num(d.earlier?.[tier])));
+  if (earlier && dayLabel(d.cover?.from)) html += `<div class="rp-more">and ${earlier} delivered before ${esc(dayLabel(d.cover.from))}</div>`;
+  return html;
+}
+const platformsOf = (x) => (x.platforms && typeof x.platforms === "object" && !Array.isArray(x.platforms) ? Object.entries(x.platforms) : []);
+const platformState = (v) => (PLATFORM_MARK[v?.state] ? v.state : "none");
+function platformChips(x) {
+  const chips = platformsOf(x).map(([name, v]) => {
+    const st = platformState(v), url = st === "none" ? "" : safeUrl(v?.url), label = `${PLATFORM_MARK[st]} ${esc(name)}`;
+    return url ? `<a class="rp-plat ${st}" href="${esc(url)}" target="_blank" rel="noopener">${label}</a>` : `<span class="rp-plat ${st}">${label}</span>`;
+  });
+  return chips.length ? `<span class="rp-plats">${chips.join("")}</span>` : "";
+}
+function appBucket(x) {
+  const states = platformsOf(x).map(([, v]) => platformState(v));
+  return x.bucket === "open" || states.includes("open") ? "open" : states.includes("flag") ? "working" : "done";
+}
+function reportApps(d) {
+  const a = d.apps && typeof d.apps === "object" ? d.apps : {};
+  const rows = [...shownRows(a.items, ["apps", "items"]), ...shownRows(a.open, ["apps", "open"]).map(([x, path]) => [{ ...x, bucket: "open" }, path])];
+  const live = rows.filter(([x]) => appBucket(x) === "done").length, flagged = rows.filter(([x]) => appBucket(x) === "working").length;
+  const ground = typeof a.groundwork === "string" && a.groundwork ? dict([["done", `<li class="done"><span class="mk">✓</span><span class="t why">${reportEd(["apps", "groundwork"], a.groundwork)}</span></li>`]]) : dict();
+  const links = objs(a.links).map((l) => ((url) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(l.label || url)} ↗</a>` : esc(l.label)))(safeUrl(l.url))).filter(Boolean);
+  return `<h3><span class="rp-prio app">📱 App teams</span><span class="tally">${live} live, ${flagged} built behind a switch</span></h3>`
+    + (a.lede ? `<p class="rp-lede-s">${reportEd(["apps", "lede"], a.lede)}</p>` : "")
+    + reportBuckets(rows, APP_BUCKETS, appBucket, !!d.showInternal, platformChips, ground)
+    + (links.length ? `<div class="rp-more">${links.join(" · ")}</div>` : "");
+}
+function reportPage(d) {
+  const has = ((s) => (k) => s.includes(k))(reportSections(d)), final = d.kind === "final", b = d.banner && typeof d.banner === "object" ? d.banner : null;
+  const out = [];
+  if (has("banner") && b) {
+    const img = reportImage(b.image), test = safeUrl(b.testUrl);
+    out.push(`<div class="rp-banner">${img ? `<img class="rp-shot" src="${esc(img)}" alt="">` : ""}<div class="rp-txt"><div class="rp-kicker">${final ? "Quest report" : "Status report"}${d.cover?.label ? ` · ${esc(d.cover.label)}` : ""}</div>${b.title ? `<h1>${reportEd(["banner", "title"], b.title)}</h1>` : ""}${b.lede ? `<p>${reportEd(["banner", "lede"], b.lede)}</p>` : ""}${test ? `<a class="rp-try" href="${esc(test)}" target="_blank" rel="noopener">${esc(b.testLabel || "Try it in test")} ↗</a>` : ""}</div></div>`);
+  }
+  out.push(`<div class="rp-body">`);
+  const stats = shownRows(d.stats, ["stats"]);
+  if (has("stats") && stats.length) out.push(`<div class="rp-stats">${stats.map(([s, path]) => `<div class="rp-stat"><b>${reportEd([...path, "n"], s.n)}</b><span>${reportEd([...path, "label"], s.label)}</span></div>`).join("")}</div>`);
+  for (const [t, label] of REPORT_TIERS) if (has(t)) out.push(reportTier(d, t, label));
+  const moved = shownRows(d.moved, ["moved"]);
+  if (has("moved") && moved.length) out.push(`<h3><span class="rp-prio nice">Moved out of the quest</span></h3><ul class="rp-items">${byRole(moved).map((r) => reportRow(r, "moved", "→")).join("")}</ul>`);
+  const answers = shownRows(d.answers, ["answers"]);
+  if (answers.length) out.push(`<div class="rp-box replies"><h4>Your questions answered</h4><ul>${answers.map(([x, path]) => `<li><div class="q">${esc(x.who)}${x.role ? `, ${esc(x.role)}` : ""}: “${esc(x.question)}”</div><div>${reportEd([...path, "answer"], x.answer)}</div></li>`).join("")}</ul></div>`);
+  const asks = shownRows(d.asks, ["asks"]);
+  if (has("ask") && asks.length) out.push(`<div class="rp-box ask"><h4>Decisions we need</h4><ul class="rp-asks">${asks.map(([x, path]) => `<li><span>${reportEd([...path, "question"], x.question)}</span>${x.owner || x.with || x.by ? `<span class="rp-owner"><b>${esc(x.owner)}</b>${x.with ? ` ${esc(x.with)}` : ""}${x.by ? ` · by ${esc(x.by)}` : ""}</span>` : ""}</li>`).join("")}</ul></div>`);
+  const next = (Array.isArray(d.next) ? d.next : []).map((t, i) => (typeof t === "string" && t ? `<li>${reportEd(["next", i], t)}</li>` : "")).join("");
+  if (has("next") && next) out.push(`<div class="rp-box next"><h4>${final ? "What happens next" : "Next up"}</h4><ul>${next}</ul></div>`);
+  if (has("app") && d.apps && typeof d.apps === "object") out.push(reportApps(d));
+  const f = d.footer && typeof d.footer === "object" ? d.footer : {};
+  out.push(`</div><div class="rp-foot">${f.source ? `<span>From Podium · ${esc(f.source)}</span>` : ""}<span>${final ? "Final" : "Draft for sync"}${d.writtenAt ? `, ${esc(d.writtenAt)}` : ""}</span>${f.owner ? `<span>Owner: ${esc(f.owner)}</span>` : ""}</div>`);
+  return `<div class="rp-paper editing">${out.join("")}</div>`;
+}
+function reportText(d) {
+  const has = ((s) => (k) => s.includes(k))(reportSections(d)), b = d.banner && typeof d.banner === "object" ? d.banner : {};
+  const item = (x, mark) => `${mark} ${x.role ? `${x.role}: ` : ""}${x.head || ""}${x.why ? ` — ${x.why}` : ""}${x.risk?.text && mark !== "✓" ? ` [${x.risk.text}]` : ""}`;
+  const visible = (rows) => rows.filter(([x]) => d.showInternal || !x.internal).map(([x]) => x);
+  const lines = [d.name, d.cover?.label, ""];
+  if (has("banner")) lines.push(b.title, b.lede, safeUrl(b.testUrl), "");
+  if (has("stats")) lines.push(...shownRows(d.stats, ["stats"]).map(([s]) => `${s.n} ${s.label}`), "");
+  for (const [t, label] of REPORT_TIERS) {
+    const rows = shownRows(d.tiers?.[t], ["tiers", t]);
+    if (!has(t) || !rows.length) continue;
+    lines.push(label);
+    for (const [bk, , mark] of REPORT_BUCKETS) lines.push(...visible(rows.filter(([x]) => reportBucket(x) === bk)).map((x) => item(x, mark)));
+    lines.push("");
+  }
+  if (has("moved")) { const mv = shownRows(d.moved, ["moved"]).map(([x]) => item(x, "→")); if (mv.length) lines.push("Moved out of the quest", ...mv, ""); }
+  if (has("ask")) { const asks = shownRows(d.asks, ["asks"]).map(([x]) => `• ${x.question || ""}${x.owner ? ` (${x.owner}${x.with ? ` ${x.with}` : ""}${x.by ? `, by ${x.by}` : ""})` : ""}`); if (asks.length) lines.push("Decisions we need", ...asks, ""); }
+  if (has("next")) { const next = (Array.isArray(d.next) ? d.next : []).filter((t) => typeof t === "string" && t).map((t) => `• ${t}`); if (next.length) lines.push(d.kind === "final" ? "What happens next" : "Next up", ...next, ""); }
+  if (has("app") && d.apps && typeof d.apps === "object") {
+    const apps = [...shownRows(d.apps.items, ["apps", "items"]), ...shownRows(d.apps.open, ["apps", "open"]).map(([x, p]) => [{ ...x, bucket: "open" }, p])];
+    if (apps.length) lines.push("App teams", ...visible(apps).map((x) => item(x, APP_BUCKETS.find(([bk]) => bk === appBucket(x))[2])), "");
+  }
+  return lines.filter((l) => typeof l === "string").join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function openReportStart() {
+  const q = questOf(), last = lastReport(q);
+  S.reportStart = { cover: reportKind(q, new Date()) === "final" || !last ? "all" : "since", from: isoDay(last?.publishedAt) || isoDay(q?.start) || isoDay(new Date().toISOString()) };
+  renderReportStart();
+}
+function renderReportStart() {
+  const el = $("report-start"), st = S.reportStart;
+  el.classList.toggle("on", !!st);
+  if (!st) return;
+  const q = questOf(), last = lastReport(q), final = reportKind(q, new Date()) === "final";
+  const opt = (cover, title, sub, more = "") => {
+    const off = cover === "since" && !last, on = st.cover === cover;
+    return `<label class="ropt${on ? " on" : ""}${off ? " off" : ""}"><input type="radio" name="report-cover" data-report-cover="${cover}"${on ? " checked" : ""}${off ? " disabled" : ""}><span><b>${title}</b><span>${sub}</span>${more}</span></label>`;
+  };
+  el.innerHTML = `<div class="rsbox" role="dialog" aria-modal="true" aria-label="${final ? "New quest report" : "New status report"}"><h3>${final ? "New quest report" : "New status report"}</h3><div class="rs-sub">What should it cover? Claude drafts it from the milestones, briefs and PRs; you read it through before it is published.</div>`
+    + opt("since", `Since the last report${last ? ` (${esc(dayLabel(last.publishedAt) || last.name || "")})` : ""}`, last ? `What changed since ${esc(last.name || "the last report")}. Older deliveries collapse to a count.` : "No report yet.")
+    + opt("all", "The whole quest", `Everything${dayLabel(q?.start) ? ` from the start on ${esc(dayLabel(q.start))}` : ""}. Right for the final report.`)
+    + opt("from", "From a date", "For a meeting that skipped a sync.", `<input type="date" id="report-from" value="${esc(st.from)}">`)
+    + `<div class="rs-row"><button class="rbtn" data-report-cancel>Cancel</button><button class="rbtn primary" data-report-go>Write the draft</button></div></div>`;
+}
+async function askReport(cover) {
+  const r = await fetch(`/report?cover=${encodeURIComponent(cover)}`, { method: "POST" }).catch(() => null);
+  if (r?.status === 409) { toast(NO_ORCHESTRATOR()); return false; }
+  if (!r?.ok) { toast(r ? `Couldn't ask for the report: ${r.status}` : SERVER_DOWN); return false; }
+  S.reportCover = cover;
+  S.report = { ...S.report, asked: JSON.stringify(reportOf(questOf())), ok: false };
+  toast("Queued: the orchestrator writes the draft; it opens here when ready");
+  return true;
+}
+async function startReport() {
+  const st = S.reportStart, cover = st.cover === "from" ? st.from : st.cover;
+  if (st.cover === "from" && !/^\d{4}-\d{2}-\d{2}$/.test(cover)) return toast("Pick the date the report starts from");
+  if (!(await askReport(cover))) return;
+  S.reportStart = null; renderReportStart();
+  renderReport();
+}
+function openReport() {
+  S.report = { ok: false };
+  renderReport();
+}
+function closeReport() {
+  commitReportEdit();
+  S.report = null;
+  renderReport();
+}
+function syncReport() {
+  const sig = JSON.stringify(reportOf(questOf()) || null);
+  if (!S.report || sig === S.report.sig) return;
+  S.report.loaded = null;
+  renderReport();
+}
+function reportState() {
+  const r = reportOf(questOf());
+  if (S.report.asked !== undefined && S.report.asked === JSON.stringify(r)) return "queued";
+  delete S.report.asked;
+  if (!r || !["drafting", "ready", "published"].includes(r.status)) return "none";
+  if (r.status === "drafting") { S.report.draft = null; S.report.loaded = null; return "drafting"; }
+  if (!runFile(r.draft) || !r.draft.endsWith(".json")) return "unreadable";
+  if (S.report.loaded !== r.draft) loadReport(r.draft);
+  return S.report.draft ? "shown" : S.report.failed === r.draft ? "unreadable" : "loading";
+}
+async function loadReport(path) {
+  S.report.loaded = path; S.report.draft = null; S.report.failed = null;
+  let d = null;
+  try { d = JSON.parse(await getText(runHref(path))); } catch { d = null; }
+  if (!S.report || S.report.loaded !== path) return;
+  if (d && typeof d === "object" && !Array.isArray(d) && d.tiers && typeof d.tiers === "object") S.report.draft = d;
+  else S.report.failed = path;
+  renderReport();
+}
+function commitReportEdit() {
+  const a = document.activeElement;
+  if (a?.dataset?.redit) editReport(a.dataset.redit, a.textContent.replace(/\s+/g, " ").trim());
+}
+function renderReport() {
+  commitReportEdit();
+  const el = $("report");
+  el.classList.toggle("on", !!S.report);
+  if (!S.report) { el.innerHTML = ""; return; }
+  const q = questOf() || {}, r = reportOf(q);
+  S.report.sig = JSON.stringify(r || null);
+  const state = reportState(), d = state === "shown" ? S.report.draft : null, name = d?.name || r?.name || "";
+  const final = (d?.kind || reportKind(q, new Date())) === "final", last = lastReport(q);
+  const wait = (msg) => `<div class="rp-wait">${msg}</div>`;
+  const body = d ? reportPage(d) : wait({
+    queued: "Queued: the orchestrator starts the draft when it reads the request.",
+    none: "No report drafted yet. Start one from the quest tile.",
+    drafting: `Claude is writing ${esc(name || "the draft")}. It opens here when it is ready.`,
+    loading: "Loading the draft…",
+    unreadable: `Couldn't read the draft${r?.draft ? ` ${esc(r.draft)}` : ""}.`,
+  }[state]);
+  const counts = (t) => shownRows(d?.tiers?.[t], ["tiers", t]).length;
+  const secs = d ? reportSections(d) : [];
+  const left = d ? [...REPORT_TIERS.map(([t]) => d.tiers?.[t]), d.moved, d.stats, d.asks, d.answers, d.apps?.items, d.apps?.open].flatMap(objs).filter((x) => x.hidden).length : 0;
+  const published = r?.status === "published", url = published ? safeUrl(r.url) : "";
+  const side = d ? `<h4>Covers</h4><div class="rs-cover"><b>${esc(d.cover?.label || (d.cover?.from ? `From ${dayLabel(d.cover.from)}` : "The whole quest"))}</b><button class="rlink" data-report-new>Change</button></div>${last ? `<div class="note">Last report: ${esc(last.name || "")}${dayLabel(last.publishedAt) ? `, ${esc(dayLabel(last.publishedAt))}` : ""}. New items since then are marked.</div>` : ""}`
+    + `<h4>Sections</h4>${REPORT_SECTIONS.map(([k, label]) => `<label><input type="checkbox" data-report-sec="${k}"${secs.includes(k) ? " checked" : ""}>${label}${["must", "should", "nice"].includes(k) ? ` <small>${counts(k)}</small>` : ""}</label>`).join("")}`
+    + `<h4>Unfinished work is tagged</h4><div class="rlegend"><span><span class="rp-risk blocks">Blocks …</span> a launch or a launch step</span><span><span class="rp-risk waits">Waits on …</span> another team or system</span><span><span class="rp-risk later">Can ship without</span> next quest, parked</span></div>`
+    + `<h4>Detail</h4><label><input type="checkbox" data-report-internal${d.showInternal ? " checked" : ""}>Show internal groundwork</label><div class="note">Sign-in, roles, config and refactors fold into one line by default.</div>`
+    + `<h4>Draft</h4><div class="note">Written by Claude from each milestone's brief and PRs, in product terms. Click any sentence to change it; hover a line to leave it out. Edits are saved with the draft.</div>${left ? `<button class="rbtn wide" data-report-restore>Put back ${left} left out</button>` : ""}<button class="rbtn wide" data-report-rewrite>↻ Rewrite the draft</button>`
+    : `<div class="note">The draft shows here once Claude has written it.</div>`;
+  const foot = d ? `<label class="rconfirm"><input type="checkbox" data-report-ok${S.report.ok ? " checked" : ""}${published ? " disabled" : ""}>I've read it through</label><span class="rdest">→ <code>Development › Quests › ${esc(S.project?.project?.title || "")} › ${esc(name)}</code></span><span class="sp"></span><button class="rbtn" data-report-copy>Copy for Slack</button>`
+    + (published ? (url ? `<a class="rbtn primary" href="${esc(url)}" target="_blank" rel="noopener">Published ↗</a>` : `<button class="rbtn primary" disabled>Published</button>`) : `<button class="rbtn primary" data-report-publish${S.report.ok && r?.status === "ready" ? "" : " disabled"}>Publish to Outline</button>`)
+    : `<span class="sp"></span><button class="rbtn" data-report-close>Close</button>`;
+  el.innerHTML = `<div class="rmodal" role="dialog" aria-modal="true" aria-label="Quest report"><div class="rmhead"><b>${final ? "Quest report" : "Status report"}${name ? ` · ${esc(name)}` : ""}</b><span class="sub">${esc(d?.cover?.label || "")}</span><span class="sp"></span><button class="close-x" data-report-close aria-label="Close">✕</button></div><aside class="rside">${side}</aside><div class="rpreview">${body}</div><div class="rmfoot">${foot}</div></div>`;
+}
+function reportAt(path) {
+  const keys = String(path).split("/");
+  let o = S.report?.draft;
+  for (const k of keys) {
+    if (!o || typeof o !== "object" || !Object.hasOwn(o, k)) return null;
+    o = o[k];
+  }
+  return o;
+}
+async function saveReport() {
+  const path = S.report?.loaded;
+  if (!path || !S.report.draft) return;
+  const r = await fetch(`/report-draft?path=${encodeURIComponent(path)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(S.report.draft) }).catch(() => null);
+  if (!r?.ok) toast(r ? (r.status === 409 ? "Couldn't save: the draft is being rewritten" : `Couldn't save the draft: ${r.status}`) : SERVER_DOWN);
+}
+function editReport(path, text) {
+  const keys = String(path).split("/"), field = keys.pop(), parent = reportAt(keys.join("/"));
+  if (!parent || typeof parent !== "object" || !(REPORT_EDITABLE.has(field) || (Array.isArray(parent) && /^\d+$/.test(field))) || !Object.hasOwn(parent, field)) return;
+  if (parent[field] === text) return;
+  parent[field] = text;
+  saveReport();
+}
+function leaveOut(path) {
+  const x = reportAt(path);
+  if (!x || typeof x !== "object" || Array.isArray(x)) return;
+  x.hidden = true;
+  renderReport(); saveReport();
+  toast("Left out of this report");
+}
+function restoreReport() {
+  const d = S.report?.draft;
+  if (!d) return;
+  for (const x of [...REPORT_TIERS.map(([t]) => d.tiers?.[t]), d.moved, d.stats, d.asks, d.answers, d.apps?.items, d.apps?.open].flatMap(objs)) delete x.hidden;
+  renderReport(); saveReport();
+}
+function setReportSection(key, on) {
+  const d = S.report?.draft;
+  if (!d) return;
+  const secs = reportSections(d).filter((k) => k !== key);
+  d.sections = REPORT_SECTIONS.map(([k]) => k).filter((k) => (k === key ? on : secs.includes(k)));
+  renderReport(); saveReport();
+}
+async function reportPost(path, done) {
+  const r = await fetch(path, { method: "POST" }).catch(() => null);
+  if (r?.status === 409) return toast(NO_ORCHESTRATOR());
+  if (!r?.ok) return toast(r ? `Couldn't do that: ${r.status}` : SERVER_DOWN);
+  toast(done);
+}
+async function rewriteReport() {
+  const from = isoDay(S.report?.draft?.cover?.from);
+  if (await askReport(S.reportCover || from || "all")) renderReport();
+}
+async function markComment(id, field, on) {
+  const c = objs(questOf()?.reportComments).find((x) => String(x.id) === id);
+  const r = await fetch(`/report-comment/${encodeURIComponent(id)}?${field}=${on ? 1 : 0}`, { method: "POST" }).catch(() => null);
+  if (!r?.ok) return toast(r ? `Couldn't mark the comment: ${r.status}` : SERVER_DOWN);
+  if (c) { if (on) c[field] = true; else delete c[field]; }
+  render();
+  if (field === "answer") toast(on ? "Answered in the next report" : "Taken out of the next report");
 }
 function questSheet() {
   const P = S.project, q = P.project.quest, tasks = q.tasks || [];
@@ -3261,8 +3689,25 @@ document.addEventListener("click", (ev) => {
   const pp = ev.target.closest("[data-prio-pick]");
   if (pp) { setPrioPick(S.prioPick === pp.dataset.prioPick ? null : pp.dataset.prioPick); return; }
   if (S.prioPick && !ev.target.closest(".prio-pick-menu")) setPrioPick(null);
+  const rr = ev.target.closest("[data-report-reply]");
+  if (rr) { markComment(rr.dataset.reportReply, "handled", true); if (rr.tagName !== "A") ev.preventDefault(); return; }
   if (ev.target.closest("a[href]")) return;
   if (ev.target.closest("a.pr")) return;
+  if (ev.target.closest("[data-report-new]")) { openReportStart(); return; }
+  if (ev.target.closest("[data-report-open]")) { openReport(); return; }
+  if (ev.target.closest("[data-report-cancel]") || ev.target === $("report-start")) { S.reportStart = null; renderReportStart(); return; }
+  if (ev.target.closest("[data-report-go]")) { startReport(); return; }
+  if (ev.target.closest("[data-report-close]") || ev.target === $("report")) { closeReport(); return; }
+  const rout = ev.target.closest("[data-report-out]");
+  if (rout) { leaveOut(rout.dataset.reportOut); return; }
+  if (ev.target.closest("[data-report-restore]")) { restoreReport(); return; }
+  if (ev.target.closest("[data-report-rewrite]")) { rewriteReport(); return; }
+  if (ev.target.closest("[data-report-copy]")) { if (S.report?.draft) copyText(reportText(S.report.draft), "Copied as text, ready for Slack"); return; }
+  if (ev.target.closest("[data-report-publish]")) { reportPost("/report-publish", "Publishing: the orchestrator puts it in Outline and links it on the quest tile"); return; }
+  if (ev.target.closest("[data-report-comments]")) { reportPost("/report-comments", "Queued: the orchestrator reads the comments in Outline again"); return; }
+  const ra = ev.target.closest("[data-report-answer]");
+  if (ra) { markComment(ra.dataset.reportAnswer, "answer", !ra.classList.contains("on")); return; }
+  if (ev.target.closest("#report, #report-start, .rcomments")) return;
   const th = ev.target.closest("[data-theme-set]");
   if (th) { setTheme(th.dataset.themeSet); return; }
   const rl = ev.target.closest("[data-release]");
@@ -3361,7 +3806,9 @@ document.addEventListener("keydown", (ev) => {
   else if (ev.key === "Enter" && ev.target.matches(".node, .fchip, .fms, .otitle, .fepic, .quest")) ev.target.click();
 });
 function onEscape() {
-  if (S.runsMenu) { setRunsMenu(false); $("runs").querySelector("[data-runs-menu]")?.focus(); }
+  if (S.reportStart) { S.reportStart = null; renderReportStart(); }
+  else if (S.report) closeReport();
+  else if (S.runsMenu) { setRunsMenu(false); $("runs").querySelector("[data-runs-menu]")?.focus(); }
   else if (S.stateMenu) { setStateMenu(false); $("state-filter").querySelector("[data-state-menu]")?.focus(); }
   else if (S.sortMenu) { setSortMenu(false); $("map-sort").querySelector("[data-sort-menu]")?.focus(); }
   else if (S.peopleMenu) { setPeopleMenu(false); $("people-filter").querySelector("[data-people-menu]")?.focus(); }
@@ -3380,6 +3827,18 @@ function setSearch(open) {
 }
 $("search-toggle").addEventListener("click", () => setSearch($("map-search").hidden));
 $("q").addEventListener("input", (ev) => { S.query = ev.target.value; applyFilter(); });
+document.addEventListener("change", (ev) => {
+  const t = ev.target;
+  if (t.dataset?.reportCover && S.reportStart) { S.reportStart.cover = t.dataset.reportCover; renderReportStart(); }
+  else if (t.id === "report-from" && S.reportStart) { S.reportStart.from = t.value; S.reportStart.cover = "from"; renderReportStart(); }
+  else if (t.dataset?.reportSec) setReportSection(t.dataset.reportSec, t.checked);
+  else if (t.dataset?.reportInternal !== undefined && S.report?.draft) { S.report.draft.showInternal = t.checked; renderReport(); saveReport(); }
+  else if (t.dataset?.reportOk !== undefined && S.report) { S.report.ok = t.checked; renderReport(); }
+});
+document.addEventListener("focusout", (ev) => {
+  const path = ev.target.dataset?.redit;
+  if (path) editReport(path, ev.target.textContent.replace(/\s+/g, " ").trim());
+});
 $("q").addEventListener("keydown", (ev) => { const id = ev.key === "Enter" && searchHit(); if (id) scrollToMs(id); });
 new MutationObserver(iconSheetHeads).observe($("sheet-body"), { childList: true });
 $("scrim").addEventListener("click", closeSheet);

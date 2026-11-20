@@ -298,6 +298,10 @@ class Avatars(HTMLParser):
             self.found[-1]["text"] += data
 
 
+def esc(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&#39;")
+
+
 def ago(**delta):
     return (datetime.now(timezone.utc) - timedelta(**delta)).isoformat()
 
@@ -1244,6 +1248,154 @@ class HostileRun(unittest.TestCase):
         page = open(PAGE).read()
         self.assertRegex(page, r'<button class="icon-btn" id="feed-toggle"><svg class="chev"')
         self.assertIn('#feed-toggle[aria-pressed="true"] .chev { transform: rotate(180deg); }', page)
+
+    HOSTILE_ITEM = {"id": X, "bucket": X, "role": X, "head": X, "why": X, "isNew": True, "risk": {"level": X, "text": X}}
+    HOSTILE_DRAFT = {
+        "name": X, "kind": X, "writtenAt": X, "cover": {"from": X, "label": X}, "sections": X,
+        "banner": {"title": X, "lede": X, "image": JS, "testUrl": JS, "testLabel": X},
+        "stats": [{"n": X, "label": X}, X],
+        "tiers": {"must": [HOSTILE_ITEM, {**HOSTILE_ITEM, "bucket": "open", "risk": {"level": "blocks", "text": X}}, X, None],
+                  "should": [{**HOSTILE_ITEM, "internal": True}], "nice": X, X: [HOSTILE_ITEM]},
+        "earlier": {"must": X, "should": 2}, "moved": [HOSTILE_ITEM], "asks": [{"question": X, "owner": X, "with": X, "by": X}],
+        "next": [X, 3, None], "answers": [{"commentId": X, "who": X, "role": X, "question": X, "answer": X}],
+        "apps": {"lede": X, "groundwork": X, "links": [{"label": X, "url": JS}, {"label": X, "url": "https://github.com/o/r/milestone/1"}],
+                 "items": [{**HOSTILE_ITEM, "platforms": {X: {"state": X, "url": JS}, "iOS": {"state": "done", "url": " JaVaScRiPt:alert(1)"},
+                                                          "Android": {"state": "flag", "url": "https://github.com/o/a/pull/1"}}}],
+                 "open": [HOSTILE_ITEM]},
+        "footer": {"owner": X, "source": X}}
+
+    def report_run(self, report=None, comments=None, reports=None, start="2026-10-12"):
+        run = json.loads(json.dumps(OPEN_RUN))
+        run["project"]["quest"].update(start=start, report=report or {"draft": "reports/sync.json", "status": "ready", "name": X},
+                                       reportComments=comments or [], reports=reports or [])
+        return run
+
+    def report_modal(self, draft, report=None):
+        """Every report modal the page rendered while opening the quest report's draft, and the scan of all it rendered."""
+        run = self.report_run(report)
+        scan = self.rendered(run, [], PROGRESS, (), **{"/reports/sync.json": json.dumps(draft)},
+                             probe='(async () => { openReport(); await loadReport("reports/sync.json"); return true; })()')
+        return [h for h in self.html if h.startswith('<div class="rmodal"')][-1], scan
+
+    def test_the_report_modal_renders_a_hostile_draft_as_text_links_only_http_and_images_only_from_the_run_or_https(self):
+        modal, scan = self.report_modal(self.HOSTILE_DRAFT)
+        self.assertIn('class="rmodal"', modal)
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+        self.assertEqual({"script", "iframe", "object", "embed"} & set(scan.tags), set())
+        for v in (v.strip() for _, k, v in scan.attrs if k in ("href", "src")):
+            same_site = v.startswith("/") and not v.startswith(("//", "/\\"))
+            self.assertTrue(same_site or v.startswith(("http://", "https://", "vscode://file/", "paseo://h/")), v)
+        self.assertIn("https://github.com/o/r/milestone/1", modal)
+        self.assertIn('<a class="rp-plat flag" href="https://github.com/o/a/pull/1"', modal)
+        self.assertIn('<span class="rp-plat done">✓ iOS</span>', modal)
+        self.assertNotIn("<img", modal)
+        self.assertGreater(modal.count(esc(X)), 25)
+        for level in re.findall(r'class="rp-risk ([^"]*)"', modal):
+            self.assertIn(level, ("blocks", "waits", "later"))
+        self.assertEqual(set(re.findall(r'<li class="([^"]*)"', modal)), {"open", "moved", "working", "done"})
+
+    def test_a_banner_image_shows_from_a_run_path_or_https_and_never_from_elsewhere(self):
+        for image, src in (("reports/img/admin.png", "/reports/img/admin.png"), ("https://cdn.example/a.png", "https://cdn.example/a.png"),
+                           ("http://cdn.example/a.png", None), ("//evil.example/a.png", None), ("../secret.png", None),
+                           ("/etc/a.png", None), ("data:image/png;base64,AA", None)):
+            modal, _ = self.report_modal({"name": "n", "kind": "sync", "tiers": {}, "banner": {"title": "t", "image": image}})
+            self.assertEqual((re.search(r'<img class="rp-shot" src="([^"]*)"', modal) or [None, None])[1], src, image)
+
+    def tier(self, items, show_internal=False):
+        draft = {"name": "n", "kind": "sync", "tiers": {"must": items}, "showInternal": show_internal}
+        self.maps(probe=f'reportTier({json.dumps(draft)}, "must", "★ Must have")')
+        return self.probe()
+
+    def test_each_tier_names_the_unfinished_items_that_block_a_launch_step_with_their_risk_only_when_it_has_unfinished_ones(self):
+        blocks = {"bucket": "open", "head": "Should be able to pause and relaunch a message in the new admin", "risk": {"level": "blocks", "text": "Blocks switching off the old admin"}}
+        other = {"bucket": "working", "head": X, "risk": {"level": "blocks", "text": X}}
+        self.assertIn('<div class="rp-riskline"><b class="blocks">Blocks a launch step:</b> Should be able to pause and relaunch a message in the new admin'
+                      ' — Blocks switching off the old admin.</div>', self.tier([blocks, {"bucket": "open", "head": "o"}]))
+        self.assertIn('<b class="blocks">2 unfinished items block a launch step:</b><ul class="rp-blockers">'
+                      '<li>Should be able to pause and relaunch a message in the new admin — Blocks switching off the old admin.</li>'
+                      f'<li>{esc(X)} — {esc(X)}.</li></ul>', self.tier([blocks, other, {"bucket": "done", "head": "d"}]))
+        self.assertIn('<b class="blocks">Blocks a launch step:</b> Should be able', self.tier([blocks, {**other, "hidden": True}]))
+        self.assertIn('<b class="ok">Nothing unfinished here blocks launch.</b>', self.tier([{"bucket": "open", "head": "o", "risk": {"level": "waits"}}]))
+        self.assertIn('<b class="ok">Nothing unfinished here blocks launch.</b>', self.tier([{**blocks, "hidden": True}, {"bucket": "open", "head": "o"}]))
+        self.assertNotIn("rp-riskline", self.tier([{"bucket": "done", "head": "d", "risk": {"level": "blocks"}}]))
+        self.assertNotIn("rp-riskline", self.tier([]))
+        self.assertIn('<span class="tally">1 of 3 delivered</span>', self.tier([blocks, other, {"bucket": "done", "head": "d"}]))
+
+    def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
+        t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
+                       {"bucket": "done", "head": "d2", "role": "Admin"}, {"bucket": "done", "head": "d3", "role": "Driver"},
+                       {"bucket": "working", "head": "w1"}, {"bucket": "done", "head": "d4", "role": "Marketing"},
+                       {"bucket": "done", "head": "d5", "role": "Driver"}, {"bucket": "open", "head": "o2", "role": "Support"}])
+        self.assertEqual(re.findall(r'<div class="rp-bucket ([a-z]+)">([^<]*)</div>', t),
+                         [("done", "Delivered · 5"), ("working", "Being worked on · 1"), ("open", "Not finished · 2")])
+        self.assertEqual(re.findall(r'data-redit="tiers/must/\d+/head">([^<]*)<', t), ["d3", "d5", "d4", "d2", "d1", "w1", "o2", "o1"])
+
+    def test_left_out_items_are_not_in_the_report_and_internal_ones_fold_to_a_line_until_shown(self):
+        items = [{"bucket": "done", "head": "kept"}, {"bucket": "done", "head": "gone", "hidden": True},
+                 {"bucket": "done", "head": "inner", "internal": True}, {"bucket": "done", "head": "inner2", "internal": True}]
+        t = self.tier(items)
+        self.assertIn(">kept<", t)
+        self.assertNotIn("gone", t)
+        self.assertNotIn(">inner<", t)
+        self.assertIn("Plus 2 pieces of internal groundwork", t)
+        self.assertIn("Delivered · 3", t)
+        shown = self.tier(items, show_internal=True)
+        self.assertIn(">inner<", shown)
+        self.assertNotIn("Plus 2", shown)
+        self.assertNotIn("gone", shown)
+        draft = {"name": "n", "kind": "sync", "tiers": {"must": items}, "sections": ["must"], "next": ["hidden by section"]}
+        self.maps(probe=f"reportText({json.dumps(draft)})")
+        self.assertEqual(self.probe().splitlines(), ["n", "", "★ Must have", "✓ kept"])
+
+    def test_the_tile_button_asks_for_a_status_report_during_the_quest_and_a_quest_report_once_its_last_week_ended(self):
+        def label(quest, y, m, d):
+            self.maps(probe=f"reportTools({json.dumps(quest)}, new Date({y}, {m - 1}, {d}, 12))")
+            return re.search(r"data-report-new>([^<]*)</button>", self.probe()).group(1)
+        self.assertEqual(label({"start": "2026-10-12"}, 2026, 11, 22), "📄 New status report")
+        self.assertEqual(label({"start": "2026-10-12"}, 2026, 11, 23), "📄 New quest report")
+        self.assertEqual(label({"start": "2026-10-12", "weeks": 4}, 2026, 11, 9), "📄 New quest report")
+        self.assertEqual(label({}, 2026, 12, 25), "📄 New status report")
+
+    def test_the_tile_links_the_newest_report_and_a_ready_draft(self):
+        quest = {"start": "2026-10-12", "report": {"status": "ready", "draft": "reports/b.json"},
+                 "reports": [{"name": "Sync 2026-11-13", "url": "https://outline.example/b", "publishedAt": "2026-11-13T10:00:00Z"},
+                             {"name": "Sync 2026-11-06", "url": "https://outline.example/a", "publishedAt": "2026-11-06T10:00:00Z"},
+                             {"name": X, "url": JS, "publishedAt": X}, None]}
+        self.maps(probe=f"reportTools({json.dumps(quest)}, new Date(2026, 10, 20, 12))")
+        t = self.probe()
+        self.assertIn('<button class="share" data-report-open>Draft ready ↗</button>', t)
+        self.assertIn('<a class="rlast" href="https://outline.example/b" target="_blank" rel="noopener">Last report: Sync 2026-11-13 ↗</a>', t)
+        quest["reports"][2]["publishedAt"] = "2026-11-20"
+        self.maps(probe=f"reportTools({json.dumps(quest)}, new Date(2026, 10, 20, 12))")
+        self.assertNotIn("rlast", self.probe())
+
+    def test_the_comments_card_shows_only_the_unhandled_comments_with_their_answer_state(self):
+        comments = [{"id": "c1", "author": "Maria Ek", "role": "Product", "quote": "q1", "body": "first", "url": "https://outline.example/c1"},
+                    {"id": "c2", "author": "Jonna Lund", "body": "second", "answer": True, "url": JS},
+                    {"id": "c3", "author": "Old", "body": "third", "handled": True}, X]
+        self.maps(probe=f"reportComments({json.dumps({'reportComments': comments})})")
+        card = self.probe()
+        self.assertIn("💬 2 questions", card)
+        self.assertEqual(re.findall(r"<div>(first|second|third)</div>", card), ["first", "second"])
+        self.assertIn('<button data-report-answer="c1">Answer in the next report</button>', card)
+        self.assertIn('<button data-report-answer="c2" class="on">✓ Answered in the next report</button>', card)
+        self.assertIn('<a href="https://outline.example/c1" target="_blank" rel="noopener" data-report-reply="c1">Reply in Outline ↗</a>', card)
+        self.assertIn('<button data-report-reply="c2">Mark handled</button>', card)
+        self.maps(probe=f"reportComments({json.dumps({'reportComments': [comments[2]]})})")
+        self.assertEqual(self.probe(), "")
+
+    def test_the_tile_and_its_comments_render_hostile_report_data_as_text(self):
+        run = self.report_run({"status": "ready", "draft": X, "name": X},
+                              [{"id": X, "author": X, "role": X, "quote": X, "body": X, "at": X, "url": JS}],
+                              [{"name": X, "url": "https://outline.example/x", "publishedAt": "2026-11-13"}])
+        scan = self.rendered(run, [], PROGRESS, (), probe="(openReportStart(), openReport(), true)")
+        self.assertNotIn(("i", "id", "pwn"), scan.attrs)
+        self.assertEqual([a for a in scan.attrs if a[1].startswith("on")], [])
+        page = "".join(self.html)
+        self.assertIn("rcomments", page)
+        self.assertIn("rsbox", page)
+        self.assertIn("Couldn't read the draft", page)
 
     def test_the_wrap_up_sits_beside_the_quest_tile_not_inside_it(self):
         self.assertRegex(open(PAGE).read(), r'questTile\(P\) \+ questWrap\(')
