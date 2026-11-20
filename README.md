@@ -197,12 +197,12 @@ The draft, `reports/<slug>.json`, is what the page renders and what gets publish
   "footer": {"owner": "Henrik Linde", "source": "in-app-message-experience"} }
 
 Item = {"id", "bucket": "done" | "working" | "open", "role": "Driver", "head": "Should be able to …", "why": "...",
-        "isNew": true, "internal": true, "hidden": true, "risk": {"level": "blocks" | "waits" | "later", "text": "Blocks switching off the old admin"}}
+        "isNew": true, "internal": true, "hidden": true, "added": true, "keep": true, "risk": {"level": "blocks" | "waits" | "later", "text": "Blocks switching off the old admin"}}
 ```
 
 `structure` picks the order, `status` when absent: **status** lists Delivered, then Being worked on, then Not finished, each split by priority; **priority** lists each tier with its statuses inside; **group** lists each target group (`role`) with its statuses inside. Each tier lists its items under Delivered, Being worked on and Not finished, by role (Driver, Marketing, Support, Admin, Staff, then the rest), and names the unfinished ones that block a launch step (`risk.level` `blocks`), each as its head then its `risk.text`. `earlier` is the count delivered before `cover.from`, shown as one line. `internal` items fold into one line unless `showInternal`. An app item is Live, Built behind a switch (a platform `flag`) or Not finished (a platform `open`); `apps.open` are Not finished. `banner.image` is a run-relative path or an https URL; every link is http(s) or left out.
 
-What the user changes in the modal is saved back into the draft with `PUT /report-draft?path=<draft>` (a JSON object under 256 KB, only to `project.quest.report.draft` and only while it is `ready`): edited text in place, **Leave out** as `"hidden": true` on the item, the section checkboxes as `sections`, the Structure pick as `structure`, a ghost row's new item with `"added": true`, **Show internal groundwork** as `showInternal`. Publish the draft as it is on disk: it is what the user read through. **Copy for Slack** copies it as plain text; **Rewrite the draft** asks for `report` again with the same cover.
+What the user changes in the modal is saved back into the draft with `PUT /report-draft?path=<draft>` (a JSON object under 256 KB, only to `project.quest.report.draft` and only while it is `ready`): edited text in place, **Leave out** as `"hidden": true` on the item, the section checkboxes as `sections`, the Structure pick as `structure`, a ghost row's new item with `"added": true`, a row dragged to another priority, status or target group with `"keep": true`, **Show internal groundwork** as `showInternal`. Publish the draft as it is on disk: it is what the user read through. **Copy for Slack** copies it as plain text; **Rewrite the draft** asks for `report` again with the same cover.
 
 ## Security
 

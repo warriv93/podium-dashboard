@@ -884,6 +884,23 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rp-add.multi:hover { color: var(--faint); border-color: var(--line); background: none; }
 .rp-add.multi button { border: 0; background: var(--wash); border-radius: 999px; padding: 1px 10px; margin-left: 6px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; }
 .rp-add.multi button:hover { background: #0071e3; color: #fff; }
+.rp-grip { position: absolute; left: -16px; top: 5px; width: 14px; color: var(--faint); font-size: 12px; letter-spacing: -3px; cursor: grab; opacity: 0; user-select: none; }
+.rp-items li:hover .rp-grip { opacity: 1; }
+.rp-grip:active { cursor: grabbing; }
+.rp-empty { display: none; }
+.rp-paper.dragging .rp-empty { display: block; }
+.rp-paper.dragging .rp-items[data-report-drop] { min-height: 30px; border-radius: 8px; outline: 1px dashed transparent; transition: background .1s; }
+.rp-paper.dragging .rp-items[data-report-drop]:not(.rp-over) { outline-color: var(--line); }
+.rp-items.rp-over { background: #f0f6ff; outline: 2px solid #0071e3 !important; }
+.rp-drophint { color: var(--faint); font-size: 12px; justify-content: center; }
+.rs-restore .rbtn { display: flex; align-items: center; gap: 6px; }
+.rs-restore .rbtn small { color: var(--faint); font-weight: 400; }
+.rs-restore .chev { margin-left: auto; color: var(--faint); }
+.rs-menu { margin: -2px 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--card, #fff); box-shadow: 0 6px 20px rgba(0,0,0,.08); max-height: 260px; overflow: auto; padding: 4px; }
+.rs-menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; border: 0; background: none; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 12.5px; color: var(--text); text-align: left; cursor: pointer; }
+.rs-menu button:hover { background: #f0f6ff; }
+.rs-menu button small { color: var(--faint); font-size: 11px; }
+.rs-menu button.all { color: #0071e3; font-weight: 600; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; margin-top: 2px; }
 .rp-desc { margin: 3px 0 4px; font-size: 13px; line-height: 1.45; }
 .rp-new { font-size: 10px; font-weight: 700; color: #fff; background: #0071e3; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 .rp-out { display: none; position: absolute; right: 4px; top: 4px; border: 0; background: var(--wash); border-radius: 6px; color: var(--faint); cursor: pointer; font-size: 11px; padding: 1px 6px; }
@@ -3250,7 +3267,8 @@ function reportRow([x, path], bucket, mark, extra = "") {
   const toggle = folds ? `<button class="rp-fold${open ? " on" : ""}" data-report-fold="${esc(key)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} the details" title="${open ? "Hide" : "Show"} the details">›</button>` : `<span class="rp-fold none"></span>`;
   const more = open ? `<div class="rp-desc why">${reportEd([...path, "why"], x.why)}</div>` : "";
   const mk = path[0] === "tiers" ? `<button class="mk" data-report-bucket="${esc(key)}" title="Change: delivered, being worked on, not finished">${mark}</button>` : `<span class="mk">${mark}</span>`;
-  return `<li class="${bucket}">${mk}${toggle}<span class="t"><span class="rp-line">${x.role || x.added ? `<span class="rp-role">${reportEd([...path, "role"], x.role || "")}</span>` : ""}<b>${reportEd([...path, "head"], x.head)}</b>${x.isNew ? `<span class="rp-new">NEW</span>` : ""}${risk}${extra}</span>${more}</span><button class="rp-out" data-report-out="${esc(key)}" title="Leave out of this report">Leave out</button></li>`;
+  const grip = path[0] === "tiers" ? `<span class="rp-grip" draggable="true" data-report-drag="${esc(key)}" title="Drag to another priority or status" aria-hidden="true">⋮⋮</span>` : "";
+  return `<li class="${bucket}">${grip}${mk}${toggle}<span class="t"><span class="rp-line">${x.role || x.added ? `<span class="rp-role">${reportEd([...path, "role"], x.role || "")}</span>` : ""}<b>${reportEd([...path, "head"], x.head)}</b>${x.isNew ? `<span class="rp-new">NEW</span>` : ""}${risk}${extra}</span>${more}</span><button class="rp-out" data-report-out="${esc(key)}" title="Leave out of this report">Leave out</button></li>`;
 }
 const addRowButton = (path) => `<button class="rp-add" data-report-add="${esc(path.join("/"))}"><span>+</span>Add a row</button>`;
 const NEW_ROW = dict([["tiers", () => ({ bucket: "working" })], ["moved", () => ({})], ["apps", () => ({ platforms: { iOS: { state: "open" }, Android: { state: "open" } } })]]);
@@ -3272,6 +3290,24 @@ function addRow(path, preset = "") {
   renderReport(); saveReport();
   document.querySelector(`[data-redit="${row}/head"]`)?.focus?.();
 }
+function moveRow(from, spec) {
+  const d = S.report?.draft, [root, tier, idx] = String(from).split("/"), tiers = REPORT_TIERS.map(([t]) => t);
+  const src = d?.tiers?.[tier], i = Number(idx), to = spec && typeof spec === "object" ? spec : {};
+  if (root !== "tiers" || !tiers.includes(tier) || !Array.isArray(src) || !Number.isInteger(i) || !src[i] || typeof src[i] !== "object") return;
+  const target = to.t === undefined ? tier : to.t;
+  if (!tiers.includes(target) || (to.b !== undefined && !REPORT_BUCKETS.some(([b]) => b === to.b))) return;
+  const x = src[i];
+  if (target === tier && (to.b === undefined || to.b === reportBucket(x)) && (to.r === undefined || to.r === String(x.role || ""))) return;
+  src.splice(i, 1);
+  if (to.b !== undefined) x.bucket = to.b;
+  if (typeof to.r === "string") x.role = to.r;
+  x.keep = true;
+  if (!Array.isArray(d.tiers[target])) d.tiers[target] = [];
+  d.tiers[target].push(x);
+  S.reportOpen.clear();
+  renderReport(); saveReport();
+  toast(`Moved to ${[REPORT_TIERS.find(([t]) => t === target)[1].replace(/^[★☆]\s*/, ""), REPORT_BUCKETS.find(([b]) => b === reportBucket(x))[1]].join(" · ")}`);
+}
 function cycleBucket(path) {
   const x = reportAt(path);
   if (!x || typeof x !== "object" || Array.isArray(x)) return;
@@ -3279,13 +3315,15 @@ function cycleBucket(path) {
   x.bucket = order[(order.indexOf(reportBucket(x)) + 1) % order.length];
   renderReport(); saveReport();
 }
-function reportBuckets(rows, buckets, bucketOf, internal, extra = () => "", tail = dict()) {
+const dropAt = (spec) => ` data-report-drop="${esc(JSON.stringify(spec))}"`;
+const emptyDrop = (head, spec) => `<div class="rp-empty">${head}<ul class="rp-items rp-dropzone"${dropAt(spec)}><li class="rp-drophint">Drop here</li></ul></div>`;
+function reportBuckets(rows, buckets, bucketOf, internal, extra = () => "", tail = dict(), drop = null) {
   let html = "";
   for (const [b, name, mark] of buckets) {
     const all = rows.filter(([x]) => bucketOf(x) === b);
-    if (!all.length && !tail[b]) continue;
+    if (!all.length && !tail[b]) { if (drop) html += emptyDrop(`<div class="rp-bucket ${b}">${name} · 0</div>`, drop(b)); continue; }
     const folded = internal ? [] : all.filter(([x]) => x.internal), shown = byRole(internal ? all : all.filter(([x]) => !x.internal));
-    html += `<div class="rp-bucket ${b}">${name} · ${all.length}</div><ul class="rp-items">${shown.map((r) => reportRow(r, b, mark, extra(r[0]))).join("")}`
+    html += `<div class="rp-bucket ${b}">${name} · ${all.length}</div><ul class="rp-items"${drop ? dropAt(drop(b)) : ""}>${shown.map((r) => reportRow(r, b, mark, extra(r[0]))).join("")}`
       + (folded.length ? `<li class="${b}"><span class="mk">${mark}</span><span class="t why">Plus ${folded.length} ${folded.length === 1 ? "piece" : "pieces"} of internal groundwork the features above stand on.</span></li>` : "")
       + (tail[b] || "") + `</ul>`;
   }
@@ -3316,10 +3354,10 @@ function reportGrouped(d, has) {
     html += `<h2 class="rp-title ${byStatus ? key : "role"}">${byStatus ? `<span class="rp-ic">${BUCKET_MARK[key]}</span>` : ""}<span>${esc(name)}</span><span class="tally">${tally}</span></h2>`;
     if (!byStatus || key !== "done") html += blockerLine(mine.filter(([x]) => reportBucket(x) !== "done"));
     for (const [ik, iname, inInner] of inner) {
-      const all = mine.filter(([x, path]) => inInner(x, path));
-      if (!all.length) continue;
+      const all = mine.filter(([x, path]) => inInner(x, path)), spec = byStatus ? { t: ik, b: key } : { b: ik, r: key };
+      if (!all.length) { html += emptyDrop(`<div class="rp-sub ${byStatus ? "tier" : ik}">${esc(iname)}<span>0</span></div>`, spec); continue; }
       const folded = d.showInternal ? [] : all.filter(([x]) => x.internal), shown = byRole(d.showInternal ? all : all.filter(([x]) => !x.internal));
-      html += `<div class="rp-sub ${byStatus ? "tier" : ik}">${esc(iname)}<span>${all.length}</span></div><ul class="rp-items">${shown.map((r) => reportRow(r, reportBucket(r[0]), BUCKET_MARK[reportBucket(r[0])])).join("")}`
+      html += `<div class="rp-sub ${byStatus ? "tier" : ik}">${esc(iname)}<span>${all.length}</span></div><ul class="rp-items"${dropAt(spec)}>${shown.map((r) => reportRow(r, reportBucket(r[0]), BUCKET_MARK[reportBucket(r[0])])).join("")}`
         + (folded.length ? `<li class="${byStatus ? key : ik}"><span class="mk">${byStatus ? BUCKET_MARK[key] : BUCKET_MARK[ik]}</span><span class="t why">Plus ${folded.length} ${folded.length === 1 ? "piece" : "pieces"} of internal groundwork the features above stand on.</span></li>` : "") + `</ul>`;
     }
     if (byStatus && key === "done") {
@@ -3334,7 +3372,7 @@ function reportTier(d, tier, label) {
   const rows = shownRows(d.tiers?.[tier], ["tiers", tier]);
   const unfinished = rows.filter(([x]) => reportBucket(x) !== "done");
   let html = `<h3><span class="rp-prio ${tier}">${label}</span><span class="tally">${rows.length - unfinished.length} of ${rows.length} delivered</span></h3>` + blockerLine(unfinished);
-  html += reportBuckets(rows, REPORT_BUCKETS, reportBucket, !!d.showInternal) + addRowButton(["tiers", tier]);
+  html += reportBuckets(rows, REPORT_BUCKETS, reportBucket, !!d.showInternal, () => "", dict(), (b) => ({ t: tier, b })) + addRowButton(["tiers", tier]);
   const earlier = Math.max(0, Math.floor(num(d.earlier?.[tier])));
   if (earlier && dayLabel(d.cover?.from)) html += `<div class="rp-more">and ${earlier} delivered before ${esc(dayLabel(d.cover.from))}</div>`;
   return html;
@@ -3505,14 +3543,14 @@ function renderReport() {
   }[state]);
   const counts = (t) => shownRows(d?.tiers?.[t], ["tiers", t]).length;
   const secs = d ? reportSections(d) : [];
-  const left = d ? [...REPORT_TIERS.map(([t]) => d.tiers?.[t]), d.moved, d.stats, d.asks, d.answers, d.apps?.items, d.apps?.open].flatMap(objs).filter((x) => x.hidden).length : 0;
+  const left = d ? leftOut(d) : [];
   const published = r?.status === "published", url = published ? safeUrl(r.url) : "";
   const side = d ? `<h4>Covers</h4><div class="rs-cover"><b>${esc(d.cover?.label || (d.cover?.from ? `From ${dayLabel(d.cover.from)}` : "The whole quest"))}</b><button class="rlink" data-report-new>Change</button></div>${last ? `<div class="note">Last report: ${esc(last.name || "")}${dayLabel(last.publishedAt) ? `, ${esc(dayLabel(last.publishedAt))}` : ""}. New items since then are marked.</div>` : ""}`
     + `<h4>Structure</h4><div class="rs-structure">${REPORT_STRUCTURES.map(([k, label, note], i) => `<button data-report-structure="${k}" title="${esc(note)}"${reportStructure(d) === k ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}><span>${i + 1}</span>${label}</button>`).join("")}</div><div class="note">${esc(REPORT_STRUCTURES.find(([k]) => k === reportStructure(d))[2])}.</div>`
     + `<h4>Sections</h4>${REPORT_SECTIONS.map(([k, label]) => `<label><input type="checkbox" data-report-sec="${k}"${secs.includes(k) ? " checked" : ""}>${label}${["must", "should", "nice"].includes(k) ? ` <small>${counts(k)}</small>` : ""}</label>`).join("")}`
     + `<h4>Unfinished work is tagged</h4><div class="rlegend"><span><span class="rp-risk blocks">Blocks …</span> a launch or a launch step</span><span><span class="rp-risk waits">Waits on …</span> another team or system</span><span><span class="rp-risk later">Can ship without</span> next quest, parked</span></div>`
     + `<h4>Detail</h4><label><input type="checkbox" data-report-allopen${S.reportAllOpen ? " checked" : ""}>Open every row's details</label><label><input type="checkbox" data-report-internal${d.showInternal ? " checked" : ""}>Show internal groundwork</label><div class="note">Sign-in, roles, config and refactors fold into one line by default.</div>`
-    + `<h4>Draft</h4><div class="note">Written by Claude from each milestone's brief and PRs, in product terms. Click any sentence to change it; hover a line to leave it out. Edits are saved with the draft.</div>${left ? `<button class="rbtn wide" data-report-restore>Put back ${left} left out</button>` : ""}<button class="rbtn wide" data-report-rewrite>↻ Rewrite the draft</button>`
+    + `<h4>Draft</h4><div class="note">Written by Claude from each milestone's brief and PRs, in product terms. Click any sentence to change it; hover a line to leave it out. Edits are saved with the draft.</div>${left.length ? `<div class="rs-restore"><button class="rbtn wide" data-report-restore-menu aria-expanded="${!!S.reportRestoreOpen}">Put back… <small>${left.length} left out</small><span class="chev">${S.reportRestoreOpen ? "▴" : "▾"}</span></button>${S.reportRestoreOpen ? `<div class="rs-menu">${left.map(([path, label, where]) => `<button data-report-restore-one="${esc(path)}"><span>${esc(label)}</span><small>${esc(where)}</small></button>`).join("")}${left.length > 1 ? `<button class="all" data-report-restore>Put back all ${left.length}</button>` : ""}</div>` : ""}</div>` : ""}<button class="rbtn wide" data-report-rewrite>↻ Rewrite the draft</button>`
     : `<div class="note">The draft shows here once Claude has written it.</div>`;
   const foot = d ? `<label class="rconfirm"><input type="checkbox" data-report-ok${S.report.ok ? " checked" : ""}${published ? " disabled" : ""}>I've read it through</label><span class="rdest">→ <code>Development › Quests › ${esc(S.project?.project?.title || "")} › ${esc(name)}</code></span><span class="sp"></span><button class="rbtn" data-report-copy>Copy for Slack</button>`
     + (published ? (url ? `<a class="rbtn primary" href="${esc(url)}" target="_blank" rel="noopener">Published ↗</a>` : `<button class="rbtn primary" disabled>Published</button>`) : `<button class="rbtn primary" data-report-publish${S.report.ok && r?.status === "ready" ? "" : " disabled"}>Publish to Outline</button>`)
@@ -3550,10 +3588,27 @@ function leaveOut(path) {
   renderReport(); saveReport();
   toast("Left out of this report");
 }
+const LEFT_OUT_PLACES = [...REPORT_TIERS.map(([t, label]) => [["tiers", t], label.replace(/^[★☆]\s*/, "")]), [["moved"], "Moved"], [["stats"], "Numbers"], [["asks"], "Decisions"], [["answers"], "Answers"], [["apps", "items"], "App teams"], [["apps", "open"], "App teams"]];
+function leftOut(d) {
+  return LEFT_OUT_PLACES.flatMap(([path, where]) => {
+    const arr = path.reduce((o, k) => (o && typeof o === "object" && Object.hasOwn(o, k) ? o[k] : null), d);
+    return Array.isArray(arr) ? arr.map((x, i) => [x, i]).filter(([x]) => x && typeof x === "object" && x.hidden && !(x.added && !x.head))
+      .map(([x, i]) => [[...path, i].join("/"), String(x.head || x.question || [x.n, x.label].filter(Boolean).join(" ") || "Untitled row"), where]) : [];
+  });
+}
+function restoreOne(path) {
+  const x = reportAt(path);
+  if (!x || typeof x !== "object" || Array.isArray(x)) return;
+  delete x.hidden;
+  if (!leftOut(S.report.draft).length) S.reportRestoreOpen = false;
+  renderReport(); saveReport();
+  toast("Put back in the report");
+}
 function restoreReport() {
+  S.reportRestoreOpen = false;
   const d = S.report?.draft;
   if (!d) return;
-  for (const x of [...REPORT_TIERS.map(([t]) => d.tiers?.[t]), d.moved, d.stats, d.asks, d.answers, d.apps?.items, d.apps?.open].flatMap(objs)) delete x.hidden;
+  for (const x of [...REPORT_TIERS.map(([t]) => d.tiers?.[t]), d.moved, d.stats, d.asks, d.answers, d.apps?.items, d.apps?.open].flatMap(objs)) if (!(x.added && !x.head)) delete x.hidden;
   renderReport(); saveReport();
 }
 function setReportSection(key, on) {
@@ -3811,6 +3866,9 @@ document.addEventListener("click", (ev) => {
   const rout = ev.target.closest("[data-report-out]");
   if (rout) { leaveOut(rout.dataset.reportOut); return; }
   if (ev.target.closest("[data-report-restore]")) { restoreReport(); return; }
+  if (ev.target.closest("[data-report-restore-menu]")) { S.reportRestoreOpen = !S.reportRestoreOpen; renderReport(); return; }
+  const rone = ev.target.closest("[data-report-restore-one]");
+  if (rone) { restoreOne(rone.dataset.reportRestoreOne); return; }
   if (ev.target.closest("[data-report-rewrite]")) { rewriteReport(); return; }
   if (ev.target.closest("[data-report-copy]")) { if (S.report?.draft) copyText(reportText(S.report.draft), "Copied as text, ready for Slack"); return; }
   if (ev.target.closest("[data-report-publish]")) { reportPost("/report-publish", "Publishing: the orchestrator puts it in Outline and links it on the quest tile"); return; }
@@ -3945,6 +4003,38 @@ document.addEventListener("change", (ev) => {
   else if (t.dataset?.reportAllopen !== undefined) { S.reportAllOpen = t.checked; S.reportOpen.clear(); renderReport(); }
   else if (t.dataset?.reportInternal !== undefined && S.report?.draft) { S.report.draft.showInternal = t.checked; renderReport(); saveReport(); }
   else if (t.dataset?.reportOk !== undefined && S.report) { S.report.ok = t.checked; renderReport(); }
+});
+document.addEventListener("dragstart", (ev) => {
+  const grip = ev.target.closest?.("[data-report-drag]");
+  if (!grip) return;
+  S.reportDrag = grip.dataset.reportDrag;
+  ev.dataTransfer.effectAllowed = "move";
+  ev.dataTransfer.setData("text/plain", S.reportDrag);
+  const li = grip.closest("li");
+  if (li) ev.dataTransfer.setDragImage(li, 12, 12);
+  setTimeout(() => document.querySelector(".rp-paper")?.classList.add("dragging"));
+});
+document.addEventListener("dragover", (ev) => {
+  const zone = S.reportDrag && ev.target.closest?.("[data-report-drop]");
+  if (!zone) return;
+  ev.preventDefault();
+  document.querySelectorAll(".rp-over").forEach((z) => z !== zone && z.classList.remove("rp-over"));
+  zone.classList.add("rp-over");
+});
+document.addEventListener("drop", (ev) => {
+  const zone = S.reportDrag && ev.target.closest?.("[data-report-drop]");
+  if (!zone) return;
+  ev.preventDefault();
+  let spec = null;
+  try { spec = JSON.parse(zone.dataset.reportDrop); } catch { spec = null; }
+  const from = S.reportDrag;
+  S.reportDrag = null;
+  moveRow(from, spec);
+});
+document.addEventListener("dragend", () => {
+  S.reportDrag = null;
+  document.querySelector(".rp-paper")?.classList.remove("dragging");
+  document.querySelectorAll(".rp-over").forEach((z) => z.classList.remove("rp-over"));
 });
 document.addEventListener("focusout", (ev) => {
   const path = ev.target.dataset?.redit;

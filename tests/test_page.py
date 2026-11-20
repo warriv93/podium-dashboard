@@ -1293,7 +1293,7 @@ class HostileRun(unittest.TestCase):
         self.assertGreater(modal.count(esc(X)), 25)
         for level in re.findall(r'class="rp-risk ([^"]*)"', modal):
             self.assertIn(level, ("blocks", "waits", "later"))
-        self.assertEqual(set(re.findall(r'<li class="([^"]*)"', modal)), {"open", "moved", "working", "done"})
+        self.assertEqual(set(re.findall(r'<li class="([^"]*)"', modal)), {"open", "moved", "working", "done", "rp-drophint"})
 
     def test_a_banner_image_shows_from_a_run_path_or_https_and_never_from_elsewhere(self):
         for image, src in (("reports/img/admin.png", "/reports/img/admin.png"), ("https://cdn.example/a.png", "https://cdn.example/a.png"),
@@ -1378,7 +1378,7 @@ class HostileRun(unittest.TestCase):
     def test_the_report_lists_by_status_by_default_delivered_first_with_each_priority_inside(self):
         page = self.structured()
         self.assertEqual(re.findall(r'<h2 class="rp-title ([a-z]+)">', page), ["done", "working", "open"])
-        delivered = page.split('rp-title done')[1].split('rp-title working')[0]
+        delivered = re.sub(r'<div class="rp-empty">.*?</ul></div>', "", page.split('rp-title done')[1].split('rp-title working')[0])
         self.assertEqual(re.findall(r'<div class="rp-sub tier">([^<]*)<span>(\d+)</span></div>', delivered), [("★ Must have", "1"), ("☆ Should have", "1")])
         self.assertNotIn("rp-riskline", delivered)
         self.assertIn('<b class="blocks">Blocks a launch step:</b> m-open', page.split('rp-title open')[1])
@@ -1401,6 +1401,39 @@ class HostileRun(unittest.TestCase):
         self.maps(probe='''(() => { S.report = { draft: { tiers: {} } }; addRow("tiers/should", "bucket:done"); addRow("tiers/must", "role:Driver"); addRow("tiers/nice", "bucket:" + "nope");
             const t = S.report.draft.tiers; return [t.should[0].bucket, t.must[0].role, t.must[0].bucket, t.nice[0].bucket]; })()''')
         self.assertEqual(self.probe(), ["done", "Driver", "working", "working"])
+
+    def test_tier_rows_carry_a_drag_grip_and_every_group_is_a_drop_target_empty_ones_too(self):
+        page = self.structured()
+        self.assertIn('<span class="rp-grip" draggable="true" data-report-drag="tiers/must/0"', page)
+        self.assertIn('data-report-drop="{&quot;t&quot;:&quot;must&quot;,&quot;b&quot;:&quot;done&quot;}"', page)
+        self.assertIn('<div class="rp-empty"><div class="rp-sub tier">☆ Should have<span>0</span></div><ul class="rp-items rp-dropzone" data-report-drop="{&quot;t&quot;:&quot;should&quot;,&quot;b&quot;:&quot;open&quot;}">', page)
+        self.assertIn('data-report-drop="{&quot;t&quot;:&quot;must&quot;,&quot;b&quot;:&quot;working&quot;}"', self.structured("priority"))
+        self.assertIn('data-report-drop="{&quot;b&quot;:&quot;done&quot;,&quot;r&quot;:&quot;Driver&quot;}"', self.structured("group"))
+
+    def test_dropping_a_row_moves_it_to_that_priority_status_or_group_and_keeps_it_there_on_a_rewrite(self):
+        self.maps(probe='''(() => { const draft = () => ({ tiers: { must: [{ bucket: "done", head: "a", role: "Driver" }, { bucket: "open", head: "b" }], nice: [{ bucket: "done", head: "r6" }] } });
+            const run = (from, spec) => { S.report = { draft: draft() }; moveRow(from, spec); return S.report.draft.tiers; };
+            return [run("tiers/nice/0", { t: "must", b: "done" }), run("tiers/must/1", { t: "should", b: "working" }), run("tiers/must/0", { b: "open", r: "Marketing" }),
+                    run("tiers/must/0", { t: "must", b: "done" }), run("tiers/must/9", { t: "must" }), run("tiers/must/0", { t: "__proto__" }), run("tiers/must/0", { b: "nope" }), run("banner/x/0", { t: "must" })]; })()''')
+        to_must, to_should, regroup, same, *refused = self.probe()
+        self.assertEqual(to_must["must"][-1], {"bucket": "done", "head": "r6", "keep": True})
+        self.assertEqual(to_must["nice"], [])
+        self.assertEqual(to_should["should"], [{"bucket": "working", "head": "b", "keep": True}])
+        self.assertEqual(regroup["must"][-1], {"bucket": "open", "head": "a", "role": "Marketing", "keep": True})
+        original = {"must": [{"bucket": "done", "head": "a", "role": "Driver"}, {"bucket": "open", "head": "b"}], "nice": [{"bucket": "done", "head": "r6"}]}
+        self.assertEqual(same, original)
+        for r in refused:
+            self.assertEqual(r, original)
+
+    def test_put_back_lists_each_left_out_row_by_name_and_restores_one_or_all(self):
+        self.maps(probe='''(() => { S.report = { draft: { tiers: { must: [{ head: "a", hidden: true }, { head: "b" }, { head: "", added: true, hidden: true }] },
+            asks: [{ question: "q?", hidden: true }], stats: [{ n: "9", label: "done", hidden: true }], apps: { items: [{ head: "app", hidden: true }] } } };
+            const before = leftOut(S.report.draft); restoreOne("tiers/must/0"); const after = leftOut(S.report.draft).map(([p]) => p);
+            restoreOne("__proto__/x"); restoreReport(); return [before, after, leftOut(S.report.draft)]; })()''')
+        before, after, end = self.probe()
+        self.assertEqual(before, [["tiers/must/0", "a", "Must have"], ["stats/0", "9 done", "Numbers"], ["asks/0", "q?", "Decisions"], ["apps/items/0", "app", "App teams"]])
+        self.assertEqual(after, ["stats/0", "asks/0", "apps/items/0"])
+        self.assertEqual(end, [])
 
     def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
         t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
