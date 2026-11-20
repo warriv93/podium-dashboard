@@ -871,11 +871,15 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rs-structure button span { width: 18px; height: 18px; border-radius: 50%; background: var(--wash); color: var(--muted); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
 .rs-structure button.on { border-color: #0071e3; background: #f7fbff; color: #0071e3; }
 .rs-structure button.on span { background: #0071e3; color: #fff; }
-.rp-prio.st.done { background: #e9f6ec; color: #248a3d; }
-.rp-prio.st.working { background: #e8f1fc; color: #0071e3; }
-.rp-prio.st.open { background: #fff4e5; color: #b25000; }
-.rp-prio.role { background: var(--wash); color: var(--text); }
-.rp-bucket.tier { color: var(--muted); }
+.rp-title { display: flex; align-items: center; gap: 10px; margin: 30px 0 4px; padding: 0 0 8px; font-size: 21px; font-weight: 700; letter-spacing: -.01em; border-bottom: 2px solid var(--line); }
+.rp-title .tally { margin-left: auto; font-size: 13px; font-weight: 500; color: var(--faint); letter-spacing: 0; }
+.rp-title .rp-ic { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; flex: none; }
+.rp-title.done { border-color: #248a3d; } .rp-title.done .rp-ic { background: #e9f6ec; color: #248a3d; }
+.rp-title.working { border-color: #0071e3; } .rp-title.working .rp-ic { background: #e8f1fc; color: #0071e3; }
+.rp-title.open { border-color: #b25000; } .rp-title.open .rp-ic { background: #fff4e5; color: #b25000; }
+.rp-sub { display: flex; align-items: baseline; gap: 6px; margin: 14px 0 4px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.rp-sub span { font-size: 12px; font-weight: 500; color: var(--faint); }
+.rp-sub.done { color: #248a3d; } .rp-sub.working { color: #0071e3; } .rp-sub.open { color: #b25000; }
 .rp-add.multi { cursor: default; }
 .rp-add.multi:hover { color: var(--faint); border-color: var(--line); background: none; }
 .rp-add.multi button { border: 0; background: var(--wash); border-radius: 999px; padding: 1px 10px; margin-left: 6px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; }
@@ -3308,13 +3312,14 @@ function reportGrouped(d, has) {
     const mine = rows.filter(([x]) => inOuter(x));
     if (!mine.length && !byStatus) continue;
     const done = mine.filter(([x]) => reportBucket(x) === "done").length;
-    html += `<h3><span class="rp-prio ${byStatus ? `st ${key}` : "role"}">${esc(name)}</span><span class="tally">${byStatus ? mine.length : `${done} of ${mine.length} delivered`}</span></h3>`;
+    const tally = byStatus ? `${mine.length} ${mine.length === 1 ? "item" : "items"}` : `${done} of ${mine.length} delivered`;
+    html += `<h2 class="rp-title ${byStatus ? key : "role"}">${byStatus ? `<span class="rp-ic">${BUCKET_MARK[key]}</span>` : ""}<span>${esc(name)}</span><span class="tally">${tally}</span></h2>`;
     if (!byStatus || key !== "done") html += blockerLine(mine.filter(([x]) => reportBucket(x) !== "done"));
     for (const [ik, iname, inInner] of inner) {
       const all = mine.filter(([x, path]) => inInner(x, path));
       if (!all.length) continue;
       const folded = d.showInternal ? [] : all.filter(([x]) => x.internal), shown = byRole(d.showInternal ? all : all.filter(([x]) => !x.internal));
-      html += `<div class="rp-bucket ${byStatus ? "tier" : ik}">${esc(iname)} · ${all.length}</div><ul class="rp-items">${shown.map((r) => reportRow(r, reportBucket(r[0]), BUCKET_MARK[reportBucket(r[0])])).join("")}`
+      html += `<div class="rp-sub ${byStatus ? "tier" : ik}">${esc(iname)}<span>${all.length}</span></div><ul class="rp-items">${shown.map((r) => reportRow(r, reportBucket(r[0]), BUCKET_MARK[reportBucket(r[0])])).join("")}`
         + (folded.length ? `<li class="${byStatus ? key : ik}"><span class="mk">${byStatus ? BUCKET_MARK[key] : BUCKET_MARK[ik]}</span><span class="t why">Plus ${folded.length} ${folded.length === 1 ? "piece" : "pieces"} of internal groundwork the features above stand on.</span></li>` : "") + `</ul>`;
     }
     if (byStatus && key === "done") {

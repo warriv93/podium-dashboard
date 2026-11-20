@@ -1377,18 +1377,18 @@ class HostileRun(unittest.TestCase):
 
     def test_the_report_lists_by_status_by_default_delivered_first_with_each_priority_inside(self):
         page = self.structured()
-        self.assertEqual(re.findall(r'<span class="rp-prio st ([a-z]+)">', page), ["done", "working", "open"])
-        delivered = page.split('rp-prio st done')[1].split('rp-prio st working')[0]
-        self.assertEqual(re.findall(r'<div class="rp-bucket tier">([^<]*)</div>', delivered), ["★ Must have · 1", "☆ Should have · 1"])
+        self.assertEqual(re.findall(r'<h2 class="rp-title ([a-z]+)">', page), ["done", "working", "open"])
+        delivered = page.split('rp-title done')[1].split('rp-title working')[0]
+        self.assertEqual(re.findall(r'<div class="rp-sub tier">([^<]*)<span>(\d+)</span></div>', delivered), [("★ Must have", "1"), ("☆ Should have", "1")])
         self.assertNotIn("rp-riskline", delivered)
-        self.assertIn('<b class="blocks">Blocks a launch step:</b> m-open', page.split('rp-prio st open')[1])
+        self.assertIn('<b class="blocks">Blocks a launch step:</b> m-open', page.split('rp-title open')[1])
         self.assertIn('<button data-report-add="tiers/must" data-report-with="bucket:open">Must have</button>', page)
         self.assertEqual(self.structured(structure=X), page)
 
     def test_the_report_lists_by_priority_or_by_target_group_when_picked(self):
         self.assertEqual(re.findall(r'<span class="rp-prio (must|should|nice)">', self.structured("priority")), ["must", "should", "nice"])
         group = self.structured("group")
-        self.assertEqual(re.findall(r'<span class="rp-prio role">([^<]*)</span>', group), ["Driver", "Marketing", esc(X)])
+        self.assertEqual(re.findall(r'<h2 class="rp-title role"><span>([^<]*)</span>', group), ["Driver", "Marketing", esc(X)])
         self.assertIn('<span class="tally">1 of 2 delivered</span>', group)
         self.assertIn(f'data-report-with="role:{esc(X)}"', group)
 
