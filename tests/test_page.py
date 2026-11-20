@@ -1251,7 +1251,7 @@ class HostileRun(unittest.TestCase):
 
     HOSTILE_ITEM = {"id": X, "bucket": X, "role": X, "head": X, "why": X, "isNew": True, "risk": {"level": X, "text": X}}
     HOSTILE_DRAFT = {
-        "name": X, "kind": X, "writtenAt": X, "cover": {"from": X, "label": X}, "sections": X,
+        "name": X, "kind": X, "writtenAt": X, "cover": {"from": X, "label": X}, "sections": X, "groundworkLine": True,
         "banner": {"title": X, "lede": X, "image": JS, "testUrl": JS, "testLabel": X},
         "stats": [{"n": X, "label": X}, X],
         "tiers": {"must": [HOSTILE_ITEM, {**HOSTILE_ITEM, "bucket": "open", "risk": {"level": "blocks", "text": X}}, X, None],
@@ -1302,8 +1302,8 @@ class HostileRun(unittest.TestCase):
             modal, _ = self.report_modal({"name": "n", "kind": "sync", "tiers": {}, "banner": {"title": "t", "image": image}})
             self.assertEqual((re.search(r'<img class="rp-shot" src="([^"]*)"', modal) or [None, None])[1], src, image)
 
-    def tier(self, items, show_internal=False):
-        draft = {"name": "n", "kind": "sync", "tiers": {"must": items}, "showInternal": show_internal}
+    def tier(self, items, show_internal=False, **extra):
+        draft = {"name": "n", "kind": "sync", "tiers": {"must": items}, "showInternal": show_internal, **extra}
         self.maps(probe=f'reportTier({json.dumps(draft)}, "must", "★ Must have")')
         return self.probe()
 
@@ -1450,9 +1450,14 @@ class HostileRun(unittest.TestCase):
         t = self.tier(items)
         self.assertIn(">kept<", t)
         self.assertNotIn("gone", t)
-        self.assertNotIn(">inner<", t)
-        self.assertIn("Plus 2 pieces of internal groundwork", t)
-        self.assertIn("Delivered · 3", t)
+        self.assertNotIn("inner", t)
+        self.assertNotIn("Plus 2", t)
+        self.assertIn("Delivered · 1", t)
+        self.assertIn('<span class="tally">1 of 1 delivered</span>', t)
+        line = self.tier(items, groundworkLine=True)
+        self.assertNotIn(">inner<", line)
+        self.assertIn("Plus 2 pieces of internal groundwork", line)
+        self.assertIn("Delivered · 3", line)
         shown = self.tier(items, show_internal=True)
         self.assertIn(">inner<", shown)
         self.assertNotIn("Plus 2", shown)
