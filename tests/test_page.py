@@ -1339,6 +1339,33 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("<i id=", one)
         self.assertEqual(self.details("S.reportAllOpen = true").count('<div class="rp-desc why">'), 1)
 
+    def test_each_section_ends_in_a_ghost_row_that_adds_an_empty_row_open_for_editing(self):
+        self.assertIn('<button class="rp-add" data-report-add="tiers/must"><span>+</span>Add a row</button>', self.tier([]))
+        draft = {"name": "n", "kind": "sync", "tiers": {"must": [{"bucket": "done", "head": "h"}]}, "moved": [{"head": "m"}], "apps": {"items": []}}
+        self.maps(probe=f'''(() => {{ S.report = {{ draft: {json.dumps(draft)} }}; addRow("tiers/must"); addRow("tiers/nice"); addRow("moved"); addRow("apps/items");
+            addRow("__proto__/x"); addRow("banner"); const d = S.report.draft;
+            return [d.tiers.must[1], d.tiers.nice[0], d.moved[1], d.apps.items[0], [...S.reportOpen], ({{}}).x === undefined, d.banner]; }})()''')
+        must, nice, moved, app, opened, clean, banner = self.probe()
+        self.assertEqual(must, {"bucket": "working", "role": "", "head": "", "why": "", "added": True})
+        self.assertEqual(nice["bucket"], "working")
+        self.assertEqual(moved, {"role": "", "head": "", "why": "", "added": True})
+        self.assertEqual(app["platforms"], {"iOS": {"state": "open"}, "Android": {"state": "open"}})
+        self.assertEqual(opened, ["tiers/must/1", "tiers/nice/0", "moved/1", "apps/items/0"])
+        self.assertTrue(clean)
+        self.assertIsNone(banner)
+
+    def test_an_added_row_shows_its_empty_role_and_details_ready_to_type_into(self):
+        self.maps(probe='(() => { S.reportOpen.add("tiers/must/0"); return reportTier({"name": "n", "tiers": {"must": [{"bucket": "working", "role": "", "head": "", "why": "", "added": true}]}}, "must", "M"); })()')
+        t = self.probe()
+        self.assertIn('<span class="rp-role"><span contenteditable="true" data-redit="tiers/must/0/role"></span></span>', t)
+        self.assertIn('<div class="rp-desc why"><span contenteditable="true" data-redit="tiers/must/0/why"></span></div>', t)
+
+    def test_clicking_a_rows_mark_moves_it_delivered_then_worked_on_then_unfinished_and_round_again(self):
+        self.assertIn('<button class="mk" data-report-bucket="tiers/must/0"', self.tier([{"bucket": "done", "head": "h"}]))
+        self.maps(probe='''(() => { S.report = { draft: { tiers: { must: [{ bucket: "done", head: "h" }] } } }; const seen = [];
+            for (let i = 0; i < 3; i++) { cycleBucket("tiers/must/0"); seen.push(S.report.draft.tiers.must[0].bucket); } return seen; })()''')
+        self.assertEqual(self.probe(), ["working", "open", "done"])
+
     def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
         t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
                        {"bucket": "done", "head": "d2", "role": "Admin"}, {"bucket": "done", "head": "d3", "role": "Driver"},

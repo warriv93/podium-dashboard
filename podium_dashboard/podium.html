@@ -858,6 +858,14 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rp-fold:hover { background: var(--wash); color: var(--text); }
 .rp-fold.on { transform: rotate(90deg); }
 .rp-fold.none { visibility: hidden; }
+.rp-add { display: flex; align-items: center; gap: 8px; width: 100%; margin: 2px 0 8px; padding: 6px; border: 1px dashed var(--line); border-radius: 6px; background: none; color: var(--faint); font: inherit; font-size: 13px; text-align: left; cursor: pointer; opacity: .7; }
+.rp-add span { width: 16px; text-align: center; font-weight: 600; }
+.rp-add:hover { opacity: 1; color: #0071e3; border-color: #0071e3; background: #f7fbff; }
+.rp-items button.mk { border: 0; background: none; padding: 0; font: inherit; cursor: pointer; border-radius: 4px; }
+.rp-items button.mk:hover { background: var(--wash); }
+.rp-paper [data-redit$="/head"]:empty::before { content: "Should be able to …"; color: var(--faint); font-weight: 400; }
+.rp-paper [data-redit$="/role"]:empty::before { content: "Who"; }
+.rp-paper [data-redit$="/why"]:empty::before { content: "What they gain, or what is left"; color: var(--faint); }
 .rp-desc { margin: 3px 0 4px; font-size: 13px; line-height: 1.45; }
 .rp-new { font-size: 10px; font-weight: 700; color: #fff; background: #0071e3; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 .rp-out { display: none; position: absolute; right: 4px; top: 4px; border: 0; background: var(--wash); border-radius: 6px; color: var(--faint); cursor: pointer; font-size: 11px; padding: 1px 6px; }
@@ -3185,7 +3193,7 @@ const APP_BUCKETS = [["done", "Live", "✓"], ["working", "Built, behind a switc
 const ROLE_ORDER = ["Driver", "Marketing", "Support", "Admin", "Staff"];
 const RISK_TEXT = dict([["blocks", "Blocks a launch step"], ["waits", "Waits on others"], ["later", "Can ship without"]]);
 const PLATFORM_MARK = dict([["done", "✓"], ["flag", "◐"], ["open", "○"], ["none", "–"]]);
-const REPORT_EDITABLE = new Set(["head", "why", "answer", "question", "title", "lede", "groundwork", "n", "label"]);
+const REPORT_EDITABLE = new Set(["role", "head", "why", "answer", "question", "title", "lede", "groundwork", "n", "label"]);
 const objs = (x) => (Array.isArray(x) ? x.filter((y) => y && typeof y === "object" && !Array.isArray(y)) : []);
 const reportOf = (q) => (q?.report && typeof q.report === "object" && !Array.isArray(q.report) ? q.report : null);
 const lastReport = (q) => objs(q?.reports).reduce((a, x) => (!a || String(x.publishedAt || "") >= String(a.publishedAt || "") ? x : a), null);
@@ -3220,10 +3228,35 @@ function reportComments(q) {
 
 function reportRow([x, path], bucket, mark, extra = "") {
   const risk = bucket !== "done" && RISK_TEXT[x.risk?.level] ? `<span class="rp-risk ${x.risk.level}">${esc(x.risk.text || RISK_TEXT[x.risk.level])}</span>` : "";
-  const key = path.join("/"), open = !!x.why && (S.reportAllOpen || S.reportOpen.has(key));
-  const toggle = x.why ? `<button class="rp-fold${open ? " on" : ""}" data-report-fold="${esc(key)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} the details" title="${open ? "Hide" : "Show"} the details">›</button>` : `<span class="rp-fold none"></span>`;
+  const key = path.join("/"), folds = !!x.why || !!x.added, open = folds && (S.reportAllOpen || S.reportOpen.has(key));
+  const toggle = folds ? `<button class="rp-fold${open ? " on" : ""}" data-report-fold="${esc(key)}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} the details" title="${open ? "Hide" : "Show"} the details">›</button>` : `<span class="rp-fold none"></span>`;
   const more = open ? `<div class="rp-desc why">${reportEd([...path, "why"], x.why)}</div>` : "";
-  return `<li class="${bucket}"><span class="mk">${mark}</span>${toggle}<span class="t"><span class="rp-line">${x.role ? `<span class="rp-role">${esc(x.role)}</span>` : ""}<b>${reportEd([...path, "head"], x.head)}</b>${x.isNew ? `<span class="rp-new">NEW</span>` : ""}${risk}${extra}</span>${more}</span><button class="rp-out" data-report-out="${esc(key)}" title="Leave out of this report">Leave out</button></li>`;
+  const mk = path[0] === "tiers" ? `<button class="mk" data-report-bucket="${esc(key)}" title="Change: delivered, being worked on, not finished">${mark}</button>` : `<span class="mk">${mark}</span>`;
+  return `<li class="${bucket}">${mk}${toggle}<span class="t"><span class="rp-line">${x.role || x.added ? `<span class="rp-role">${reportEd([...path, "role"], x.role || "")}</span>` : ""}<b>${reportEd([...path, "head"], x.head)}</b>${x.isNew ? `<span class="rp-new">NEW</span>` : ""}${risk}${extra}</span>${more}</span><button class="rp-out" data-report-out="${esc(key)}" title="Leave out of this report">Leave out</button></li>`;
+}
+const addRowButton = (path) => `<button class="rp-add" data-report-add="${esc(path.join("/"))}"><span>+</span>Add a row</button>`;
+const NEW_ROW = dict([["tiers", () => ({ bucket: "working" })], ["moved", () => ({})], ["apps", () => ({ platforms: { iOS: { state: "open" }, Android: { state: "open" } } })]]);
+function addRow(path) {
+  const d = S.report?.draft, keys = String(path).split("/"), make = NEW_ROW[keys[0]];
+  if (!d || !make || keys.some((k) => k === "__proto__" || k === "constructor" || k === "prototype")) return;
+  let parent = d;
+  for (const k of keys.slice(0, -1)) {
+    if (!parent[k] || typeof parent[k] !== "object" || Array.isArray(parent[k])) parent[k] = {};
+    parent = parent[k];
+  }
+  const last = keys[keys.length - 1];
+  if (!Array.isArray(parent[last])) parent[last] = [];
+  const i = parent[last].push({ ...make(), role: "", head: "", why: "", added: true }) - 1, row = `${path}/${i}`;
+  S.reportOpen.add(row);
+  renderReport(); saveReport();
+  document.querySelector(`[data-redit="${row}/head"]`)?.focus?.();
+}
+function cycleBucket(path) {
+  const x = reportAt(path);
+  if (!x || typeof x !== "object" || Array.isArray(x)) return;
+  const order = REPORT_BUCKETS.map(([b]) => b);
+  x.bucket = order[(order.indexOf(reportBucket(x)) + 1) % order.length];
+  renderReport(); saveReport();
 }
 function reportBuckets(rows, buckets, bucketOf, internal, extra = () => "", tail = dict()) {
   let html = "";
@@ -3244,7 +3277,7 @@ function reportTier(d, tier, label) {
   let html = `<h3><span class="rp-prio ${tier}">${label}</span><span class="tally">${rows.length - unfinished.length} of ${rows.length} delivered</span></h3>`;
   if (unfinished.length) html += `<div class="rp-riskline">${blockers.length > 1 ? `<b class="blocks">${blockers.length} unfinished items block a launch step:</b><ul class="rp-blockers">${blockers.map((x) => `<li>${blocker(x)}</li>`).join("")}</ul>`
     : blockers.length ? `<b class="blocks">Blocks a launch step:</b> ${blocker(blockers[0])}` : `<b class="ok">Nothing unfinished here blocks launch.</b>`}</div>`;
-  html += reportBuckets(rows, REPORT_BUCKETS, reportBucket, !!d.showInternal);
+  html += reportBuckets(rows, REPORT_BUCKETS, reportBucket, !!d.showInternal) + addRowButton(["tiers", tier]);
   const earlier = Math.max(0, Math.floor(num(d.earlier?.[tier])));
   if (earlier && dayLabel(d.cover?.from)) html += `<div class="rp-more">and ${earlier} delivered before ${esc(dayLabel(d.cover.from))}</div>`;
   return html;
@@ -3270,7 +3303,7 @@ function reportApps(d) {
   const links = objs(a.links).map((l) => ((url) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(l.label || url)} ↗</a>` : esc(l.label)))(safeUrl(l.url))).filter(Boolean);
   return `<h3><span class="rp-prio app">📱 App teams</span><span class="tally">${live} live, ${flagged} built behind a switch</span></h3>`
     + (a.lede ? `<p class="rp-lede-s">${reportEd(["apps", "lede"], a.lede)}</p>` : "")
-    + reportBuckets(rows, APP_BUCKETS, appBucket, !!d.showInternal, platformChips, ground)
+    + reportBuckets(rows, APP_BUCKETS, appBucket, !!d.showInternal, platformChips, ground) + addRowButton(["apps", "items"])
     + (links.length ? `<div class="rp-more">${links.join(" · ")}</div>` : "");
 }
 function reportPage(d) {
@@ -3285,7 +3318,7 @@ function reportPage(d) {
   if (has("stats") && stats.length) out.push(`<div class="rp-stats">${stats.map(([s, path]) => `<div class="rp-stat"><b>${reportEd([...path, "n"], s.n)}</b><span>${reportEd([...path, "label"], s.label)}</span></div>`).join("")}</div>`);
   for (const [t, label] of REPORT_TIERS) if (has(t)) out.push(reportTier(d, t, label));
   const moved = shownRows(d.moved, ["moved"]);
-  if (has("moved") && moved.length) out.push(`<h3><span class="rp-prio nice">Moved out of the quest</span></h3><ul class="rp-items">${byRole(moved).map((r) => reportRow(r, "moved", "→")).join("")}</ul>`);
+  if (has("moved") && moved.length) out.push(`<h3><span class="rp-prio nice">Moved out of the quest</span></h3><ul class="rp-items">${byRole(moved).map((r) => reportRow(r, "moved", "→")).join("")}</ul>${addRowButton(["moved"])}`);
   const answers = shownRows(d.answers, ["answers"]);
   if (answers.length) out.push(`<div class="rp-box replies"><h4>Your questions answered</h4><ul>${answers.map(([x, path]) => `<li><div class="q">${esc(x.who)}${x.role ? `, ${esc(x.role)}` : ""}: “${esc(x.question)}”</div><div>${reportEd([...path, "answer"], x.answer)}</div></li>`).join("")}</ul></div>`);
   const asks = shownRows(d.asks, ["asks"]);
@@ -3710,6 +3743,10 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-report-close]") || ev.target === $("report")) { closeReport(); return; }
   const fold = ev.target.closest("[data-report-fold]");
   if (fold) { const k = fold.dataset.reportFold; S.reportOpen.has(k) || S.reportAllOpen ? (S.reportOpen.delete(k), S.reportAllOpen = false) : S.reportOpen.add(k); renderReport(); return; }
+  const radd = ev.target.closest("[data-report-add]");
+  if (radd) { addRow(radd.dataset.reportAdd); return; }
+  const rb = ev.target.closest("[data-report-bucket]");
+  if (rb) { cycleBucket(rb.dataset.reportBucket); return; }
   const rout = ev.target.closest("[data-report-out]");
   if (rout) { leaveOut(rout.dataset.reportOut); return; }
   if (ev.target.closest("[data-report-restore]")) { restoreReport(); return; }
