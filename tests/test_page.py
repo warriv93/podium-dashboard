@@ -1452,6 +1452,24 @@ class HostileRun(unittest.TestCase):
             return [S.report.draft.asks, S.report.draft.next]; })()''')
         self.assertEqual(self.probe(), [[{"question": "", "owner": "", "with": "", "by": "", "added": True, "hidden": True}], ["b", ""]])
 
+    def test_a_report_since_a_date_shows_decisions_and_next_up_by_default_and_a_whole_quest_one_does_not(self):
+        self.maps(probe='''[reportSections({ cover: { from: "2026-11-13" } }), reportSections({ cover: { from: null } }), reportSections({}),
+            reportSections({ cover: { from: "<b>" } }), reportSections({ cover: { from: "2026-11-13" }, sections: ["must"] })]''')
+        since, whole, none, junk, picked = self.probe()
+        self.assertEqual(since, ["banner", "stats", "must", "should", "nice", "moved", "ask", "next", "app"])
+        self.assertEqual(whole, ["banner", "stats", "must", "should", "nice", "moved", "app"])
+        self.assertEqual(none, whole)
+        self.assertEqual(junk, whole)
+        self.assertEqual(picked, ["must"])
+
+    def test_publishing_shows_a_spinner_until_the_run_says_published_then_toasts_and_gives_up_after_a_wait(self):
+        page = open(PAGE).read()
+        self.assertIn('<button class="rbtn primary busy" disabled aria-busy="true"><span class="rspin"></span>Publishing…</button>', page)
+        self.assertIn('if (S.reportPublishing && published) { S.reportPublishing = 0; toast(`Published “${name}” to Outline`); }', page)
+        self.assertIn('const publishing = !published && (!!S.reportPublishing || r?.status === "publishing");', page)
+        self.assertIn('if (!(await reportPost("/report-publish", ""))) { S.reportPublishing = 0; renderReport(); return; }', page)
+        self.assertIn('const PUBLISH_WAIT = 5 * 60 * 1000;', page)
+
     def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
         t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
                        {"bucket": "done", "head": "d2", "role": "Admin"}, {"bucket": "done", "head": "d3", "role": "Driver"},

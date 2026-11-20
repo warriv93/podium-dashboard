@@ -914,6 +914,9 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rp-paper [data-redit$="/with"]:empty::before { content: "with whom"; color: var(--faint); }
 .rp-paper [data-redit$="/by"]:empty::before { content: "when"; color: var(--faint); }
 .rp-paper [data-redit^="next/"]:empty::before { content: "What happens next"; color: var(--faint); }
+.rbtn.busy { display: inline-flex; align-items: center; gap: 8px; opacity: 1 !important; }
+.rspin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; animation: rspin .8s linear infinite; }
+@keyframes rspin { to { transform: rotate(360deg); } }
 .rp-desc { margin: 3px 0 4px; font-size: 13px; line-height: 1.45; }
 .rp-new { font-size: 10px; font-weight: 700; color: #fff; background: #0071e3; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 .rp-out { display: none; position: absolute; right: 4px; top: 4px; border: 0; background: var(--wash); border-radius: 6px; color: var(--faint); cursor: pointer; font-size: 11px; padding: 1px 6px; }
@@ -3256,7 +3259,7 @@ const roleRank = (x) => ((i) => (i < 0 ? ROLE_ORDER.length : i))(ROLE_ORDER.inde
 const byRole = (rows) => rows.map((r, i) => [r, i]).sort((a, b) => roleRank(a[0][0]) - roleRank(b[0][0]) || a[1] - b[1]).map(([r]) => r);
 const reportEd = (path, text) => `<span contenteditable="true" data-redit="${esc(path.join("/"))}">${esc(text)}</span>`;
 const OPTIONAL_SECTIONS = ["ask", "next"];
-const reportSections = (d) => (Array.isArray(d.sections) ? d.sections : REPORT_SECTIONS.map(([k]) => k).filter((k) => !OPTIONAL_SECTIONS.includes(k)));
+const reportSections = (d) => (Array.isArray(d.sections) ? d.sections : REPORT_SECTIONS.map(([k]) => k).filter((k) => isoDay(d.cover?.from) || !OPTIONAL_SECTIONS.includes(k)));
 
 function reportTools(q, now) {
   const r = reportOf(q), last = lastReport(q), lastUrl = safeUrl(last?.url);
@@ -3527,7 +3530,7 @@ function reportState() {
   const r = reportOf(questOf());
   if (S.report.asked !== undefined && S.report.asked === JSON.stringify(r)) return "queued";
   delete S.report.asked;
-  if (!r || !["drafting", "ready", "published"].includes(r.status)) return "none";
+  if (!r || !["drafting", "ready", "publishing", "published"].includes(r.status)) return "none";
   if (r.status === "drafting") { S.report.draft = null; S.report.loaded = null; return "drafting"; }
   if (!runFile(r.draft) || !r.draft.endsWith(".json")) return "unreadable";
   if (S.report.loaded !== r.draft) loadReport(r.draft);
@@ -3567,6 +3570,8 @@ function renderReport() {
   const secs = d ? reportSections(d) : [];
   const left = d ? leftOut(d) : [];
   const published = r?.status === "published", url = published ? safeUrl(r.url) : "";
+  if (S.reportPublishing && published) { S.reportPublishing = 0; toast(`Published “${name}” to Outline`); }
+  const publishing = !published && (!!S.reportPublishing || r?.status === "publishing");
   const side = d ? `<h4>Covers</h4><div class="rs-cover"><b>${esc(d.cover?.label || (d.cover?.from ? `From ${dayLabel(d.cover.from)}` : "The whole quest"))}</b><button class="rlink" data-report-new>Change</button></div>${last ? `<div class="note">Last report: ${esc(last.name || "")}${dayLabel(last.publishedAt) ? `, ${esc(dayLabel(last.publishedAt))}` : ""}. New items since then are marked.</div>` : ""}`
     + `<h4>Structure</h4><div class="rs-structure">${REPORT_STRUCTURES.map(([k, label, note], i) => `<button data-report-structure="${k}" title="${esc(note)}"${reportStructure(d) === k ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}><span>${i + 1}</span>${label}</button>`).join("")}</div><div class="note">${esc(REPORT_STRUCTURES.find(([k]) => k === reportStructure(d))[2])}.</div>`
     + `<h4>Sections</h4>${REPORT_SECTIONS.map(([k, label]) => `<label><input type="checkbox" data-report-sec="${k}"${secs.includes(k) ? " checked" : ""}>${label}${["must", "should", "nice"].includes(k) ? ` <small>${counts(k)}</small>` : ""}</label>`).join("")}`
@@ -3575,7 +3580,7 @@ function renderReport() {
     + `<h4>Draft</h4><div class="note">Written by Claude from each milestone's brief and PRs, in product terms. Click any sentence to change it; hover a line to leave it out. Edits are saved with the draft.</div>${left.length ? `<div class="rs-restore"><button class="rbtn wide" data-report-restore-menu aria-expanded="${!!S.reportRestoreOpen}">Put back… <small>${left.length} left out</small><span class="chev">${S.reportRestoreOpen ? "▴" : "▾"}</span></button>${S.reportRestoreOpen ? `<div class="rs-menu">${left.map(([path, label, where]) => `<button data-report-restore-one="${esc(path)}"><span>${esc(label)}</span><small>${esc(where)}</small></button>`).join("")}${left.length > 1 ? `<button class="all" data-report-restore>Put back all ${left.length}</button>` : ""}</div>` : ""}</div>` : ""}<button class="rbtn wide" data-report-rewrite>↻ Rewrite the draft</button>`
     : `<div class="note">The draft shows here once Claude has written it.</div>`;
   const foot = d ? `<label class="rconfirm"><input type="checkbox" data-report-ok${S.report.ok ? " checked" : ""}${published ? " disabled" : ""}>I've read it through</label><span class="rdest">→ <code>Development › Quests › ${esc(S.project?.project?.title || "")} › ${esc(name)}</code></span><span class="sp"></span><button class="rbtn" data-report-copy>Copy for Slack</button>`
-    + (published ? (url ? `<a class="rbtn primary" href="${esc(url)}" target="_blank" rel="noopener">Published ↗</a>` : `<button class="rbtn primary" disabled>Published</button>`) : `<button class="rbtn primary" data-report-publish${S.report.ok && r?.status === "ready" ? "" : " disabled"}>Publish to Outline</button>`)
+    + (published ? (url ? `<a class="rbtn primary" href="${esc(url)}" target="_blank" rel="noopener">Published ↗</a>` : `<button class="rbtn primary" disabled>Published</button>`) : publishing ? `<button class="rbtn primary busy" disabled aria-busy="true"><span class="rspin"></span>Publishing…</button>` : `<button class="rbtn primary" data-report-publish${S.report.ok && r?.status === "ready" ? "" : " disabled"}>Publish to Outline</button>`)
     : `<span class="sp"></span><button class="rbtn" data-report-close>Close</button>`;
   const scrolled = [".rpreview", ".rside"].map((q) => el.querySelector?.(q)?.scrollTop || 0);
   el.innerHTML = `<div class="rmodal" role="dialog" aria-modal="true" aria-label="Quest report"><div class="rmhead"><b>${final ? "Quest report" : "Status report"}${name ? ` · ${esc(name)}` : ""}</b><span class="sub">${esc(d?.cover?.label || "")}</span><span class="sp"></span><button class="close-x" data-report-close aria-label="Close">✕</button></div><aside class="rside">${side}</aside><div class="rpreview">${body}</div><div class="rmfoot">${foot}</div></div>`;
@@ -3648,9 +3653,23 @@ function setReportSection(key, on) {
 }
 async function reportPost(path, done) {
   const r = await fetch(path, { method: "POST" }).catch(() => null);
-  if (r?.status === 409) return toast(NO_ORCHESTRATOR());
-  if (!r?.ok) return toast(r ? `Couldn't do that: ${r.status}` : SERVER_DOWN);
-  toast(done);
+  if (r?.status === 409) return toast(NO_ORCHESTRATOR()), false;
+  if (!r?.ok) return toast(r ? `Couldn't do that: ${r.status}` : SERVER_DOWN), false;
+  if (done) toast(done);
+  return true;
+}
+const PUBLISH_WAIT = 5 * 60 * 1000;
+async function publishReport() {
+  if (S.reportPublishing) return;
+  S.reportPublishing = Date.now();
+  renderReport();
+  if (!(await reportPost("/report-publish", ""))) { S.reportPublishing = 0; renderReport(); return; }
+  const started = S.reportPublishing;
+  setTimeout(() => {
+    if (S.reportPublishing !== started) return;
+    S.reportPublishing = 0; renderReport();
+    toast("Not published yet: the orchestrator watching this run hasn't picked up the request");
+  }, PUBLISH_WAIT);
 }
 async function rewriteReport() {
   const from = isoDay(S.report?.draft?.cover?.from);
@@ -3901,7 +3920,7 @@ document.addEventListener("click", (ev) => {
   if (rone) { restoreOne(rone.dataset.reportRestoreOne); return; }
   if (ev.target.closest("[data-report-rewrite]")) { rewriteReport(); return; }
   if (ev.target.closest("[data-report-copy]")) { if (S.report?.draft) copyText(reportText(S.report.draft), "Copied as text, ready for Slack"); return; }
-  if (ev.target.closest("[data-report-publish]")) { reportPost("/report-publish", "Publishing: the orchestrator puts it in Outline and links it on the quest tile"); return; }
+  if (ev.target.closest("[data-report-publish]")) { publishReport(); return; }
   if (ev.target.closest("[data-report-comments]")) { reportPost("/report-comments", "Queued: the orchestrator reads the comments in Outline again"); return; }
   const ra = ev.target.closest("[data-report-answer]");
   if (ra) { markComment(ra.dataset.reportAnswer, "answer", !ra.classList.contains("on")); return; }
