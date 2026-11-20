@@ -1435,6 +1435,23 @@ class HostileRun(unittest.TestCase):
         self.assertEqual(after, ["stats/0", "asks/0", "apps/items/0"])
         self.assertEqual(end, [])
 
+    def test_decisions_and_next_up_are_off_until_ticked_then_rows_add_and_remove_there(self):
+        draft = {"name": "n", "kind": "sync", "tiers": {}, "asks": [{"question": X, "owner": X, "with": X, "by": X}], "next": [X, ""]}
+        self.maps(probe=f'reportPage({json.dumps(draft)})')
+        self.assertNotIn("Decisions we need", self.probe())
+        self.assertNotIn("Next up", self.probe())
+        self.maps(probe=f'reportPage({json.dumps({**draft, "sections": ["ask", "next"]})})')
+        page = self.probe()
+        self.assertIn('<button class="rp-out" data-report-out="asks/0" title="Leave out of this report">Remove</button>', page)
+        self.assertIn(f'<b><span contenteditable="true" data-redit="asks/0/owner">{esc(X)}</span></b>', page)
+        self.assertIn('<button class="rp-add" data-report-add="asks"><span>+</span>Add a row</button>', page)
+        self.assertIn('<li><span contenteditable="true" data-redit="next/1"></span><button class="rp-out" data-report-out="next/1"', page)
+        self.assertIn('<button class="rp-add" data-report-add="next">', page)
+        self.assertNotIn("<i id=", page)
+        self.maps(probe='''(() => { S.report = { draft: { asks: [], next: ["a", "b"] } }; addRow("asks"); addRow("next"); leaveOut("next/0"); leaveOut("next/9"); leaveOut("asks/0");
+            return [S.report.draft.asks, S.report.draft.next]; })()''')
+        self.assertEqual(self.probe(), [[{"question": "", "owner": "", "with": "", "by": "", "added": True, "hidden": True}], ["b", ""]])
+
     def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
         t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
                        {"bucket": "done", "head": "d2", "role": "Admin"}, {"bucket": "done", "head": "d3", "role": "Driver"},
