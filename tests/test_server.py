@@ -774,6 +774,110 @@ class Priority(Server):
 
 
 
+REPORT = {"draft": "reports/sync.json", "status": "ready", "name": "Sync 2026-11-20"}
+COMMENTS = [{"id": "c1", "author": "Maria Ek", "body": "Is pausing enough?"}, {"id": "c2", "author": "Jonna Lund", "body": "Can I try it?"}]
+
+
+class Report(Server):
+    podium = Priority.podium
+
+    def serve_report(self, report=REPORT):
+        os.makedirs(os.path.join(self.run_dir, "reports"), exist_ok=True)
+        self.serve({**DATA, "project": {"title": "T", "quest": {"report": report, "reportComments": COMMENTS}}})
+
+    def lines(self):
+        with open(os.path.join(self.pod, "requests.jsonl")) as f:
+            return [json.loads(line) for line in f]
+
+    def put(self, body, path="reports/sync.json"):
+        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        self.addCleanup(conn.close)
+        conn.request("PUT", f"/report-draft?path={path}", body=data, headers={"Host": f"127.0.0.1:{self.port}"})
+        r = conn.getresponse()
+        return r.status, json.loads(r.read().decode())
+
+    def draft(self, rel="reports/sync.json"):
+        with open(os.path.join(self.run_dir, rel)) as f:
+            return json.load(f)
+
+    def test_report_queues_with_its_cover_and_no_id_once_a_watcher_runs_and_refuses_a_cover_it_cannot_read(self):
+        self.serve_report()
+        self.assertEqual(self.call("POST", "/report?cover=since")[0], 409)
+        self.watched()
+        for cover in ("since", "all", "2026-11-06"):
+            self.assertEqual(self.call("POST", f"/report?cover={cover}")[0], 202)
+        for bad in ("", "last", "2026-13-45", "2026-11-6", "since%0Anote", "../x"):
+            self.assertEqual(self.call("POST", f"/report?cover={bad}")[0], 400, bad)
+        self.assertEqual(self.call("POST", "/report/M1?cover=all")[0], 404)
+        lines = self.lines()
+        self.assertEqual([(r["action"], r["story"], r["cover"]) for r in lines],
+                         [("report", None, "since"), ("report", None, "all"), ("report", None, "2026-11-06")])
+        self.assertEqual(list(lines[0]), ["action", "story", "cover", "at"])
+
+    def test_publish_and_comments_queue_with_no_id_once_a_watcher_runs_and_the_turn_prints_the_cover(self):
+        self.serve_report()
+        self.assertEqual(self.call("POST", "/report-publish")[0], 409)
+        self.watched()
+        for path in ("/report?cover=since", "/report-publish", "/report-comments"):
+            self.assertEqual(self.call("POST", path)[0], 202, path)
+        self.assertEqual(self.call("POST", "/report-publish/M1")[0], 404)
+        r = subprocess.run([sys.executable, "-m", "podium_dashboard", "--dir", self.run_dir, "requests"],
+                           capture_output=True, text=True, env=self.env, cwd=self.tmp)
+        self.assertEqual(r.stdout.splitlines(), ["LIST report cover=since", "LIST report-publish", "LIST report-comments"])
+
+    def test_the_draft_is_saved_whole_to_the_reports_draft_path_with_no_watcher(self):
+        self.serve_report()
+        edited = {"name": "Sync 2026-11-20", "kind": "sync", "tiers": {"must": [{"id": "M1", "head": "Edited", "hidden": True}]},
+                  "sections": ["banner", "must"]}
+        self.assertEqual(self.put(edited), (200, {"saved": "reports/sync.json"}))
+        self.assertEqual(self.draft(), edited)
+        self.assertEqual(self.requests(), [])
+
+    def test_the_draft_must_be_a_json_object_under_256_kb(self):
+        self.serve_report()
+        for body in ([1, 2], "text", None, b"{not json", b"\xff\xfe"):
+            self.assertEqual(self.put(body)[0], 400, body)
+        self.assertEqual(self.put({"name": "x" * (256 * 1024)})[0], 413)
+        self.assertFalse(os.path.exists(os.path.join(self.run_dir, "reports", "sync.json")))
+
+    def test_the_draft_is_written_only_to_the_json_file_the_report_names_in_the_run_dirs_reports_and_only_while_ready(self):
+        self.serve_report()
+        self.assertEqual(self.put({"name": "x"}, "reports/other.json")[0], 409)
+        self.assertEqual(self.put({"name": "x"}, "podium/podium.json")[0], 409)
+        self.assertFalse(os.path.exists(os.path.join(self.run_dir, "reports", "other.json")))
+        for escape in ("../outside.json", "/tmp/abs.json", "reports/../../outside.json", ".", "podium/podium.json", "reports/x.py", "reports"):
+            with open(os.path.join(self.pod, "podium.json")) as f:
+                data = json.load(f)
+            data["project"]["quest"]["report"] = {**REPORT, "draft": escape}
+            with open(os.path.join(self.pod, "podium.json"), "w") as f:
+                json.dump(data, f)
+            self.assertEqual(self.put({"name": "x"}, escape.replace("/", "%2F"))[0], 400, escape)
+        self.assertFalse(os.path.exists(os.path.join(self.repo, "outside.json")))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "outside.json")))
+        for status in ("drafting", "published"):
+            with open(os.path.join(self.pod, "podium.json")) as f:
+                data = json.load(f)
+            data["project"]["quest"]["report"] = {**REPORT, "status": status}
+            with open(os.path.join(self.pod, "podium.json"), "w") as f:
+                json.dump(data, f)
+            self.assertEqual(self.put({"name": "x"})[0], 409, status)
+
+    def test_a_comment_is_answered_or_handled_in_podium_json_with_no_watcher_and_an_unknown_one_is_404(self):
+        self.serve_report()
+        self.assertEqual(self.call("POST", "/report-comment/c1?answer=1"), (200, {"id": "c1", "answer": True}))
+        self.assertEqual(self.call("POST", "/report-comment/c2?handled=1"), (200, {"id": "c2", "handled": True}))
+        comments = self.podium()["project"]["quest"]["reportComments"]
+        self.assertEqual([(c.get("answer"), c.get("handled")) for c in comments], [(True, None), (None, True)])
+        self.assertEqual(self.call("POST", "/report-comment/c1?answer=0")[0], 200)
+        self.assertNotIn("answer", self.podium()["project"]["quest"]["reportComments"][0])
+        self.assertEqual(self.call("POST", "/report-comment/c9?answer=1")[0], 404)
+        self.assertEqual(self.call("POST", "/report-comment/__proto__?handled=1")[0], 404)
+        for bad in ("?answer=2", "?answer=1&handled=1", "", "?seen=1"):
+            self.assertEqual(self.call("POST", f"/report-comment/c1{bad}")[0], 400, bad)
+        self.assertEqual(self.requests(), [])
+
+
 class State(Server):
     podium, milestone = Priority.podium, Priority.milestone
 

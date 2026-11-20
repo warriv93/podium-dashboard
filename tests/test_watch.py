@@ -118,6 +118,17 @@ class Lines(Watcher):
         self.append(self.pod("requests.jsonl"), json.dumps({"action": "share", "story": None}))
         self.assertEqual(self.lines(w), ["REQUEST share"])
 
+    def test_prints_a_report_request_with_its_cover_and_no_id_and_requests_lists_one_it_missed(self):
+        self.assertEqual(self.requests(), [])
+        path = self.pod("requests.jsonl")
+        self.append(path, json.dumps({"action": "report", "story": None, "cover": "2026-11-06", "at": "t"}))
+        w = self.start()
+        self.started()
+        self.append(path, json.dumps({"action": "report", "story": None, "cover": "since", "at": "t"}))
+        self.append(path, json.dumps({"action": "report-publish", "story": None, "at": "t"}))
+        self.assertEqual(self.lines(w), ["REQUEST report cover=since", "REQUEST report-publish"])
+        self.assertEqual(self.requests(), ["LIST report cover=2026-11-06"])
+
     def test_prints_a_storys_committed_line_but_not_its_other_stages(self):
         progress = self.pod("stories", "M1", "S1.progress")
         self.append(progress, "2026-01-01T00:00:00+00:00 STARTED")

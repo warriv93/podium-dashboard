@@ -158,6 +158,52 @@ A milestone's pulldown also sets its status: **Open**, **Paused** (parked) or **
 
 Beside it, a run with two or more people shows one avatar each (everyone in `podium.json`'s `people` or the `by` of an event; yours has a ring; past five people it shows four and a `+N` chip). A green dot means an event of theirs is under 15 minutes old: recent activity, not live presence. The tooltip names the milestones they own, the one they're on with its phase, and when they were last active.
 
+## Quest report
+
+The quest tile's **📄 New status report** (**📄 New quest report** once the quest's last week has ended) asks the orchestrator for a report on the quest for product, UX and management, to read through in the Podium and publish to Outline. A start dialog picks what it covers: since the last report (the default during the quest, offered once there is one), the whole quest (the default once it ended) or from a date. The tile links the newest published report and, while there is one, the draft.
+
+The page queues these requests; `podium watch` prints them as `REQUEST …` and `podium requests` as `LIST …`, none with an id:
+
+    REQUEST report cover=since           draft a report on what changed since the last one
+    REQUEST report cover=all             draft one on the whole quest
+    REQUEST report cover=2026-11-06      draft one on what changed from that date
+    REQUEST report-publish               publish the ready draft to Outline
+    REQUEST report-comments              read the comments on the published reports again
+
+Each needs a running watcher (409 otherwise). The orchestrator answers them through `project.quest` in podium.json:
+
+- `report`: the report being written, `{"draft": "reports/<slug>.json", "status": "drafting" | "ready" | "published", "name": "Sync 2026-11-20", "url": "<Outline URL, once published>"}`. The draft is a file of the run dir's `reports/`; the page shows it while `ready`, and a "being written" state while `drafting`.
+- `reports`: the published ones, oldest first, `[{"name", "url", "publishedAt"}]`; the orchestrator appends one on each publish.
+- `reportComments`: the Outline comments on them, `[{"id", "author", "role", "quote", "body", "at", "url", "answer"?: true, "handled"?: true}]`. The tile lists those not handled. **Answer in the next report** sets `answer` (the next draft answers it under `answers`); **Reply in Outline ↗** opens `url` and sets `handled`. The page writes both straight to podium.json (`POST /report-comment/<id>?answer=1|0`, `?handled=1|0`), with no watcher.
+
+The draft, `reports/<slug>.json`, is what the page renders and what gets published. Every field is optional but `name`, `kind` and `tiers`:
+
+```
+{ "name": "Sync 2026-11-20", "kind": "sync" | "final", "writtenAt": "2026-11-20",
+  "cover": {"from": "2026-11-13" | null, "label": "Since last sync (13 Nov)"},
+  "sections": ["banner", "stats", "must", "should", "nice", "moved", "ask", "next", "app"],
+  "showInternal": false,
+  "banner": {"title": "...", "lede": "...", "image": "reports/img/admin.png", "testUrl": "https://...", "testLabel": "Try it in test"},
+  "stats": [{"n": "10 of 14", "label": "must haves delivered"}],
+  "tiers": {"must": [Item], "should": [Item], "nice": [Item]},
+  "earlier": {"must": 10, "should": 2, "nice": 0},
+  "moved": [Item],
+  "asks": [{"question": "...", "owner": "Henrik", "with": "with the app leads", "by": "27 Nov"}],
+  "next": ["..."],
+  "answers": [{"commentId": "c1", "who": "Maria Ek", "role": "Product", "question": "...", "answer": "..."}],
+  "apps": {"lede": "...", "groundwork": "Plus groundwork in both apps: ...", "links": [{"label": "iOS milestone", "url": "https://..."}],
+           "items": [{"id", "role", "head", "why", "platforms": {"iOS": {"state": "done" | "flag" | "open" | "none", "url": "https://..."}, "Android": {...}}}],
+           "open": [Item]},
+  "footer": {"owner": "Henrik Linde", "source": "in-app-message-experience"} }
+
+Item = {"id", "bucket": "done" | "working" | "open", "role": "Driver", "head": "Should be able to …", "why": "...",
+        "isNew": true, "internal": true, "hidden": true, "risk": {"level": "blocks" | "waits" | "later", "text": "Blocks switching off the old admin"}}
+```
+
+Each tier lists its items under Delivered, Being worked on and Not finished, by role (Driver, Marketing, Support, Admin, Staff, then the rest), and names the unfinished ones that block a launch step (`risk.level` `blocks`), each as its head then its `risk.text`. `earlier` is the count delivered before `cover.from`, shown as one line. `internal` items fold into one line unless `showInternal`. An app item is Live, Built behind a switch (a platform `flag`) or Not finished (a platform `open`); `apps.open` are Not finished. `banner.image` is a run-relative path or an https URL; every link is http(s) or left out.
+
+What the user changes in the modal is saved back into the draft with `PUT /report-draft?path=<draft>` (a JSON object under 256 KB, only to `project.quest.report.draft` and only while it is `ready`): edited text in place, **Leave out** as `"hidden": true` on the item, the section checkboxes as `sections`, **Show internal groundwork** as `showInternal`. Publish the draft as it is on disk: it is what the user read through. **Copy for Slack** copies it as plain text; **Rewrite the draft** asks for `report` again with the same cover.
+
 ## Security
 
 The server binds to `127.0.0.1` only and refuses any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`. Any request but a GET or HEAD from a page with another `Origin` is refused too. There is no login: anyone with a shell on your machine can reach it, so do not forward the port.

@@ -36,11 +36,19 @@ its only writer), so the orchestrator leaves it alone, and returns the extension
 DELETE /handoff/<story> takes it back.
 
 POST /<action>/<id> queues a request: the core's actions (assign, plan, build-all, stop, confirm, reverse,
-domain-story, claim, share) and the extension's ACTIONS. POST /share, which takes no id, asks the orchestrator to
+domain-story, claim, share, report, report-publish, report-comments) and the extension's ACTIONS. POST /share, which takes no id, asks the orchestrator to
 share the run with a colleague, or, once it syncs, to print the colleague's steps again. confirm and reverse take an assumption's number as `podium
 assumptions` prints it (`<n>`, or `t<n>` for a run's older top-level ones in a run with one state per person) or
 `all`, every open one not yet answered. POST /build-all/<milestone> and /stop/<milestone> queue that milestone's
 build-all and its stop: each milestone has its own. Bare, from an older page, they name the active milestone.
+
+The quest report (README, Quest report): POST /report?cover=since|all|<YYYY-MM-DD> asks the orchestrator to draft one,
+queued with its `cover`; POST /report-publish to publish the ready draft to Outline, POST /report-comments to read the
+comments on the last report again. None takes an id. PUT /report-draft?path=<draft> saves the page's edits to the
+draft, a JSON object under 256 KB, only to `project.quest.report.draft`, a .json file of the run dir's reports/, and only
+while it is ready.
+POST /report-comment/<id>?answer=1|0 or ?handled=1|0 marks a comment of `project.quest.reportComments`. Neither needs a
+watcher.
 
 POST /asana[/<epic>]?url=<Asana link> queues a link of an Asana project or task (or of an epic to its task) as an
 `asana` request, like settling an assumption kept for the next orchestrator run, so it needs no watcher.
@@ -127,7 +135,9 @@ from podium_dashboard.state import ACT_ON, ID, NOW, Podium, checkout_path, find_
 STORY_ID = ID
 SETTLE = {"confirm", "reverse"}
 MILESTONE_ACTIONS = {"plan", "build-all", "stop", "claim", "proceed"}
-RUN_ACTIONS = {"share"}
+RUN_ACTIONS = {"share", "report", "report-publish", "report-comments"}
+REPORT_COVER = re.compile(r"^(since|all|\d{4}-\d{2}-\d{2})$")
+REPORT_DRAFT_MAX = 256 * 1024
 NO_PROMPT = "no orchestrator extension prompt"
 PORT = 8765
 PORTS = 20
@@ -511,6 +521,24 @@ def keep_lease(slug, root, port):
             print(f"podium lease not refreshed: {e}", flush=True)
 
 
+def report_cover(cover):
+    """Whether `cover` is one a quest report can cover: since (the last report), all (the whole quest) or a real date."""
+    if not REPORT_COVER.match(cover):
+        return False
+    try:
+        return cover in ("since", "all") or bool(datetime.strptime(cover, "%Y-%m-%d"))
+    except ValueError:
+        return False
+
+
+def report_of(p, key="report", kind=dict):
+    """The quest's `key` (its report, reports or reportComments), empty when the run has none or it is malformed."""
+    project = p.data.get("project") if p else None
+    quest = project.get("quest") if isinstance(project, dict) else None
+    found = quest.get(key) if isinstance(quest, dict) else None
+    return found if isinstance(found, kind) else kind()
+
+
 def contains(base, path):
     """Whether `path` is `base` or below it, both already resolved."""
     return os.path.commonpath([base, path]) == base
@@ -715,6 +743,8 @@ def make_handler(root):
                 return self.state(urllib.parse.unquote(url.path[len("/status/"):]), parse_qs(url.query).get("to", [""])[0])
             if first == "priority":
                 return self.priority(urllib.parse.unquote(url.path[len("/priority/"):]), parse_qs(url.query).get("level", [""])[0])
+            if first == "report-comment":
+                return self.report_comment(urllib.parse.unquote(url.path[len("/report-comment/"):]), parse_qs(url.query))
             if not url.path.startswith("/human/") and first not in ACT_ON and not watcher_running(podium_dir(root)):
                 return self.reply(409, {"error": "no orchestrator is watching"})
             if url.path.startswith("/handoff/"):
@@ -744,6 +774,11 @@ def make_handler(root):
             elif not all(STORY_ID.match(x) for x in story.split("/")) or story not in self.known_ids(p, action):
                 return self.reply(404, {"error": "unknown id"})
             line = {"action": action, "story": story, "at": NOW()}
+            if action == "report":
+                cover = parse_qs(url.query).get("cover", [""])[0]
+                if not report_cover(cover):
+                    return self.reply(400, {"error": "cover is since, all or a date (YYYY-MM-DD)"})
+                line = {"action": action, "story": story, "cover": cover, "at": line["at"]}
             note = (parse_qs(url.query).get("note", [""])[0] or "").strip()[:500]
             if action in SETTLE and note:
                 line["note"] = note
@@ -765,6 +800,59 @@ def make_handler(root):
             if not port:
                 return self.reply(502, {"error": f"{slug} didn't start: see server.log in its podium folder"})
             self.reply(200, {"url": f"http://127.0.0.1:{port}/"})
+
+        def do_PUT(self):
+            url = urlparse(self.path)
+            if url.path == "/report-draft":
+                return self.report_draft(parse_qs(url.query).get("path", [""])[0])
+            self.reply(404, {"error": "unknown action"})
+
+        def report_draft(self, path):
+            """PUT /report-draft?path=<draft> with the edited draft as its body: replaces the quest report's draft,
+            `project.quest.report.draft`, a .json file of the run dir's reports/ (never podium.json, nor code, whatever a
+            synced podium.json names), while it is ready to read. It needs no watcher."""
+            try:
+                size = int(self.headers.get("Content-Length") or "")
+            except ValueError:
+                return self.reply(411, {"error": "a draft needs its Content-Length"})
+            if size > REPORT_DRAFT_MAX:
+                return self.reply(413, {"error": "the draft is over 256 KB"})
+            try:
+                draft = json.loads(self.rfile.read(size).decode("utf-8"))
+            except (UnicodeDecodeError, ValueError):
+                return self.reply(400, {"error": "the draft is not JSON"})
+            if not isinstance(draft, dict):
+                return self.reply(400, {"error": "the draft is not a JSON object"})
+            p = load_podium(root)
+            report = report_of(p)
+            if not isinstance(report.get("draft"), str) or path != report["draft"]:
+                return self.reply(409, {"error": "that is not the quest report's draft"})
+            if report.get("status") != "ready":
+                return self.reply(409, {"error": "the draft is not ready to edit"})
+            base = os.path.realpath(os.path.join(root, "reports"))
+            full = os.path.realpath(os.path.join(root, path))
+            if os.path.isabs(path) or not full.endswith(".json") or not contains(base, full) or not os.path.isdir(os.path.dirname(full)):
+                return self.reply(400, {"error": "the draft is not a .json file of the run dir's reports/"})
+            write_atomic(full, json.dumps(draft, indent=1, ensure_ascii=False) + "\n")
+            self.reply(200, {"saved": path})
+
+        def report_comment(self, cid, query):
+            """POST /report-comment/<id>?answer=1|0 or ?handled=1|0: answer a comment on the last quest report in the
+            next one, or mark it handled. Written to podium.json at once; it needs no watcher."""
+            given = [(k, query[k][0]) for k in ("answer", "handled") if k in query]
+            if len(given) != 1 or given[0][1] not in ("0", "1"):
+                return self.reply(400, {"error": "answer or handled, 1 or 0"})
+            (field, value), p = given[0], load_podium(root)
+            comments = report_of(p, "reportComments", list)
+            c = next((c for c in comments if isinstance(c, dict) and str(c.get("id")) == cid), None)
+            if not c:
+                return self.reply(404, {"error": "unknown comment"})
+            if value == "1":
+                c[field] = True
+            else:
+                c.pop(field, None)
+            p.save()
+            self.reply(200, {"id": c.get("id"), field: value == "1"})
 
         def do_DELETE(self):
             if self.path.startswith("/handoff/"):

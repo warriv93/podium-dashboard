@@ -3,9 +3,10 @@
 
 Prints one line per event the orchestrator must act on:
 
-    REQUEST <action> [<id>] [note=…]  a Podium button (requests.jsonl); confirm/reverse <n> settle an assumption; asana [<epic>] note=<Asana link> links Asana;
+    REQUEST <action> [<id>] [cover=…] [note=…]  a Podium button (requests.jsonl); confirm/reverse <n> settle an assumption; asana [<epic>] note=<Asana link> links Asana;
                                     build-all/stop/proceed <milestone> name the milestone they act on, assign [<milestone>/]<story> its story;
-                                    share, with no id, asks to share the run with a colleague
+                                    share, with no id, asks to share the run with a colleague; report cover=<since|all|YYYY-MM-DD>,
+                                    report-publish and report-comments, with no id, the quest report (README, Quest report)
     PROGRESS <story> <line>         a story agent's COMMITTED or FAILED line (stories/<milestone>/<story>.progress);
                                     the other stages only feed the Podium, so they stay out of the agent's context
     PERMISSION <story> <tool>       a Paseo agent waits for approval   (--paseo)
@@ -49,7 +50,7 @@ from podium_dashboard.files import watched, write_atomic
 from podium_dashboard.human import availability
 from podium_dashboard.plugins import paseo
 from podium_dashboard.server import load_podium, load_run, run_dir
-from podium_dashboard.state import podium_dir
+from podium_dashboard.state import podium_dir, request_tail
 
 SYNC_EVERY = 60
 
@@ -159,8 +160,7 @@ def printed(path, chunk):
                 r = json.loads(line)
             except ValueError:
                 continue
-            note = f" note={r['note']}" if r.get("note") else ""
-            found.append(f"REQUEST {r.get('action')} {r.get('story') or ''}".rstrip() + note)
+            found.append(f"REQUEST {r.get('action')} {r.get('story') or ''}".rstrip() + request_tail(r))
         elif line.split()[1:2] in (["COMMITTED"], ["FAILED"]):
             found.append(f"PROGRESS {os.path.basename(path)[:-len('.progress')]} {line}")
     return found

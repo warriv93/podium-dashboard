@@ -452,6 +452,11 @@ def set_requests_seen(p, offset):
         write_atomic(os.path.join(p.dir, "cursor.json"), json.dumps({"requestsSeen": offset}))
 
 
+def request_tail(r):
+    """What a printed request line carries after its action and id: ` cover=<cover>` for a quest report, ` note=…`."""
+    return (f" cover={r['cover']}" if r.get("cover") else "") + (f" note={r['note']}" if r.get("note") else "")
+
+
 def queued_requests(p):
     """requests.jsonl lines neither an earlier call nor the watcher passed on, as ACT and LIST lines, the cursor moved
     past them; confirm and reverse lines whose assumptions were settled meanwhile drop out."""
@@ -486,6 +491,5 @@ def queued_requests(p):
             ident = ",".join(i for i in str(ident).split(",") if i in open_)
             if not ident:
                 continue
-        note = f" note={r['note']}" if r.get("note") else ""
-        lines.append(f"{'ACT' if action in ACT_ON else 'LIST'} {action} {ident}".rstrip() + note)
+        lines.append(f"{'ACT' if action in ACT_ON else 'LIST'} {action} {ident}".rstrip() + request_tail(r))
     return lines
