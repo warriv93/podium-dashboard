@@ -866,6 +866,20 @@ a.file:hover, .sec h3 a:hover { color: var(--accent); background: var(--accent-s
 .rp-paper [data-redit$="/head"]:empty::before { content: "Should be able to …"; color: var(--faint); font-weight: 400; }
 .rp-paper [data-redit$="/role"]:empty::before { content: "Who"; }
 .rp-paper [data-redit$="/why"]:empty::before { content: "What they gain, or what is left"; color: var(--faint); }
+.rs-structure { display: flex; flex-direction: column; gap: 4px; }
+.rs-structure button { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: none; border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; color: var(--text); text-align: left; cursor: pointer; }
+.rs-structure button span { width: 18px; height: 18px; border-radius: 50%; background: var(--wash); color: var(--muted); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.rs-structure button.on { border-color: #0071e3; background: #f7fbff; color: #0071e3; }
+.rs-structure button.on span { background: #0071e3; color: #fff; }
+.rp-prio.st.done { background: #e9f6ec; color: #248a3d; }
+.rp-prio.st.working { background: #e8f1fc; color: #0071e3; }
+.rp-prio.st.open { background: #fff4e5; color: #b25000; }
+.rp-prio.role { background: var(--wash); color: var(--text); }
+.rp-bucket.tier { color: var(--muted); }
+.rp-add.multi { cursor: default; }
+.rp-add.multi:hover { color: var(--faint); border-color: var(--line); background: none; }
+.rp-add.multi button { border: 0; background: var(--wash); border-radius: 999px; padding: 1px 10px; margin-left: 6px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; }
+.rp-add.multi button:hover { background: #0071e3; color: #fff; }
 .rp-desc { margin: 3px 0 4px; font-size: 13px; line-height: 1.45; }
 .rp-new { font-size: 10px; font-weight: 700; color: #fff; background: #0071e3; border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 .rp-out { display: none; position: absolute; right: 4px; top: 4px; border: 0; background: var(--wash); border-radius: 6px; color: var(--faint); cursor: pointer; font-size: 11px; padding: 1px 6px; }
@@ -3236,7 +3250,7 @@ function reportRow([x, path], bucket, mark, extra = "") {
 }
 const addRowButton = (path) => `<button class="rp-add" data-report-add="${esc(path.join("/"))}"><span>+</span>Add a row</button>`;
 const NEW_ROW = dict([["tiers", () => ({ bucket: "working" })], ["moved", () => ({})], ["apps", () => ({ platforms: { iOS: { state: "open" }, Android: { state: "open" } } })]]);
-function addRow(path) {
+function addRow(path, preset = "") {
   const d = S.report?.draft, keys = String(path).split("/"), make = NEW_ROW[keys[0]];
   if (!d || !make || keys.some((k) => k === "__proto__" || k === "constructor" || k === "prototype")) return;
   let parent = d;
@@ -3246,7 +3260,10 @@ function addRow(path) {
   }
   const last = keys[keys.length - 1];
   if (!Array.isArray(parent[last])) parent[last] = [];
-  const i = parent[last].push({ ...make(), role: "", head: "", why: "", added: true }) - 1, row = `${path}/${i}`;
+  const [field, value] = String(preset).split(/:(.*)/s), row0 = { ...make(), role: "", head: "", why: "", added: true };
+  if (field === "bucket" && REPORT_BUCKETS.some(([b]) => b === value)) row0.bucket = value;
+  if (field === "role") row0.role = value;
+  const i = parent[last].push(row0) - 1, row = `${path}/${i}`;
   S.reportOpen.add(row);
   renderReport(); saveReport();
   document.querySelector(`[data-redit="${row}/head"]`)?.focus?.();
@@ -3270,13 +3287,48 @@ function reportBuckets(rows, buckets, bucketOf, internal, extra = () => "", tail
   }
   return html;
 }
+function blockerLine(unfinished) {
+  if (!unfinished.length) return "";
+  const blockers = unfinished.filter(([x]) => x.risk?.level === "blocks").map(([x]) => x);
+  const blocker = (x) => `${esc(x.head)} — ${esc(String(x.risk.text || RISK_TEXT.blocks).replace(/\.$/, ""))}.`;
+  return `<div class="rp-riskline">${blockers.length > 1 ? `<b class="blocks">${blockers.length} unfinished items block a launch step:</b><ul class="rp-blockers">${blockers.map((x) => `<li>${blocker(x)}</li>`).join("")}</ul>`
+    : blockers.length ? `<b class="blocks">Blocks a launch step:</b> ${blocker(blockers[0])}` : `<b class="ok">Nothing unfinished here blocks launch.</b>`}</div>`;
+}
+const REPORT_STRUCTURES = [["status", "Status", "Delivered first, then being worked on, then not finished"], ["priority", "Priority", "Must, should, then nice to have"], ["group", "Target group", "Driver, marketing, support and the rest"]];
+const reportStructure = (d) => (REPORT_STRUCTURES.some(([k]) => k === d.structure) ? d.structure : "status");
+const BUCKET_MARK = dict(REPORT_BUCKETS.map(([b, , mark]) => [b, mark]));
+function reportGrouped(d, has) {
+  const tiers = REPORT_TIERS.filter(([t]) => has(t)), byStatus = reportStructure(d) === "status";
+  const rows = tiers.flatMap(([t]) => shownRows(d.tiers?.[t], ["tiers", t]));
+  const roles = [...new Set(rows.map(([x]) => String(x.role || "")))].sort((a, b) => roleRank({ role: a || "~" }) - roleRank({ role: b || "~" }) || (!a) - (!b) || a.localeCompare(b));
+  const outer = byStatus ? REPORT_BUCKETS.map(([b, name]) => [b, name, (x) => reportBucket(x) === b]) : roles.map((r) => [r, r || "Everyone else", (x) => String(x.role || "") === r]);
+  const inner = byStatus ? tiers.map(([t, label]) => [t, label, (x, path) => path[1] === t]) : REPORT_BUCKETS.map(([b, name]) => [b, name, (x) => reportBucket(x) === b]);
+  let html = "";
+  for (const [key, name, inOuter] of outer) {
+    const mine = rows.filter(([x]) => inOuter(x));
+    if (!mine.length && !byStatus) continue;
+    const done = mine.filter(([x]) => reportBucket(x) === "done").length;
+    html += `<h3><span class="rp-prio ${byStatus ? `st ${key}` : "role"}">${esc(name)}</span><span class="tally">${byStatus ? mine.length : `${done} of ${mine.length} delivered`}</span></h3>`;
+    if (!byStatus || key !== "done") html += blockerLine(mine.filter(([x]) => reportBucket(x) !== "done"));
+    for (const [ik, iname, inInner] of inner) {
+      const all = mine.filter(([x, path]) => inInner(x, path));
+      if (!all.length) continue;
+      const folded = d.showInternal ? [] : all.filter(([x]) => x.internal), shown = byRole(d.showInternal ? all : all.filter(([x]) => !x.internal));
+      html += `<div class="rp-bucket ${byStatus ? "tier" : ik}">${esc(iname)} · ${all.length}</div><ul class="rp-items">${shown.map((r) => reportRow(r, reportBucket(r[0]), BUCKET_MARK[reportBucket(r[0])])).join("")}`
+        + (folded.length ? `<li class="${byStatus ? key : ik}"><span class="mk">${byStatus ? BUCKET_MARK[key] : BUCKET_MARK[ik]}</span><span class="t why">Plus ${folded.length} ${folded.length === 1 ? "piece" : "pieces"} of internal groundwork the features above stand on.</span></li>` : "") + `</ul>`;
+    }
+    if (byStatus && key === "done") {
+      const earlier = tiers.reduce((n, [t]) => n + Math.max(0, Math.floor(num(d.earlier?.[t]))), 0);
+      if (earlier && dayLabel(d.cover?.from)) html += `<div class="rp-more">and ${earlier} delivered before ${esc(dayLabel(d.cover.from))}</div>`;
+    }
+    if (tiers.length) html += `<div class="rp-add multi"><span>+</span>Add a row to ${tiers.map(([t, label]) => `<button data-report-add="tiers/${t}" data-report-with="${esc(byStatus ? `bucket:${key}` : `role:${key}`)}">${esc(label.replace(/^[★☆]\s*/, "").replace(/ & groundwork$/, ""))}</button>`).join("")}</div>`;
+  }
+  return html;
+}
 function reportTier(d, tier, label) {
   const rows = shownRows(d.tiers?.[tier], ["tiers", tier]);
-  const unfinished = rows.filter(([x]) => reportBucket(x) !== "done"), blockers = unfinished.filter(([x]) => x.risk?.level === "blocks").map(([x]) => x);
-  const blocker = (x) => `${esc(x.head)} — ${esc(String(x.risk.text || RISK_TEXT.blocks).replace(/\.$/, ""))}.`;
-  let html = `<h3><span class="rp-prio ${tier}">${label}</span><span class="tally">${rows.length - unfinished.length} of ${rows.length} delivered</span></h3>`;
-  if (unfinished.length) html += `<div class="rp-riskline">${blockers.length > 1 ? `<b class="blocks">${blockers.length} unfinished items block a launch step:</b><ul class="rp-blockers">${blockers.map((x) => `<li>${blocker(x)}</li>`).join("")}</ul>`
-    : blockers.length ? `<b class="blocks">Blocks a launch step:</b> ${blocker(blockers[0])}` : `<b class="ok">Nothing unfinished here blocks launch.</b>`}</div>`;
+  const unfinished = rows.filter(([x]) => reportBucket(x) !== "done");
+  let html = `<h3><span class="rp-prio ${tier}">${label}</span><span class="tally">${rows.length - unfinished.length} of ${rows.length} delivered</span></h3>` + blockerLine(unfinished);
   html += reportBuckets(rows, REPORT_BUCKETS, reportBucket, !!d.showInternal) + addRowButton(["tiers", tier]);
   const earlier = Math.max(0, Math.floor(num(d.earlier?.[tier])));
   if (earlier && dayLabel(d.cover?.from)) html += `<div class="rp-more">and ${earlier} delivered before ${esc(dayLabel(d.cover.from))}</div>`;
@@ -3316,7 +3368,8 @@ function reportPage(d) {
   out.push(`<div class="rp-body">`);
   const stats = shownRows(d.stats, ["stats"]);
   if (has("stats") && stats.length) out.push(`<div class="rp-stats">${stats.map(([s, path]) => `<div class="rp-stat"><b>${reportEd([...path, "n"], s.n)}</b><span>${reportEd([...path, "label"], s.label)}</span></div>`).join("")}</div>`);
-  for (const [t, label] of REPORT_TIERS) if (has(t)) out.push(reportTier(d, t, label));
+  if (reportStructure(d) === "priority") for (const [t, label] of REPORT_TIERS) { if (has(t)) out.push(reportTier(d, t, label)); }
+  else out.push(reportGrouped(d, has));
   const moved = shownRows(d.moved, ["moved"]);
   if (has("moved") && moved.length) out.push(`<h3><span class="rp-prio nice">Moved out of the quest</span></h3><ul class="rp-items">${byRole(moved).map((r) => reportRow(r, "moved", "→")).join("")}</ul>${addRowButton(["moved"])}`);
   const answers = shownRows(d.answers, ["answers"]);
@@ -3450,6 +3503,7 @@ function renderReport() {
   const left = d ? [...REPORT_TIERS.map(([t]) => d.tiers?.[t]), d.moved, d.stats, d.asks, d.answers, d.apps?.items, d.apps?.open].flatMap(objs).filter((x) => x.hidden).length : 0;
   const published = r?.status === "published", url = published ? safeUrl(r.url) : "";
   const side = d ? `<h4>Covers</h4><div class="rs-cover"><b>${esc(d.cover?.label || (d.cover?.from ? `From ${dayLabel(d.cover.from)}` : "The whole quest"))}</b><button class="rlink" data-report-new>Change</button></div>${last ? `<div class="note">Last report: ${esc(last.name || "")}${dayLabel(last.publishedAt) ? `, ${esc(dayLabel(last.publishedAt))}` : ""}. New items since then are marked.</div>` : ""}`
+    + `<h4>Structure</h4><div class="rs-structure">${REPORT_STRUCTURES.map(([k, label, note], i) => `<button data-report-structure="${k}" title="${esc(note)}"${reportStructure(d) === k ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}><span>${i + 1}</span>${label}</button>`).join("")}</div><div class="note">${esc(REPORT_STRUCTURES.find(([k]) => k === reportStructure(d))[2])}.</div>`
     + `<h4>Sections</h4>${REPORT_SECTIONS.map(([k, label]) => `<label><input type="checkbox" data-report-sec="${k}"${secs.includes(k) ? " checked" : ""}>${label}${["must", "should", "nice"].includes(k) ? ` <small>${counts(k)}</small>` : ""}</label>`).join("")}`
     + `<h4>Unfinished work is tagged</h4><div class="rlegend"><span><span class="rp-risk blocks">Blocks …</span> a launch or a launch step</span><span><span class="rp-risk waits">Waits on …</span> another team or system</span><span><span class="rp-risk later">Can ship without</span> next quest, parked</span></div>`
     + `<h4>Detail</h4><label><input type="checkbox" data-report-allopen${S.reportAllOpen ? " checked" : ""}>Open every row's details</label><label><input type="checkbox" data-report-internal${d.showInternal ? " checked" : ""}>Show internal groundwork</label><div class="note">Sign-in, roles, config and refactors fold into one line by default.</div>`
@@ -3744,7 +3798,9 @@ document.addEventListener("click", (ev) => {
   const fold = ev.target.closest("[data-report-fold]");
   if (fold) { const k = fold.dataset.reportFold; S.reportOpen.has(k) || S.reportAllOpen ? (S.reportOpen.delete(k), S.reportAllOpen = false) : S.reportOpen.add(k); renderReport(); return; }
   const radd = ev.target.closest("[data-report-add]");
-  if (radd) { addRow(radd.dataset.reportAdd); return; }
+  if (radd) { addRow(radd.dataset.reportAdd, radd.dataset.reportWith || ""); return; }
+  const rst = ev.target.closest("[data-report-structure]");
+  if (rst) { if (S.report?.draft) { S.report.draft.structure = rst.dataset.reportStructure; renderReport(); saveReport(); } return; }
   const rb = ev.target.closest("[data-report-bucket]");
   if (rb) { cycleBucket(rb.dataset.reportBucket); return; }
   const rout = ev.target.closest("[data-report-out]");

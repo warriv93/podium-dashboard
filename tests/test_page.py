@@ -1366,6 +1366,42 @@ class HostileRun(unittest.TestCase):
             for (let i = 0; i < 3; i++) { cycleBucket("tiers/must/0"); seen.push(S.report.draft.tiers.must[0].bucket); } return seen; })()''')
         self.assertEqual(self.probe(), ["working", "open", "done"])
 
+    STRUCTURE_DRAFT = {"name": "n", "kind": "sync", "tiers": {
+        "must": [{"bucket": "done", "head": "m-done", "role": "Marketing"}, {"bucket": "open", "head": "m-open", "role": "Driver", "risk": {"level": "blocks", "text": "t"}}],
+        "should": [{"bucket": "done", "head": "s-done", "role": "Driver"}], "nice": [{"bucket": "working", "head": "n-work", "role": X}]}}
+
+    def structured(self, structure=None, sections=None):
+        draft = {**self.STRUCTURE_DRAFT, **({"structure": structure} if structure else {}), **({"sections": sections} if sections else {})}
+        self.maps(probe=f'reportPage({json.dumps(draft)})')
+        return self.probe()
+
+    def test_the_report_lists_by_status_by_default_delivered_first_with_each_priority_inside(self):
+        page = self.structured()
+        self.assertEqual(re.findall(r'<span class="rp-prio st ([a-z]+)">', page), ["done", "working", "open"])
+        delivered = page.split('rp-prio st done')[1].split('rp-prio st working')[0]
+        self.assertEqual(re.findall(r'<div class="rp-bucket tier">([^<]*)</div>', delivered), ["★ Must have · 1", "☆ Should have · 1"])
+        self.assertNotIn("rp-riskline", delivered)
+        self.assertIn('<b class="blocks">Blocks a launch step:</b> m-open', page.split('rp-prio st open')[1])
+        self.assertIn('<button data-report-add="tiers/must" data-report-with="bucket:open">Must have</button>', page)
+        self.assertEqual(self.structured(structure=X), page)
+
+    def test_the_report_lists_by_priority_or_by_target_group_when_picked(self):
+        self.assertEqual(re.findall(r'<span class="rp-prio (must|should|nice)">', self.structured("priority")), ["must", "should", "nice"])
+        group = self.structured("group")
+        self.assertEqual(re.findall(r'<span class="rp-prio role">([^<]*)</span>', group), ["Driver", "Marketing", esc(X)])
+        self.assertIn('<span class="tally">1 of 2 delivered</span>', group)
+        self.assertIn(f'data-report-with="role:{esc(X)}"', group)
+
+    def test_a_priority_left_out_of_the_sections_leaves_the_status_lists_too(self):
+        page = self.structured(sections=["must", "nice"])
+        self.assertNotIn("s-done", page)
+        self.assertNotIn("Should have", page)
+
+    def test_a_ghost_row_adds_into_the_status_or_target_group_it_sits_under(self):
+        self.maps(probe='''(() => { S.report = { draft: { tiers: {} } }; addRow("tiers/should", "bucket:done"); addRow("tiers/must", "role:Driver"); addRow("tiers/nice", "bucket:" + "nope");
+            const t = S.report.draft.tiers; return [t.should[0].bucket, t.must[0].role, t.must[0].bucket, t.nice[0].bucket]; })()''')
+        self.assertEqual(self.probe(), ["done", "Driver", "working", "working"])
+
     def test_rows_go_delivered_then_worked_on_then_unfinished_each_sorted_by_role_driver_first_and_others_last(self):
         t = self.tier([{"bucket": "open", "head": "o1", "role": "Staff"}, {"bucket": "done", "head": "d1", "role": "Tester"},
                        {"bucket": "done", "head": "d2", "role": "Admin"}, {"bucket": "done", "head": "d3", "role": "Driver"},
