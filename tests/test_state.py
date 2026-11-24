@@ -437,8 +437,10 @@ class Requests(Run):
 
     def test_splits_the_users_answers_from_the_rest_and_passes_each_on_once(self):
         self.queue({"action": "confirm", "story": "0,1"}, {"action": "assign", "story": "S1"},
-                   {"action": "reverse", "story": "1", "note": "no"}, {"action": "asana-done", "story": "M1", "note": "keep"})
-        self.assertEqual(self.podium("requests").splitlines(), ["ACT confirm 0", "LIST assign S1", "ACT asana-done M1 note=keep"])
+                   {"action": "reverse", "story": "1", "note": "no"}, {"action": "asana-done", "story": "M1", "note": "keep"},
+                   {"action": "asana-complete", "story": "M2", "note": "1201"})
+        self.assertEqual(self.podium("requests").splitlines(),
+                         ["ACT confirm 0", "LIST assign S1", "ACT asana-done M1 note=keep", "ACT asana-complete M2 note=1201"])
         self.assertEqual(self.podium("requests"), "")
         self.assertEqual(self.cursor(), os.path.getsize(self.path("requests.jsonl")))
         self.assertNotIn("requestsSeen", self.state())

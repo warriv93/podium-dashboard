@@ -189,6 +189,27 @@ class Info(Server):
         self.assertEqual({k: v.get("podium") for k, v in people.items()},
                          {"ann": {"commit": "aaaaaaa", "behind": 4, "restart": True}, "bob": {"commit": "bbbbbbb", "behind": 0}, "cy": None})
 
+    def test_a_tick_runs_the_extensions_on_tick_and_saves_what_it_changed(self):
+        data = json.loads(json.dumps(DATA))
+        data["orchestrator"]["extension"] = self.write("ext/orch.py", textwrap.dedent("""
+            def on_tick(p):
+                p.milestones()[0]["status"] = "done"
+                return ["LANDED M1"]
+        """))
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(data, f)
+        with unittest.mock.patch.dict(os.environ, {"PODIUM_ME": "ann"}):
+            self.assertEqual(server.tick(self.run_dir), ["LANDED M1"])
+        with open(os.path.join(self.pod, "podium.json")) as f:
+            self.assertEqual(json.load(f)["epics"][0]["milestones"][0]["status"], "done")
+
+    def test_a_tick_without_an_on_tick_hook_changes_nothing(self):
+        with open(os.path.join(self.pod, "podium.json"), "w") as f:
+            json.dump(DATA, f)
+        before = os.stat(os.path.join(self.pod, "podium.json")).st_mtime_ns
+        self.assertEqual(server.tick(self.run_dir), [])
+        self.assertEqual(os.stat(os.path.join(self.pod, "podium.json")).st_mtime_ns, before)
+
     def test_a_run_without_an_orchestrator_or_people_says_so(self):
         self.serve({k: v for k, v in DATA.items() if k != "orchestrator"})
         info = self.call("GET", "/info")[1]

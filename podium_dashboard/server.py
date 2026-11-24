@@ -443,6 +443,33 @@ def auto_pull(root):
         pull_run(root)
 
 
+TICK_EVERY = 300
+
+
+def tick(root):
+    """Run the extension's on_tick on the run as it is now, then save what it changed and sync it: the lines it printed."""
+    with PULLING:
+        p = load_podium(root)
+        fn = extension.on_tick(extension.load(p)[0]) if p else None
+        if not fn:
+            return []
+        lines = list(fn(p) or [])
+        if p.data != p.base:
+            p.save()
+        sync.autosave(p)
+        return lines
+
+
+def auto_tick(root):
+    while True:
+        time.sleep(TICK_EVERY)
+        try:
+            for line in tick(root):
+                print(f"{datetime.now():%H:%M} {line}", flush=True)
+        except Exception as e:
+            print(f"podium tick failed: {type(e).__name__}: {e}", flush=True)
+
+
 SEEN = {"at": time.time(), "by": "start"}
 
 
@@ -1139,6 +1166,7 @@ def main(argv=None):
     if args.git_every > 0:
         threading.Thread(target=watch_git, args=(root, args.git_every), daemon=True).start()
     threading.Thread(target=auto_pull, args=(root,), daemon=True).start()
+    threading.Thread(target=auto_tick, args=(root,), daemon=True).start()
     if slug:
         threading.Thread(target=keep_lease, args=(slug, root, port), daemon=True).start()
     if args.version_every > 0:

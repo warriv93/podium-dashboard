@@ -1,7 +1,7 @@
 """The run's orchestrator extension: the .py file podium.json's `orchestrator.extension` names.
 
 It may define COMMANDS ({verb: fn(p, args)}), ACTIONS (extra request actions), prompt(p, kind, target_id),
-on_asana_refresh(p, task_json), SYNC_MAJOR(event) and SHARE_STEPS (the steps a colleague takes to join the run, for
+on_asana_refresh(p, task_json), on_tick(p) (the Podium server's call every few minutes), SYNC_MAJOR(event) and SHARE_STEPS (the steps a colleague takes to join the run, for
 the Podium's Share button; `{ref}` and `{remote}` stand for the run's sync ref and remote) and FINDINGS_REMOTE (the git
 URL whose refs/heads/findings/<run slug> refs hold the runs' findings). Every helper here takes the module or None. Only a .py file
 loads: sync never writes one.
@@ -77,6 +77,10 @@ def prompt(module):
 
 def on_asana_refresh(module):
     return hook(module, "on_asana_refresh")
+
+
+def on_tick(module):
+    return hook(module, "on_tick")
 
 
 def sync_major(module):
