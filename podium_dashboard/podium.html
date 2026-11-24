@@ -197,9 +197,13 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .banner.assumed li .row:hover .q { color: var(--accent); }
 .banner.assumed li .q { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .banner.assumed .ams { font-size: 11px; font-weight: 700; color: var(--text-2); background: var(--gray-soft); border-radius: 5px; padding: 1px 6px; margin-right: 8px; }
-.banner.assumed .chev { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; border-radius: 8px; background: rgba(0,113,227,.08); color: var(--accent); cursor: pointer; transition: transform .15s; }
-.banner.assumed .chev:hover { background: rgba(0,113,227,.12); }
-.banner.assumed li.open .chev { transform: rotate(180deg); }
+.banner .chev { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; border-radius: 8px; background: rgba(0,113,227,.08); color: var(--accent); cursor: pointer; transition: transform .15s; }
+.banner .chev:hover { background: rgba(0,113,227,.12); }
+.banner.assumed li.open .chev, .banner.open > .phead .chev { transform: rotate(180deg); }
+.banner.fold { flex-direction: column; align-items: stretch; gap: 10px; }
+.banner.assumed.fold { gap: 6px; }
+.banner .phead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; cursor: pointer; }
+.banner .phead .pend { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .banner.assumed .more { margin: 6px 36px 4px 34px; display: grid; gap: 4px; color: var(--text-2); }
 .banner.assumed .more .k { display: inline-block; min-width: 70px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); }
 .banner.assumed li:first-child { border-top: none; }
@@ -207,7 +211,6 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .banner.assumed .aid { display: inline-block; min-width: 26px; color: var(--accent); }
 .banner.assumed .ashared { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 5px; padding: 0 5px; margin-right: 8px; }
 .banner.assumed .settle { display: flex; gap: 6px; flex: none; }
-.banner.assumed .confirm-all { align-self: flex-start; }
 .banner.assumed .settle .btn { padding: 3px 11px; font-size: 12px; }
 .banner.assumed .settled { flex: none; font-size: 12px; font-weight: 600; color: var(--green); white-space: nowrap; }
 .banner.assumed .settled.reverse { color: var(--amber); }
@@ -1221,12 +1224,26 @@ function setSort(k) {
   S.sort = SORT_KEYS.includes(k) ? k : "run";
   writeRun("podium-sort", S.sort);
 }
+const PANEL_KEYS = { idle: "podium-idle-open", assumed: "podium-assumed-open" };
+function togglePanel(p) {
+  S.panelOpen[p] = !S.panelOpen[p];
+  writeRun(PANEL_KEYS[p], S.panelOpen[p] ? "1" : "0");
+  const focused = document.activeElement?.matches?.(`button[data-panel="${p}"]`);
+  render();
+  if (focused) refocus(`button[data-panel="${p}"]`);
+}
+const panelHead = (p, head, extra = "") => {
+  const open = !!S.panelOpen[p];
+  return `<div class="phead" data-panel="${p}">${head}<span class="pend">${extra}<button class="chev" data-panel="${p}" aria-expanded="${open}" aria-label="${open ? "Hide" : "Show"} the details" title="${open ? "Hide" : "Show"} the details"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span></div>`;
+};
+const foldPanel = (p, cls, head, body, extra) => `<div class="banner ${cls} fold${S.panelOpen[p] ? " open" : ""}">${panelHead(p, head, extra)}${S.panelOpen[p] ? body : ""}</div>`;
 function loadRunChoices() {
   S.hideFinished = readRun("podium-hide-finished") !== "0";
   S.hidePaused = readRun("podium-hide-paused") === "1";
   S.wrapLanded = readRun("podium-wrap-landed") === "1";
   S.showClosed = readRun("podium-show-closed") === "1";
   S.collapsed = readRun("podium-collapsed") === "1";
+  S.panelOpen = dict(Object.entries(PANEL_KEYS).map(([p, k]) => [p, readRun(k) === "1"]));
   S.people = readPeople();
   S.prioShown = readPrioShown();
   S.sort = readSort();
@@ -2155,7 +2172,8 @@ function renderBanner() {
     html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${esc(sub)}</span></div>`;
   } else {
     const next = ms.filter((m) => [...UNSTARTED, "todo"].includes(m.status)).sort((a, b) => Number(waitersOf(b.id).length > 0) - Number(waitersOf(a.id).length > 0));
-    html = `<div class="banner idle"><span class="label">Idle</span><span class="sub">${ms.filter((m) => m.status === "done").length} milestones landed · next: pick one to plan</span><div class="chips">${next.map((m) => `<span class="wchip" data-open="${esc(m.id)}"><b>${esc(m.id)}</b> ${esc(m.title)} <span class="cycle">· ${esc(m.status)}</span></span>`).join("")}</div></div>`;
+    html = foldPanel("idle", "idle", `<span class="label">Idle</span><span class="sub">${ms.filter((m) => m.status === "done").length} milestones landed · next: pick one to plan</span>`,
+      `<div class="chips">${next.map((m) => `<span class="wchip" data-open="${esc(m.id)}"><b>${esc(m.id)}</b> ${esc(m.title)} <span class="cycle">· ${esc(m.status)}</span></span>`).join("")}</div>`);
   }
   $("banner").innerHTML = needsBanner() + handedBanner() + waitBanner() + digestBanner() + assumedBanner() + html;
 }
@@ -2230,7 +2248,9 @@ function assumedBanner() {
     return `<li class="${on ? "open" : ""}"><div class="row" data-expand="${esc(a.n)}"><span class="q"><b class="aid">${esc(a.label)}</b>${a.shared ? `<span class="ashared" title="Recorded before each person kept their own">shared</span>` : ""}${a.milestone ? `<span class="ams">${esc(a.milestone)}</span>` : ""}${esc(a.short || a.question)}</span>${act}<button class="chev" data-expand="${esc(a.n)}" title="${on ? "Less" : "More"}" aria-expanded="${on}"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>${more}</li>`;
   }).join("");
   const left = open.filter((a) => !S.settling?.[a.n]).length;
-  return `<div class="banner assumed"><span class="label">Decided while you were away · ${left ? `${left} to settle` : "all answered"}</span><span class="sub">Confirm or reverse each; the arrow on the right shows the details</span>${left > 1 ? `<button class="btn confirm-all" data-settle="confirm" data-id="all">Confirm all ${left}</button>` : ""}<ul class="assumed-list">${items}</ul></div>`;
+  return foldPanel("assumed", "assumed", `<span class="label">Decided while you were away · ${left ? `${left} to settle` : "all answered"}</span>`,
+    `<span class="sub">Confirm or reverse each; the arrow on the right shows the details</span><ul class="assumed-list">${items}</ul>`,
+    left > 1 ? `<button class="btn confirm-all" data-settle="confirm" data-id="all">Confirm all ${left}</button>` : "");
 }
 async function settle(action, id) {
   if (refuseDotted(id)) return;
@@ -4007,6 +4027,8 @@ document.addEventListener("click", (ev) => {
   if (lk) { const pr = prsToReview().find((x) => prKey(x.ms, x.repo, x.number) === lk.dataset.looked); if (pr) markLooked(pr); return; }
   const st = ev.target.closest("[data-settle]");
   if (st) { ev.stopPropagation(); settle(st.dataset.settle, st.dataset.id); return; }
+  const pn = ev.target.closest("[data-panel]");
+  if (pn) { ev.stopPropagation(); togglePanel(pn.dataset.panel); return; }
   const a = ev.target.closest("[data-act]");
   if (a) { ev.stopPropagation(); if (!a.disabled) act(a.dataset.act, a.dataset.id); return; }
   const aq = ev.target.closest("[data-asana-ask]");

@@ -518,10 +518,10 @@ class HostileRun(unittest.TestCase):
 
     def test_story_links_name_their_milestone_and_story_and_milestone_links_only_the_milestone(self):
         events = [{"type": "merged", "milestone": "M1", "story": H, "at": DONE}]
-        scan = self.rendered(EMIT_RUN, events, PROGRESS, (), probe='(S.expanded = new Set(["0"]), render(), null)')
+        scan = self.rendered(EMIT_RUN, events, PROGRESS, (), probe='(S.expanded = new Set(["0"]), S.panelOpen.assumed = true, render(), null)')
         story = ("M1", H)
         for kind in ("working", "needs", "assumed", "digest"):
-            self.assertIn(story, self.opens(f'<div class="banner {kind}"', '<div class="banner '), kind)
+            self.assertIn(story, self.opens(f'<div class="banner {kind}', '<div class="banner '), kind)
         self.assertIn(story, self.opens('<li class="ev"', '<li class="ev"'))
         self.assertIn(story, self.opens('<div class="node compact working', '<div class="node '))
         chips = self.opens('<span class="link-chip', '<span class="link-chip')
@@ -543,6 +543,66 @@ class HostileRun(unittest.TestCase):
         banners = "".join(h for h in self.html if "banner idle" in h)
         self.assertIn("M1: 1 story is ready to assign", banners)
         self.assertNotIn("2 stories are ready", banners)
+
+    PANEL_RUN = {**TWIN_RUN, "active": {"epic": "e1", "milestone": "M2"},
+                 "assumptions": [{"question": f"q{n}", "choice": "c", "why": "w", "short": f"decision {n}", "status": "open", "milestone": "M1"} for n in (1, 2)],
+                 "epics": [{"id": "e1", "title": "E", "milestones": [
+                     {"id": "M1", "title": "landed", "status": "done", "stories": [{"id": "S1", "title": "a", "status": "done"}]},
+                     {"id": "M2", "title": "next up", "status": "todo"}]}]}
+    PANEL_CLICK = ('const click = (hits) => { const target = { dataset: {}, closest: (s) => (s in hits ? { dataset: hits[s] } : null) };'
+                   ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); };'
+                   ' const banner = () => $("banner").innerHTML; window.confirm = () => false;')
+
+    def panels(self, steps="", stored=None):
+        """The banner row after a first render and then after each step, as a list of HTML strings."""
+        self.maps(self.PANEL_RUN, localStorage=stored or {},
+                  probe=f"(() => {{ {self.PANEL_CLICK} closeSheet(); render(); const seen = [banner()]; {steps} return seen; }})()")
+        return self.probe()
+
+    @staticmethod
+    def panel(html, kind):
+        return re.search(rf'<div class="banner {kind} fold[^"]*">.*?(?=<div class="banner |$)', html, re.S).group(0)
+
+    def test_the_idle_and_decided_panels_start_collapsed_with_a_chevron_in_their_heading(self):
+        html = self.panels()[0]
+        idle, decided = self.panel(html, "idle"), self.panel(html, "assumed")
+        self.assertIn('<div class="banner idle fold">', idle)
+        self.assertIn("1 milestones landed · next: pick one to plan", idle)
+        self.assertIn('<button class="chev" data-panel="idle" aria-expanded="false"', idle)
+        self.assertNotIn("wchip", idle)
+        self.assertIn('<div class="banner assumed fold">', decided)
+        self.assertIn('<button class="chev" data-panel="assumed" aria-expanded="false"', decided)
+        self.assertNotIn("assumed-list", decided)
+        self.assertNotIn("Confirm or reverse each", decided)
+
+    def test_confirm_all_sits_in_the_decided_heading_and_shows_while_collapsed(self):
+        decided = self.panel(self.panels()[0], "assumed")
+        head = re.search(r'<div class="phead" data-panel="assumed">(.*?)</div>', decided, re.S).group(1)
+        self.assertIn("Decided while you were away · 2 to settle", head)
+        self.assertRegex(head, r'<span class="pend"><button class="btn confirm-all" data-settle="confirm" data-id="all">Confirm all 2</button><button class="chev" data-panel="assumed"')
+
+    def test_a_panel_opens_on_its_toggle_and_stays_open_across_a_re_render(self):
+        for kind, body in (("idle", 'data-open="M2"'), ("assumed", "Confirm or reverse each")):
+            with self.subTest(kind=kind):
+                _, opened, again = self.panels(f'click({{ "[data-panel]": {{ panel: "{kind}" }} }}); seen.push(banner()); render(); seen.push(banner());')
+                for html in (opened, again):
+                    shown = self.panel(html, kind)
+                    self.assertIn(f'<div class="banner {kind} fold open">', shown)
+                    self.assertIn(f'data-panel="{kind}" aria-expanded="true"', shown)
+                    self.assertIn(body, shown)
+                other = "assumed" if kind == "idle" else "idle"
+                self.assertIn(f'<div class="banner {other} fold">', again)
+
+    def test_confirm_all_does_not_toggle_the_decided_panel(self):
+        _, after = self.panels('click({ "[data-settle]": { settle: "confirm", id: "all" }, "[data-panel]": { panel: "assumed" } }); seen.push(banner());')
+        self.assertIn('<div class="banner assumed fold">', after)
+
+    def test_a_panels_open_state_is_kept_in_the_browser_under_the_runs_slug(self):
+        self.maps(self.PANEL_RUN, probe=self.PUT % f'{self.PANEL_CLICK} closeSheet(); togglePanel("idle"); togglePanel("assumed")')
+        self.assertEqual(self.probe(), ["podium-assumed-open:api", "podium-idle-open:api"])
+        html = self.panels(stored={"podium-idle-open:api": "1", "podium-assumed-open:api": "1"})[0]
+        self.assertIn('<div class="banner idle fold open">', html)
+        self.assertIn('<div class="banner assumed fold open">', html)
 
     def test_the_done_banner_of_an_epic_with_one_milestone_says_the_epic_completed(self):
         run = {**TWIN_RUN, "epics": [{"id": "e1", "title": "E", "milestones": [
