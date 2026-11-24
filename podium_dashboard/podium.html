@@ -149,6 +149,7 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 .prio-menu .mhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
 .prio-menu small { margin-left: auto; padding-left: 12px; font-size: 11.5px; color: var(--text-3); }
 .fms:has(:is(.owner-menu, .prio-pick-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }
+:is(.topbar, .map-head, .map-scroll, .fms, .fepic):has(:is(.prio-menu, .owner-menu, .prio-pick-menu)) { z-index: 35; }
 .vhint { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 650; white-space: nowrap; cursor: help; align-self: center; }
 .ownwrap { position: relative; display: inline-flex; flex: none; }
 .ownbtn { display: inline-flex; padding: 0; border: 0; background: none; font: inherit; color: inherit; border-radius: 999px; cursor: pointer; }
@@ -1891,7 +1892,7 @@ function openHead(m, foot) {
 function keeps(ms, story) {
   const n = needsTarget();
   if (story !== undefined) return isSel(ms, story) || (n.ms === ms && n.story === String(story));
-  return S.sel?.ms === ms || S.open === ms || n.ms === ms || waitersOf(ms).length > 0;
+  return S.sel?.ms === ms || S.open === ms || (n.ms === ms && !closedMs(msList().find((x) => x.id === ms) || {})) || waitersOf(ms).length > 0;
 }
 const PAUSED = ["parked", "later"];
 const hidesClosed = (x) => !S.showClosed && x.status === "dropped";

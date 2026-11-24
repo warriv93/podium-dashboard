@@ -950,6 +950,11 @@ class HostileRun(unittest.TestCase):
         _, stories, _ = self.hidden_map(run=run)
         self.assertEqual(sorted(stories), ["S3", "S4", "S5"])
 
+    def test_hide_finished_hides_a_landed_milestone_a_stale_needs_you_still_names(self):
+        run = {**HIDE_RUN, "active": {"epic": "e1", "milestone": "M1"}, "needsYou": {"reason": "M1: review its PR"}}
+        shown, _, _ = self.hidden_map(run=run)
+        self.assertNotIn("M1", shown)
+
     def feed_classes(self, stored=None):
         self.rendered(localStorage=stored or {})
         return [h for h in self.html if h.startswith("FEED")][-1].split()[1:]
