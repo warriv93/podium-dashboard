@@ -911,38 +911,48 @@ class State(Server):
         data["epics"][0]["milestones"][1].update(m2)
         self.serve(data)
 
-    def test_pauses_closes_and_reopens_a_milestone_with_no_watcher(self):
+    def test_puts_off_closes_and_reopens_a_milestone_with_no_watcher(self):
         self.run_with()
-        self.assertEqual(self.call("POST", "/status/M9?to=paused")[0], 404)
-        self.assertEqual(self.call("POST", "/status/M2?to=gone"), (400, {"error": "to is open, paused or closed"}))
-        self.assertEqual(self.call("POST", "/status/M2?to=paused"), (200, {"id": "M2", "status": "parked"}))
-        self.assertEqual({k: self.milestone("M2").get(k) for k in ("status", "resumeTo")}, {"status": "parked", "resumeTo": "todo"})
+        self.assertEqual(self.call("POST", "/status/M9?to=later")[0], 404)
+        self.assertEqual(self.call("POST", "/status/M2?to=gone"), (400, {"error": "to is open, later or closed"}))
+        self.assertEqual(self.call("POST", "/status/M2?to=later"), (200, {"id": "M2", "status": "later"}))
+        self.assertEqual({k: self.milestone("M2").get(k) for k in ("status", "resumeTo")}, {"status": "later", "resumeTo": "todo"})
         self.assertEqual(self.call("POST", "/status/M2?to=closed"), (200, {"id": "M2", "status": "dropped"}))
         self.assertEqual(self.milestone("M2")["resumeTo"], "todo")
         self.assertEqual(self.call("POST", "/status/M2?to=open"), (200, {"id": "M2", "status": "todo"}))
         self.assertNotIn("resumeTo", self.milestone("M2"))
-        self.assertEqual([e["text"] for e in self.events()[-3:]], ["M2 paused", "M2 closed", "M2 reopened"])
+        self.assertEqual([e["text"] for e in self.events()[-3:]], ["M2 put off for later", "M2 closed", "M2 reopened"])
         self.assertEqual(self.requests(), [])
+
+    def test_paused_is_another_word_for_later(self):
+        self.run_with(status="draft")
+        self.assertEqual(self.call("POST", "/status/M2?to=paused"), (200, {"id": "M2", "status": "later"}))
+        self.assertEqual(self.milestone("M2")["resumeTo"], "draft")
 
     def test_reopening_a_draft_restores_draft(self):
         self.run_with(status="draft")
         self.call("POST", "/status/M2?to=closed")
         self.assertEqual(self.call("POST", "/status/M2?to=open"), (200, {"id": "M2", "status": "draft"}))
 
-    def test_reopening_one_paused_elsewhere_is_todo_with_stories_and_draft_without(self):
+    def test_reopening_one_put_off_elsewhere_is_todo_with_stories_and_draft_without(self):
         for stories, status in (([{"id": "S1", "status": "todo"}], "todo"), ([], "draft")):
             with self.subTest(stories=stories):
                 self.run_with(status="later", stories=stories)
                 self.assertEqual(self.call("POST", "/status/M2?to=open"), (200, {"id": "M2", "status": status}))
 
+    def test_a_parked_milestone_is_later_and_reopens_where_it_left(self):
+        self.run_with(status="parked", resumeTo="draft")
+        self.assertEqual(self.call("POST", "/status/M2?to=later"), (200, {"id": "M2", "status": "later"}))
+        self.assertEqual(self.call("POST", "/status/M2?to=open"), (200, {"id": "M2", "status": "draft"}))
+
     def test_setting_the_state_it_already_has_writes_no_event(self):
-        self.run_with(status="parked")
-        self.assertEqual(self.call("POST", "/status/M2?to=paused"), (200, {"id": "M2", "status": "parked"}))
+        self.run_with(status="later")
+        self.assertEqual(self.call("POST", "/status/M2?to=paused"), (200, {"id": "M2", "status": "later"}))
         self.assertFalse(os.path.exists(os.path.join(self.pod, "events.jsonl")))
 
     def test_refuses_a_milestone_in_progress_landed_or_moved(self):
         self.run_with()
-        self.assertEqual(self.call("POST", "/status/M1?to=paused"), (409, {"error": "M1 is in progress: stop it first"}))
+        self.assertEqual(self.call("POST", "/status/M1?to=later"), (409, {"error": "M1 is in progress: stop it first"}))
         for status, error in (("done", "M2 has landed"), ("moved", "M2 has moved")):
             with self.subTest(status=status):
                 self.run_with(status=status)

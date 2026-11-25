@@ -148,8 +148,9 @@ code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size:
 #people-filter .share .owner.dot + .owner.dot { margin-left: -5px; }
 .prio-menu .mhead:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
 .prio-menu small { margin-left: auto; padding-left: 12px; font-size: 11.5px; color: var(--text-3); }
-.fms:has(:is(.owner-menu, .prio-pick-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }
-:is(.topbar, .map-head, .map-scroll, .fms, .fepic):has(:is(.prio-menu, .owner-menu, .prio-pick-menu)) { z-index: 35; }
+.fms:has(:is(.owner-menu, .prio-pick-menu, .state-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }
+:is(.topbar, .map-head, .map-scroll, .fms, .fepic):has(:is(.prio-menu, .owner-menu, .prio-pick-menu, .state-menu)) { z-index: 35; }
+.fms.dropped:has(.state-menu) { opacity: 1; }
 .vhint { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 650; white-space: nowrap; cursor: help; align-self: center; }
 .ownwrap { position: relative; display: inline-flex; flex: none; }
 .ownbtn { display: inline-flex; padding: 0; border: 0; background: none; font: inherit; color: inherit; border-radius: 999px; cursor: pointer; }
@@ -365,6 +366,19 @@ a.wchip { color: inherit; text-decoration: none; }
 .prio.nice { background: var(--gray-soft); color: var(--text-2); padding: 0 7px; }
 .prio-pick-menu { left: 0; right: auto; min-width: 150px; }
 .prio-pick-menu button { padding: 6px 8px; }
+.state-wrap { position: relative; display: inline-flex; flex: none; }
+.state-pick { display: inline-flex; align-items: center; padding: 0; border: 0; background: none; font: inherit; border-radius: 999px; cursor: pointer; }
+.state-pick .badge::after { content: "▾"; font-size: 9px; margin-left: 1px; opacity: .7; }
+.state-pick[aria-expanded="true"] .badge { box-shadow: 0 0 0 2px var(--accent); }
+.state-menu { min-width: 250px; }
+.state-menu button small { margin-left: auto; padding-left: 14px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+.state-menu button.derived:disabled { opacity: 1; }
+.state-menu button.derived .badge { color: var(--text-3); }
+.state-menu button.derived .badge::before { opacity: .55; }
+.state-menu .foot-note { margin: 4px 0 0; padding: 6px 8px 2px; border-top: 1px solid var(--line); font-size: 11px; line-height: 1.4; color: var(--text-3); white-space: normal; }
+.state-menu .badge.planning { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4h10M9 12h10M9 20h10M4 4h.01M4 12h.01M4 20h.01'/%3E%3C/svg%3E"); }
+.state-menu .badge.working { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='6' fill='black'/%3E%3C/svg%3E"); }
+.state-menu .badge:is(.planning, .working)::before { content: ""; }
 .fms .ftools { flex: 0 1 auto; }
 .fms .title { font-weight: 620; font-size: 13.5px; }
 .fms button.title { border: 0; background: none; padding: 0; font-family: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; text-align: left; cursor: inherit; }
@@ -989,7 +1003,7 @@ body * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .map-head h2 .crumb { margin: 0 8px; color: var(--text-3); }
 .when { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
 .badge.draft { background: var(--accent-soft); color: var(--accent); }
-.badge.parked, .badge.later { background: var(--gray-soft); color: var(--text-2); }
+.badge.later { background: var(--gray-soft); color: var(--text-2); }
 .badge.dropped { color: var(--text-3); padding-left: 0; text-decoration: line-through; }
 .badge::before { content: none; flex: none; width: 12px; height: 12px; background: currentColor; -webkit-mask: var(--ico) center / contain no-repeat; mask: var(--ico) center / contain no-repeat; }
 .badge.done { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E"); }
@@ -1000,14 +1014,13 @@ body * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .badge.ready { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v16l13-8z'/%3E%3C/svg%3E"); }
 .badge.elsewhere { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='12' rx='2'/%3E%3Cpath d='M2 20h20'/%3E%3C/svg%3E"); }
 .badge.draft { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'/%3E%3C/svg%3E"); }
-.badge.parked { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5v14M15 5v14'/%3E%3C/svg%3E"); }
 .badge.later { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E"); }
 .badge.dropped { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m5.6 5.6 12.8 12.8'/%3E%3C/svg%3E"); }
-.badge.done::before, .badge.failed::before, .badge.blocked::before, .badge.waiting::before, .badge.ready::before, .badge.elsewhere::before, .badge.draft::before, .badge.parked::before, .badge.later::before, .badge.dropped::before { content: ""; }
+.badge.done::before, .badge.failed::before, .badge.blocked::before, .badge.waiting::before, .badge.ready::before, .badge.elsewhere::before, .badge.draft::before, .badge.later::before, .badge.dropped::before { content: ""; }
 .badge.ready::before { width: 10px; height: 10px; }
 .badge.merged { background: var(--purple-soft); color: var(--purple); }
-.node.draft, .node.parked, .node.later { background: var(--card); border-style: dashed; }
-.node.parked .title, .node.later .title { color: var(--text-2); }
+.node.draft, .node.later { background: var(--card); border-style: dashed; }
+.node.later .title { color: var(--text-2); }
 .node.dropped { opacity: .45; }
 .node.dropped .title { text-decoration: line-through; color: var(--text-3); }
 .node .foot .when { margin-left: auto; }
@@ -1167,7 +1180,7 @@ const maxAttempts = () => Number(S.project?.orchestrator?.maxAttempts) || 2;
 const orch = () => [S.info?.orchestrator, S.project?.orchestrator].find((o) => o?.command) || null;
 const orchCmd = () => orch()?.command || "";
 const SERVER_DOWN = "The Podium server didn't accept that: is it running? Start it with podium server --detach";
-const UNSTARTED = ["draft", "parked", "later"];
+const UNSTARTED = ["draft", "later"];
 const POLL_MS = 2000;
 const HIDDEN_POLL_MS = 30000;
 let lastPoll = 0;
@@ -1229,7 +1242,7 @@ function togglePrioTier(tier) {
   writeRun("podium-priority-filter", JSON.stringify(S.prioShown));
 }
 const SORTS = [["run", "Run order", "as it gets built"], ["mine", "Mine first", "yours · waits on you"], ["priority", "Priority", ""],
-  ["status", "Status", "working · ready · draft · paused · finished"], ["owner", "Owner", "by name · unowned last"]];
+  ["status", "Status", "working · ready · draft · later · finished"], ["owner", "Owner", "by name · unowned last"]];
 const SORT_KEYS = SORTS.map(([k]) => k);
 const readSort = () => ((v) => (SORT_KEYS.includes(v) ? v : "run"))(readRun("podium-sort"));
 function setSort(k) {
@@ -1349,10 +1362,14 @@ function dropBadLists(x, where) {
   }
   for (const k of ["milestones", "stories"]) (x[k] || []).forEach((y) => dropBadLists(y, `${where}${x.id ?? ""}/`));
 }
+function readParkedAsLater(P) {
+  for (const E of P.epics || []) for (const m of E.milestones || []) if (m?.status === "parked") m.status = "later";
+}
 function loadProject() {
   const d = JSON.parse(S.raw);
   if (Array.isArray(d.epics)) d.epics.forEach((E) => dropBadLists(E, ""));
   S.project = personal(normalizeProject(d));
+  readParkedAsLater(S.project);
   if (S.open && !canExpand(openMs())) S.open = null;
 }
 const epicOfMs = (ms) => S.project.epics.find((E) => (E.milestones || []).some((m) => m.id === ms))?.id;
@@ -1805,17 +1822,18 @@ function fullMs(m, all) {
   const st = fullStatus(m, all), stories = m.stories || [];
   const merged = stories.filter(isMerged).length;
   const left = depsLeft(m, all);
+  const pick = (badge) => (S.open === m.id && canExpand(m) ? statusPick(m, badge) : badge);
   let foot;
   if (isResearch(m)) foot = st === "done" ? `<span class="badge done">Answered</span>` : `<span class="badge research">Research</span><span>${esc(m.asana?.assignee || "")}</span>`;
   else if (st === "moved") foot = movedPill(m, all) || `<span class="badge moved">Moved</span>`;
-  else if (st === "dropped") foot = `<span class="badge dropped">Dropped</span>`;
+  else if (st === "dropped") foot = pick(`<span class="badge dropped">Dropped</span>`);
   else if (st === "done") foot = `<span class="badge done">Landed${m.shippedAt ? ` ${day(m.shippedAt)}` : ""}</span>${stories.length ? `<span>${stories.length} stories</span>` : ""}`;
   else if (st === "working") foot = msWaits(m) ? `<span class="pulse amber"></span><span class="badge needs">Waiting on you</span><span>${msDoing(m)}</span>`
     : `<span class="pulse"></span><span class="badge working">${planning(m) ? "Planning in progress" : "Working on"}</span><span>${msDoing(m)}${stories.length ? ` · ${merged}/${stories.length} merged` : ""}</span>`;
-  else if (planAsked(m)) foot = `<span class="pulse"></span><span class="badge working">Planning requested</span><span>the orchestrator picks it up</span>`;
-  else if (grilledWaits(m)) foot = `<span class="badge grilled">Grilled</span><span>${esc(grilledWaits(m))}</span>${grilledWaits(m) === "ready to plan" ? planBtns(m) : ""}`;
-  else if (left.length) foot = `<span class="badge waiting">Needs ${esc(waitIds(left))}</span>`;
-  else foot = `<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ __proto__: null, draft: "Draft", parked: "Parked", later: "Later" }[st] || "Ready"}</span>${planBtns(m)}`;
+  else if (planAsked(m)) foot = `<span class="pulse"></span>${pick(`<span class="badge working">Planning requested</span>`)}<span>the orchestrator picks it up</span>`;
+  else if (grilledWaits(m)) foot = `${pick(`<span class="badge grilled">Grilled</span>`)}<span>${esc(grilledWaits(m))}</span>${grilledWaits(m) === "ready to plan" ? planBtns(m) : ""}`;
+  else if (left.length) foot = pick(`<span class="badge waiting">Needs ${esc(waitIds(left))}</span>`);
+  else foot = `${pick(`<span class="badge ${UNSTARTED.includes(st) ? st : "ready"}">${{ __proto__: null, draft: "Draft", later: "Later" }[st] || "Ready"}</span>`)}${planBtns(m)}`;
   const cls = `${st === "working" && msWaits(m) ? "waits" : esc(st)}${waitingOn(m).length ? " waitfor" : ""}`;
   if (S.open === m.id && canExpand(m)) return `<div class="fms open ${cls}" data-id="${esc(m.id)}">${openHead(m, st === "working" && !msWaits(m) && stories.length ? msPrPills(m) : foot)}${msBody(m)}</div>`;
   const map = storyIndex(m);
@@ -1832,7 +1850,7 @@ function cardCost(m) {
   const c = msCost(m), line = costLine(c, { wall: false, here: "", time: shortDur });
   return line ? `<div class="fcost"${c.split ? ` title="${esc(splitTip(c))}"` : ""}>${line}</div>` : "";
 }
-const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", parked: "not started", later: "not started" };
+const DOT_WORDS = { __proto__: null, done: "merged", approval: "needs approval", elsewhere: "on another machine", todo: "to do", ready: "to do", waiting: "to do", draft: "not started", later: "not started" };
 const DOT_ROOM = 16;
 const dotWord = (st) => DOT_WORDS[st] || st;
 function dotSummary(words) {
@@ -1849,22 +1867,29 @@ const colOf = (E) => ((E.milestones || []).some((x) => x.id === S.open) && canEx
 const PRIO = { __proto__: null, must: "Must", should: "Should" };
 const prioPill = (x) => (PRIO[x?.priority] ? `<span class="prio ${x.priority}" title="${PRIO[x.priority]} have"><b>★</b>${PRIO[x.priority]}</span>` : "");
 const PICKS = [["must", "★ Must"], ["should", "★ Should"], ["", "Nice to have"]];
-const STATE_PICKS = [["open", "Open", "ready"], ["paused", "Paused", "parked"], ["closed", "Closed", "dropped"]];
-const stateOf = (m) => (PAUSED.includes(m.status) ? "paused" : m.status === "dropped" ? "closed" : "open");
-const canSetState = (m) => !!m && !isResearch(m) && !["done", "moved"].includes(m.status);
-function statePicks(ref, m) {
-  const now = stateOf(m), busy = m.status === "working";
-  const item = ([v, label, badge]) => `<button role="menuitemradio" aria-checked="${now === v}" data-state-to="${v}" data-state-of="${esc(ref)}"${busy ? ` disabled title="${esc(m.id)} is in progress: stop it first"` : ""}><span class="badge ${badge}">${label}</span>${now === v ? `<b class="tick">✓</b>` : ""}</button>`;
-  return `<span class="mhead">Status</span>${STATE_PICKS.map(item).join("")}`;
+const STATUS_ITEMS = [["open", "ready", "Ready"], ["later", "later", "Later"], ["", "planning", "Planning", "Plan milestone starts it"],
+  ["", "working", "Working on", "the build starts it"], ["", "done", "Landed", "when its PRs merge"], ["closed", "dropped", "Dropped"]];
+const STATUS_NOTE = "Ready reopens as Draft until the milestone has stories, and shows Waiting while a dependency is open.";
+const stateOf = (m) => (PAUSED.includes(m.status) ? "later" : m.status === "dropped" ? "closed" : "open");
+const canSetState = (m) => !!m && !isResearch(m) && !["working", "done", "moved"].includes(m.status);
+function statusPick(m, badge) {
+  if (!canSetState(m)) return badge;
+  const now = stateOf(m), open = S.statePick === m.id;
+  const item = ([to, cls, label, why]) => (to
+    ? `<button role="menuitemradio" aria-checked="${now === to}" data-state-to="${to}" data-state-of="${esc(m.id)}"><span class="badge ${cls}">${label}</span>${now === to ? `<b class="tick">✓</b>` : to === "open" ? "<small>reopens it</small>" : ""}</button>`
+    : `<button class="derived" disabled><span class="badge ${cls}">${label}</span><small>${why}</small></button>`);
+  const menu = `<div class="prio-pick-menu state-menu" role="menu" aria-label="Status of ${esc(m.id)}"><span class="mhead">Status</span>${STATUS_ITEMS.map(item).join("")}<p class="foot-note">${STATUS_NOTE}</p></div>`;
+  return `<span class="state-wrap"><button class="state-pick" data-state-pick="${esc(m.id)}" aria-haspopup="menu" aria-expanded="${open}" title="Change the status">${badge}</button>${open ? menu : ""}</span>`;
 }
+function setStatePick(id) { S.statePick = id; S.prioPick = null; render(); }
 function prioPick(ref, x) {
-  const now = PRIO[x?.priority] ? x.priority : "", open = S.prioPick === ref, states = !ref.startsWith("epic/") && canSetState(x);
+  const now = PRIO[x?.priority] ? x.priority : "", open = S.prioPick === ref;
   const pill = (v) => prioPill({ priority: v }) || `<span class="prio nice" title="Nice to have">Nice to have</span>`;
   const prios = PICKS.map(([v]) => `<button role="menuitemradio" aria-checked="${now === v}" data-prio="${v}" data-prio-of="${esc(ref)}">${pill(v)}${now === v ? `<b class="tick">✓</b>` : ""}</button>`).join("");
-  const menu = `<div class="prio-pick-menu" role="menu" aria-label="${states ? "State" : "Priority"} of ${esc(ref.replace(/^epic\//, ""))}">${states ? `<span class="mhead">Priority</span>${prios}${statePicks(ref, x)}` : prios}</div>`;
-  return `<span class="prio-wrap"><button class="prio-pick" data-prio-pick="${esc(ref)}" aria-haspopup="menu" aria-expanded="${open}" title="${states ? "Change the priority or status" : "Change the priority"}">${pill(now)}</button>${open ? menu : ""}</span>`;
+  const menu = `<div class="prio-pick-menu" role="menu" aria-label="Priority of ${esc(ref.replace(/^epic\//, ""))}">${prios}</div>`;
+  return `<span class="prio-wrap"><button class="prio-pick" data-prio-pick="${esc(ref)}" aria-haspopup="menu" aria-expanded="${open}" title="Change the priority">${pill(now)}</button>${open ? menu : ""}</span>`;
 }
-function setPrioPick(ref) { S.prioPick = ref; render(); }
+function setPrioPick(ref) { S.prioPick = ref; S.statePick = null; render(); }
 async function setPriority(ref, level) {
   const epic = ref.startsWith("epic/") ? ref.slice(5) : null, id = epic ?? ref;
   if (refuseDotted(id)) return;
@@ -1876,10 +1901,10 @@ async function setPriority(ref, level) {
   else if (x) delete x.priority;
   render();
 }
-const STATE_DOING = { __proto__: null, open: ["Reopening", "reopened"], paused: ["Pausing", "paused"], closed: ["Closing", "closed"] };
+const STATE_DOING = { __proto__: null, open: ["Reopening", "reopened"], later: ["Putting off", "put off for later"], closed: ["Closing", "closed"] };
 async function setMsState(id, to) {
   if (refuseDotted(id)) return;
-  S.prioPick = null;
+  S.statePick = null;
   render();
   toast(`${STATE_DOING[to][0]} ${id}…`);
   const r = await fetch(`/status/${idPath(id)}?to=${to}`, { method: "POST" }).catch(() => null);
@@ -1905,7 +1930,7 @@ function keeps(ms, story) {
   if (story !== undefined) return isSel(ms, story) || (n.ms === ms && n.story === String(story));
   return S.sel?.ms === ms || S.open === ms || (n.ms === ms && !closedMs(msList().find((x) => x.id === ms) || {})) || waitersOf(ms).length > 0;
 }
-const PAUSED = ["parked", "later"];
+const PAUSED = ["later"];
 const hidesClosed = (x) => !S.showClosed && x.status === "dropped";
 const hidesByState = (x) => hidesClosed(x) || (!keeps(x.id) && ((S.hideFinished && ["done", "moved"].includes(x.status))
   || (S.hidePaused && PAUSED.includes(x.status)) || !S.prioShown.includes(tierOf(x))));
@@ -2031,7 +2056,7 @@ function renderFull() {
   applyFilter();
 }
 function drawLines() { drawQueue(); drawTree(); }
-const STATUS_RANK = { __proto__: null, waits: 0, working: 0, ready: 1, waiting: 2, draft: 3, parked: 4, later: 4, done: 5, moved: 5, dropped: 6 };
+const STATUS_RANK = { __proto__: null, waits: 0, working: 0, ready: 1, waiting: 2, draft: 3, later: 4, done: 5, moved: 5, dropped: 6 };
 const waitsOnMe = (x) => needsMs() === x.id || prsToReview().some((pr) => pr.ms === x.id);
 const SORT_RANK = {
   __proto__: null,
@@ -2680,7 +2705,7 @@ function setStateMenu(open) {
   S.stateMenu = open;
   render();
 }
-const STATUS_BOXES = [["paused", "Paused", "parked · later", "parked"], ["closed", "Closed", "dropped", "dropped"], ["finished", "Finished", "landed · moved", "done"]];
+const STATUS_BOXES = [["paused", "Later", "", "later"], ["closed", "Closed", "dropped", "dropped"], ["finished", "Finished", "landed · moved", "done"]];
 const tierPill = (t) => prioPill({ priority: t }) || `<span class="prio nice" title="Nice to have">Nice to have</span>`;
 const statusShown = (k) => ({ __proto__: null, paused: !S.hidePaused, closed: S.showClosed, finished: !S.hideFinished }[k]);
 const stateIsDefault = () => S.prioShown.length === TIERS.length && !S.hidePaused && !S.showClosed && S.hideFinished;
@@ -3158,14 +3183,14 @@ function milestoneSheet(m) {
   const map = msById(), st = viewStatus(m, map);
   const stories = m.stories || [];
   const wt = st === "working" && msWaits(m), bst = wt ? "needs" : grilledWaits(m) ? "grilled" : st;
-  const label = isResearch(m) ? (st === "done" ? "Answered" : "Research") : wt ? "Waiting on you" : grilledWaits(m) ? `Grilled · ${grilledWaits(m)}` : st === "working" && planning(m) ? "Planning in progress" : planAsked(m) ? "Planning requested" : { __proto__: null, done: "Completed", working: "Working on", ready: "Ready", waiting: "Waiting on dependencies", draft: "Draft", parked: "Parked", later: "Later", dropped: "Dropped", moved: "Moved" }[st] || st;
+  const label = isResearch(m) ? (st === "done" ? "Answered" : "Research") : wt ? "Waiting on you" : grilledWaits(m) ? `Grilled · ${grilledWaits(m)}` : st === "working" && planning(m) ? "Planning in progress" : planAsked(m) ? "Planning requested" : { __proto__: null, done: "Completed", working: "Working on", ready: "Ready", waiting: "Waiting on dependencies", draft: "Draft", later: "Later", dropped: "Dropped", moved: "Moved" }[st] || st;
   const blocks = S.epic.milestones.filter((x) => (x.deps || []).includes(m.id));
   const actions = [
     orch() && !isResearch(m) && [...UNSTARTED, "ready"].includes(st) && !planAsked(m) && ["", "ready to plan"].includes(grilledWaits(m)) ? `<button class="btn big ${stories.length ? "ghost" : ""}" data-act="plan" data-id="${esc(m.id)}">Plan milestone</button>${copyBtn("plan", m.id)}` : "",
     claimBtn(m, "sheet:"),
   ].join(" ");
   const q = m.quality?.gate;
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${((c) => (c ? ownerMenuBtn(m, c, "sheet:") : ""))(ownerChip(m))}</div><h2>${esc(m.title)}</h2>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}${statusPick(m, `<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>`)}${waitPills(m)}${((c) => (c ? ownerMenuBtn(m, c, "sheet:") : ""))(ownerChip(m))}</div><h2>${esc(m.title)}</h2>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
   $("sheet-body").innerHTML = `
     ${aboutSec(m)}
     ${asanaAsk(m)}
@@ -3967,6 +3992,9 @@ document.addEventListener("click", (ev) => {
   const pp = ev.target.closest("[data-prio-pick]");
   if (pp) { setPrioPick(S.prioPick === pp.dataset.prioPick ? null : pp.dataset.prioPick); return; }
   if (S.prioPick && !ev.target.closest(".prio-pick-menu")) setPrioPick(null);
+  const sk = ev.target.closest("[data-state-pick]");
+  if (sk) { setStatePick(S.statePick === sk.dataset.statePick ? null : sk.dataset.statePick); return; }
+  if (S.statePick && !ev.target.closest(".state-menu")) setStatePick(null);
   const rr = ev.target.closest("[data-report-reply]");
   if (rr) { markComment(rr.dataset.reportReply, "handled", true); if (rr.tagName !== "A") ev.preventDefault(); return; }
   if (ev.target.closest("a[href]")) return;
@@ -4108,6 +4136,7 @@ function onEscape() {
   else if (S.peopleMenu) { setPeopleMenu(false); $("people-filter").querySelector("[data-people-menu]")?.focus(); }
   else if (S.ownerMenu) setOwnerMenu(null);
   else if (S.prioPick) setPrioPick(null);
+  else if (S.statePick) setStatePick(null);
   else if (S.sel) closeSheet();
   else if (S.ds) closeDs();
   else if (document.activeElement === $("q")) setSearch(false);

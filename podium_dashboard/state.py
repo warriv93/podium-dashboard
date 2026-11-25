@@ -84,6 +84,7 @@ class Podium:
         self.data = self.read()
         self.base = copy.deepcopy(self.data)
         self.adopt_build_all()
+        self.adopt_later()
 
     @contextlib.contextmanager
     def locked(self):
@@ -108,6 +109,7 @@ class Podium:
             fresh = self.read()
             self.data, self.base = rebase(self.base, self.data, fresh), copy.deepcopy(fresh)
         self.adopt_build_all()
+        self.adopt_later()
 
     def adopt_build_all(self):
         """Build-all is per milestone: a top-level `buildAll` becomes the active milestone's (none: it is dropped)."""
@@ -117,12 +119,19 @@ class Podium:
                 if m.get("id") == mid:
                     m["buildAll"] = flag
 
+    def adopt_later(self):
+        """Parked and later are one state: a parked milestone is later."""
+        for m in self.milestones():
+            if m.get("status") == "parked":
+                m["status"] = "later"
+
     def save(self):
         """Write this command's changes since load onto podium.json as it is now, so a write another command made
         meanwhile stays. Objects taken from `data` before it are stale."""
         with self.locked():
             self.data = rebase(self.base, self.data, self.read())
             self.adopt_build_all()
+            self.adopt_later()
             self.data["updatedAt"] = NOW()
             write_atomic(self.path, json.dumps(self.data, indent=2, ensure_ascii=False) + "\n")
             self.base = copy.deepcopy(self.data)

@@ -712,11 +712,11 @@ class HostileRun(unittest.TestCase):
         self.maps(self.priority_run(), probe="(setStateMenu(true), S.stateMenu)")
         self.assertTrue(self.probe())
         self.assertEqual(self.state_filter(), ("Filter", "true", [("must", "★Must", True, False), ("should", "★Should", True, False),
-                                                                 ("nice", "Nice to have", True, False), ("paused", "Paused", True, False),
+                                                                 ("nice", "Nice to have", True, False), ("paused", "Later", True, False),
                                                                  ("closed", "Closed", False, False), ("finished", "Finished", True, False)]))
         menu = [h for h in self.html if "data-state-menu" in h][-1]
         self.assertIn('data-state-show="must" checked><span class="prio must" title="Must have"><b>★</b>Must</span>', menu)
-        for key, badge in (("paused", "parked"), ("closed", "dropped"), ("finished", "done")):
+        for key, badge in (("paused", "later"), ("closed", "dropped"), ("finished", "done")):
             self.assertRegex(menu, f'data-state-show="{key}"[^>]*><span class="badge {badge}">')
 
     def test_unticking_a_tier_hides_its_milestones_says_how_many_tiers_show_and_keeps_the_choice(self):
@@ -1742,16 +1742,16 @@ class HostileRun(unittest.TestCase):
         maps, _ = self.maps(self.priority_run(), probe='(expand("M2"), S.prioPick = "M2", render(), $("map").innerHTML)')
         card = self.open_card(self.probe())
         self.assertNotIn("prioseg", card)
-        self.assertIn('<span class="sid">M2</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="true" title="Change the priority or status">'
+        self.assertIn('<span class="sid">M2</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="true" title="Change the priority">'
                       '<span class="prio must" title="Must have"><b>★</b>Must</span></button>', card)
-        menu = re.search(r'<div class="prio-pick-menu" role="menu" aria-label="State of M2">(.*?)</div>', card).group(1)
+        menu = re.search(r'<div class="prio-pick-menu" role="menu" aria-label="Priority of M2">(.*?)</div>', card).group(1)
         self.assertEqual(re.findall(r'aria-checked="(\w+)" data-prio="(\w*)" data-prio-of="M2">', menu),
                          [("true", "must"), ("false", "should"), ("false", "")])
 
     def test_an_open_nice_to_have_milestone_shows_a_nice_to_have_badge_and_a_closed_one_none(self):
         maps, _ = self.maps(self.priority_run(), probe='(delete msOf("M2").priority, expand("M2"), $("map").innerHTML)')
         html = self.probe()
-        self.assertIn('<button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="false" title="Change the priority or status">'
+        self.assertIn('<button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="false" title="Change the priority">'
                       '<span class="prio nice" title="Nice to have">Nice to have</span></button>', self.open_card(html))
         self.assertNotIn("prio nice", html.replace(self.open_card(html), ""))
         self.assertNotIn('class="prio-pick-menu"', html)
@@ -1779,7 +1779,7 @@ class HostileRun(unittest.TestCase):
     def test_a_milestone_sheet_has_the_same_badge_pulldown(self):
         self.maps(self.priority_run(), probe='(openSheet({ ms: "M3" }), S.prioPick = "M3", renderSheet(), document.getElementById("sheet-head").innerHTML)')
         head = self.probe()
-        self.assertIn('<span class="sid">M3</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M3" aria-haspopup="menu" aria-expanded="true" title="Change the priority or status"><span class="prio should" title="Should have"><b>★</b>Should</span>', head)
+        self.assertIn('<span class="sid">M3</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M3" aria-haspopup="menu" aria-expanded="true" title="Change the priority"><span class="prio should" title="Should have"><b>★</b>Should</span>', head)
         self.assertIn('aria-checked="true" data-prio="should" data-prio-of="M3"', head)
 
     def milestone_sheet(self, **fields):
@@ -1850,43 +1850,99 @@ class HostileRun(unittest.TestCase):
         self.assertNotIn("Hash plates in URLs", head)
         self.assertEqual(body.count("Hash plates in URLs"), 1)
 
-    def state_picks(self, probe):
-        """The Status items of the last probed sheet head's pulldown, as (state, checked, disabled)."""
-        self.maps(self.priority_run(), probe=f'({probe}, renderSheet(), document.getElementById("sheet-head").innerHTML)')
-        return [(to, checked == "true", bool(off)) for checked, to, off in
-                re.findall(r'aria-checked="(\w+)" data-state-to="(\w+)" data-state-of="\w+"( disabled)?', self.probe())]
+    def status_menu(self, probe, where='document.getElementById("sheet-head").innerHTML'):
+        """The status pulldown the probe opened, as each item's (state or derived badge, label, reason, checked) and its foot note."""
+        self.maps(self.priority_run(), probe=f'({probe}, renderSheet(), render(), {where})')
+        menu = re.search(r'<div class="prio-pick-menu state-menu" role="menu" aria-label="Status of M3">(.*?)</div>', self.probe()).group(1)
+        items = re.findall(r'<button (?:role="menuitemradio" aria-checked="(\w+)" data-state-to="(\w+)" data-state-of="M3"|class="derived" disabled)>'
+                           r'<span class="badge (\w+)">([^<]*)</span>(?:<small>([^<]*)</small>)?(<b class="tick">✓</b>)?</button>', menu)
+        foot = re.search(r'<p class="foot-note">(.*?)</p>', menu)
+        return [(to or badge, label, reason, bool(tick) or checked == "true") for checked, to, badge, label, reason, tick in items], foot and foot.group(1)
 
-    def test_a_milestone_sheets_pulldown_also_opens_pauses_and_closes_it(self):
-        head_probe = 'openSheet({ ms: "M3" }), S.prioPick = "M3"'
-        self.assertEqual(self.state_picks(head_probe), [("open", True, False), ("paused", False, False), ("closed", False, False)])
-        self.assertIn('<span class="mhead">Priority</span>', self.probe())
-        self.assertIn('<span class="mhead">Status</span>', self.probe())
-        for status, ticked in (("parked", "paused"), ("later", "paused"), ("dropped", "closed")):
+    SHEET = 'openSheet({ ms: "M3" }), S.statePick = "M3"'
+
+    def test_a_milestone_sheets_status_is_a_pulldown_of_ready_later_and_dropped_with_what_the_run_sets_greyed(self):
+        items, foot = self.status_menu(self.SHEET)
+        self.assertEqual(items, [("open", "Ready", "", True), ("later", "Later", "", False),
+                                 ("planning", "Planning", "Plan milestone starts it", False), ("working", "Working on", "the build starts it", False),
+                                 ("done", "Landed", "when its PRs merge", False), ("closed", "Dropped", "", False)])
+        self.assertEqual(foot, "Ready reopens as Draft until the milestone has stories, and shows Waiting while a dependency is open.")
+        self.assertIn('<span class="state-wrap"><button class="state-pick" data-state-pick="M3" aria-haspopup="menu" aria-expanded="true" title="Change the status">'
+                      '<span class="badge waiting">Waiting on dependencies</span></button>', self.probe())
+
+    def test_the_status_pulldown_ticks_the_state_the_milestone_is_in_and_says_ready_reopens_it(self):
+        for status, ticked in (("draft", "open"), ("later", "later"), ("dropped", "closed")):
             with self.subTest(status=status):
-                picks = self.state_picks(f'msOf("M3").status = "{status}", {head_probe}')
-                self.assertEqual([to for to, on, _ in picks if on], [ticked])
+                items, _ = self.status_menu(f'msOf("M3").status = "{status}", {self.SHEET}')
+                self.assertEqual([to for to, _, _, on in items if on], [ticked])
+                self.assertEqual(items[0][2], "" if ticked == "open" else "reopens it")
 
-    def test_a_milestone_in_progress_shows_its_status_choices_disabled(self):
-        self.assertEqual(self.state_picks('openSheet({ ms: "M2" }), S.prioPick = "M2"'),
-                         [("open", True, True), ("paused", False, True), ("closed", False, True)])
-        self.assertIn('title="M2 is in progress: stop it first"', self.probe())
+    def test_a_closed_status_pulldown_shows_the_badge_with_no_menu(self):
+        self.maps(self.priority_run(), probe='(openSheet({ ms: "M3" }), renderSheet(), document.getElementById("sheet-head").innerHTML)')
+        self.assertIn('data-state-pick="M3" aria-haspopup="menu" aria-expanded="false"', self.probe())
+        self.assertNotIn("state-menu", self.probe())
 
-    def test_a_landed_milestone_and_an_epic_offer_priority_only(self):
-        self.assertEqual(self.state_picks('openSheet({ ms: "M1" }), S.prioPick = "M1"'), [])
-        self.assertIn('aria-label="Priority of M1"', self.probe())
-        self.assertEqual(self.state_picks('openSheet({ epic: "e2" }), S.prioPick = "epic/e2"'), [])
+    def test_a_parked_milestone_in_an_old_run_reads_as_later(self):
+        run = self.priority_run()
+        run["epics"][1]["milestones"][1]["status"] = "parked"
+        maps, _ = self.maps(run, probe='msOf("M3").status')
+        self.assertEqual(self.probe(), "later")
+        self.assertIn('<div class="fms later" data-expand-ms="M3" data-id="M3">', maps[0])
 
-    def test_picking_a_status_posts_it_shows_the_new_status_and_closes_the_pulldown(self):
-        self.maps(probe='(async () => { const calls = [];'
-                        ' globalThis.fetch = async (p, o) => (calls.push([p, o && o.method]), { ok: true, status: 200, json: async () => ({ status: "parked" }) });'
-                        ' S.prioPick = "M3"; await setMsState("M3", "paused"); return [calls, msOf("M3").status, S.prioPick]; })()')
-        self.assertEqual(self.probe(), [[["/status/M3?to=paused", "POST"]], "parked", None])
+    def test_a_later_milestones_badge_reads_later(self):
+        self.maps(self.priority_run(), probe='(msOf("M3").status = "later", openSheet({ ms: "M3" }), renderSheet(), document.getElementById("sheet-head").innerHTML)')
+        self.assertIn('<span class="badge later">Later</span></button>', self.probe())
+
+    def test_the_priority_pulldown_is_priority_only(self):
+        self.maps(self.priority_run(), probe='(openSheet({ ms: "M3" }), S.prioPick = "M3", renderSheet(), document.getElementById("sheet-head").innerHTML)')
+        head = self.probe()
+        self.assertIn('data-prio-pick="M3" aria-haspopup="menu" aria-expanded="true" title="Change the priority">', head)
+        self.assertIn('<div class="prio-pick-menu" role="menu" aria-label="Priority of M3">', head)
+        self.assertNotIn("data-state-to", head)
+        self.assertNotIn('<span class="mhead">Status</span>', head)
+
+    def test_a_milestone_working_landed_moved_or_researched_keeps_a_plain_status_badge(self):
+        for probe in ('openSheet({ ms: "M2" }), S.statePick = "M2"', 'openSheet({ ms: "M1" }), S.statePick = "M1"',
+                      'msOf("M3").status = "moved", openSheet({ ms: "M3" }), S.statePick = "M3"', 'openSheet({ ms: "R1" }), S.statePick = "R1"'):
+            with self.subTest(probe=probe):
+                self.maps(self.priority_run(), probe=f'({probe}, renderSheet(), document.getElementById("sheet-head").innerHTML)')
+                self.assertNotIn("data-state-pick", self.probe())
+                self.assertNotIn("state-menu", self.probe())
+
+    def test_an_open_card_has_the_same_status_pulldown_and_a_closed_card_a_plain_badge(self):
+        items, _ = self.status_menu('closeSheet(), expand("M3"), S.statePick = "M3"', where='$("map").innerHTML')
+        self.assertEqual([to for to, _, _, _ in items], ["open", "later", "planning", "working", "done", "closed"])
+        card = self.open_card(self.probe())
+        self.assertIn('<div class="foot"><span class="state-wrap"><button class="state-pick" data-state-pick="M3" aria-haspopup="menu" aria-expanded="true" title="Change the status">'
+                      '<span class="badge waiting">Needs M2</span></button>', card)
+        maps, _ = self.maps(self.priority_run(), probe='(closeSheet(), render(), $("map").innerHTML)')
+        self.assertNotIn("data-state-pick", self.probe())
+        self.assertIn('<span class="badge waiting">Needs M2</span>', self.probe())
+
+    def test_clicking_the_status_badge_opens_its_menu_and_a_click_outside_or_escape_closes_it(self):
+        self.maps(self.priority_run(), probe='(() => { const click = (pick) => { const target = { dataset: { statePick: pick }, closest: (s) => (pick && s === "[data-state-pick]" ? target : null) };'
+                                             ' LISTENERS.click.forEach((f) => f({ target, stopPropagation() {} })); return S.statePick; };'
+                                             ' const opened = click("M3"), again = click("M3"); click("M3"); const outside = click(); click("M3"); onEscape();'
+                                             ' return [opened, again, outside, S.statePick, S.prioPick]; })()')
+        self.assertEqual(self.probe(), ["M3", None, None, None, None])
+
+    def test_picking_later_posts_it_shows_the_new_status_and_closes_the_pulldown(self):
+        self.maps(probe='(async () => { const calls = [], said = []; toast = (t) => said.push(t);'
+                        ' globalThis.fetch = async (p, o) => (calls.push([p, o && o.method]), { ok: true, status: 200, json: async () => ({ status: "later" }) });'
+                        ' S.statePick = "M3"; await setMsState("M3", "later"); return [calls, msOf("M3").status, S.statePick, said]; })()')
+        self.assertEqual(self.probe(), [[["/status/M3?to=later", "POST"]], "later", None, ["Putting off M3…", "M3 put off for later"]])
 
     def test_a_refused_status_says_why(self):
         self.maps(probe='(async () => { const said = []; toast = (t) => said.push(t);'
                         ' globalThis.fetch = async () => ({ ok: false, status: 409, json: async () => ({ error: "M3 is in progress: stop it first" }) });'
                         ' await setMsState("M3", "closed"); return [said, msOf("M3").status]; })()')
         self.assertEqual(self.probe(), [["Closing M3…", "Couldn't change M3: M3 is in progress: stop it first"], "todo"])
+
+    def test_the_status_menu_is_opaque_and_sits_above_the_season_canvas_like_the_priority_menu(self):
+        css = open(PAGE).read()
+        self.assertIn(".fms:has(:is(.owner-menu, .prio-pick-menu, .state-menu)), .fepic:has(.prio-pick-menu) { position: relative; z-index: 30; }", css)
+        self.assertIn(":is(.topbar, .map-head, .map-scroll, .fms, .fepic):has(:is(.prio-menu, .owner-menu, .prio-pick-menu, .state-menu)) { z-index: 35; }", css)
+        self.assertIn(".fms.dropped:has(.state-menu) { opacity: 1; }", css)
 
     def test_a_repos_commits_given_as_one_bare_sha_read_as_that_commit(self):
         self.maps(probe='commitsOf({ commits: { core: 9359861629, web: "7f4b7858", api: [{ sha: "abc" }] } })')
@@ -2444,9 +2500,9 @@ class HostileRun(unittest.TestCase):
         self.assertIn('<span class="title">', cards["R1"])
 
     def test_dot_words_read_as_plain_language(self):
-        self.maps(probe='["done", "approval", "elsewhere", "failed", "blocked", "working", "todo", "ready", "waiting", "draft", "parked", "later", "<b>"].map(dotWord)')
+        self.maps(probe='["done", "approval", "elsewhere", "failed", "blocked", "working", "todo", "ready", "waiting", "draft", "later", "<b>"].map(dotWord)')
         self.assertEqual(self.probe(), ["merged", "needs approval", "on another machine", "failed", "blocked", "working", "to do", "to do", "to do",
-                                        "not started", "not started", "not started", "<b>"])
+                                        "not started", "not started", "<b>"])
 
     def test_after_an_action_in_the_map_focus_returns_to_the_control_that_replaces_the_one_acted_on(self):
         probe = '''(() => {

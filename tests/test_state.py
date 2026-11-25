@@ -220,6 +220,13 @@ class TwoMilestones(Run):
         self.podium("set", ".", "buildAll=false")
         self.assertIs(self.milestone()["buildAll"], False)
 
+    def test_a_parked_milestone_reads_as_later_and_a_write_saves_it_so(self):
+        self.data["epics"][0]["milestones"].append({"id": "M3", "title": "Aside", "status": "parked", "resumeTo": "todo"})
+        self.write()
+        self.assertIn("  M3 later  Aside", self.podium("status", "--all"))
+        self.podium("set", "M1/S1", "note=x")
+        self.assertEqual([m["status"] for m in self.state()["epics"][0]["milestones"]], ["working", "working", "later"])
+
     def test_an_assumption_about_a_story_of_another_milestone_names_that_milestone(self):
         self.podium("assume", "q?", "c", "w", "--story", "M2/T1")
         a = self.state()["assumptions"][-1]

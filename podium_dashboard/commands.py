@@ -435,13 +435,14 @@ class Finished(Exception):
     pass
 
 
-STATE_STATUS = {"paused": "parked", "closed": "dropped"}
-STATE_WORD = {"open": "reopened", "paused": "paused", "closed": "closed"}
+STATES = ("open", "later", "paused", "closed")
+STATE_STATUS = {"later": "later", "paused": "later", "closed": "dropped"}
+STATE_WORD = {"open": "reopened", "later": "put off for later", "paused": "put off for later", "closed": "closed"}
 
 
 def set_milestone_state(p, milestone_id, state):
-    """Open, pause (parked) or close (dropped) the milestone, as anyone in the run may from the Podium, with a `status`
-    event; pulled first and pushed after in a synced run. Pausing or closing an open one keeps the status it left in
+    """Open, put off (later; paused is the same) or close (dropped) the milestone, as anyone in the run may from the
+    Podium, with a `status` event; pulled first and pushed after in a synced run. Putting off or closing an open one keeps the status it left in
     `resumeTo`, which opening restores (else todo once it has stories, draft before). Raises Building while it is
     working and Finished once it landed or moved. Returns its status after."""
     if p.synced():
