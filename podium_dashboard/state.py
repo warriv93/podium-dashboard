@@ -155,7 +155,7 @@ class Podium:
     @property
     def me(self):
         if self._me is None:
-            self._me = me()
+            self._me = me(os.path.dirname(os.path.abspath(self.dir)))
         return self._me
 
     def synced(self):

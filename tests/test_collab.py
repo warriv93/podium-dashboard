@@ -50,10 +50,10 @@ class Case(unittest.TestCase):
             json.dump(data, f)
         return run_dir
 
-    def podium(self, run_dir, *args, me="a", code=0):
+    def podium(self, run_dir, *args, me="a", code=0, cwd=None):
         env = {**os.environ, "PYTHONPATH": ROOT, **({"PODIUM_ME": me} if me else {})}
         r = subprocess.run([sys.executable, "-m", "podium_dashboard", *(["--dir", run_dir] if run_dir else []), *args],
-                           capture_output=True, text=True, env=env, cwd=self.tmp)
+                           capture_output=True, text=True, env=env, cwd=cwd or self.tmp)
         self.assertEqual(r.returncode, code, r.stdout + r.stderr)
         return r
 
@@ -95,6 +95,17 @@ class Identity(Case):
         self.assertEqual(self.whoami(), "bo\n")
         with open(os.environ["PODIUM_HUMAN"]) as f:
             self.assertEqual(json.load(f)["me"], "bo")
+
+    def test_a_run_takes_the_git_email_of_its_own_folder_not_the_one_podium_starts_in(self):
+        git("config", "--global", "user.email", "ann@work")
+        elsewhere = os.path.join(self.tmp, "elsewhere")
+        os.makedirs(elsewhere)
+        git("-C", elsewhere, "init", "-q")
+        git("-C", elsewhere, "config", "user.email", "bo@home")
+        run = self.run_at(os.path.join(self.tmp, "work", "run"))
+        self.podium(run, "set", ".", "sync.enabled=true", me=None, cwd=elsewhere)
+        self.podium(run, "set", "me", "needsYou=x", me=None, cwd=elsewhere)
+        self.assertEqual(list(self.state(run)["people"]), ["ann"])
 
     def test_podium_me_beats_everything_and_says_so(self):
         self.whoami("bo")

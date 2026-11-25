@@ -55,14 +55,16 @@ def human_hours():
     return {**HOURS, **(human_state().get("hours") or {})}
 
 
-def me():
+def me(where=None):
     """Who this machine's user is in a shared run: $PODIUM_ME, else `me` in HUMAN_FILE (`podium whoami <name>`), else
-    the local part of `git config user.email`, else $USER."""
+    the local part of `git config user.email` as seen from `where` (the run's folder, so a per-repo identity applies
+    there and the server's own checkout doesn't), else $USER."""
     named = os.environ.get("PODIUM_ME") or human_state().get("me")
     if named:
         return named
     try:
-        email = subprocess.run(git_argv("config", "user.email"), capture_output=True, text=True).stdout.strip()
+        email = subprocess.run(git_argv("config", "user.email"), capture_output=True, text=True,
+                               cwd=where if where and os.path.isdir(where) else None).stdout.strip()
     except OSError:
         email = ""
     return email.partition("@")[0] or os.environ.get("USER") or "me"
