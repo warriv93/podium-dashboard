@@ -64,6 +64,8 @@ To start your own run, `podium init --name my-tool --command /my-tool --extensio
 
 A milestone may wait for another without being held back: its `waitsFor` puts a "Waiting for M10" pill and a banner on the dashboard, whose Go ahead queues a `proceed` request, and `status` appends ` · waiting for M10` (see `docs/SCHEMA.md`).
 
+A milestone's sheet opens with an About section: What is its `summary`, what the milestone changes, and Why is its `goal`, what we gain and for whom, so a milestone that hasn't started says enough to decide whether to start it. A missing one shows a muted "No summary yet" or "No goal yet", and with neither the section says the orchestrator writes one on its next turn.
+
 The dashboard also runs a conflict radar over the stories' `files`. An active milestone whose unfinished stories may touch the same path as another active milestone's gets an amber "Overlaps M49" chip, with the shared paths in its tooltip; the chip opens M49. The milestone sheet's Overlaps section lists each story ↔ story pair with its shared paths, including stories of the same wave that collide, so you can add an `overlapAfter` or a dep before both start (see `docs/SCHEMA.md`).
 
 `podium move M10 --to M11 [--pattern <slug>]` folds a milestone into another: M10 turns `moved`, M11 `includes` it, and a wait on M10 becomes "waiting for M11 (was M10)".

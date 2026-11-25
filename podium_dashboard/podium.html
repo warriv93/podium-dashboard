@@ -3124,6 +3124,12 @@ function timeSec(log, s) {
     <div class="tw-foot">From the agent's progress log${from ? `, ${esc(clock(from))}–${esc(clock(s.finishedAt || log[log.length - 1].at))}` : ""}</div></div>`;
 }
 
+function aboutSec(m) {
+  const row = (label, value, missing) => `<dt>${label}</dt><dd>${value ? esc(value) : `<span class="muted">${missing}</span>`}</dd>`;
+  const body = m.summary || m.goal ? `<dl class="kv">${row("What", m.summary, "No summary yet")}${row("Why", m.goal, "No goal yet")}</dl>` : `<div class="muted">No summary yet: the orchestrator writes one on its next turn</div>`;
+  return `<div class="sec"><h3>About</h3>${body}</div>`;
+}
+
 function milestoneSheet(m) {
   const map = msById(), st = viewStatus(m, map);
   const stories = m.stories || [];
@@ -3135,8 +3141,9 @@ function milestoneSheet(m) {
     claimBtn(m, "sheet:"),
   ].join(" ");
   const q = m.quality?.gate;
-  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${((c) => (c ? ownerMenuBtn(m, c, "sheet:") : ""))(ownerChip(m))}</div><h2>${esc(m.title)}</h2><div class="muted">${esc(m.summary || "")}</div>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
+  $("sheet-head").innerHTML = `<div class="top" style="display:flex;gap:8px;align-items:center"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${st === "working" ? `<span class="pulse${wt ? " amber" : ""}"></span>` : ""}<span class="badge ${isResearch(m) && st !== "done" ? "research" : esc(bst)}">${esc(label)}</span>${waitPills(m)}${((c) => (c ? ownerMenuBtn(m, c, "sheet:") : ""))(ownerChip(m))}</div><h2>${esc(m.title)}</h2>${actions.trim() ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>` : ""}`;
   $("sheet-body").innerHTML = `
+    ${aboutSec(m)}
     ${asanaAsk(m)}
     ${m.note ? `<div class="sec"><div class="muted">${esc(m.note)}</div></div>` : ""}
     <div class="sec"><h3>Run</h3><dl class="kv">
@@ -3749,7 +3756,7 @@ function questSec(ref) {
   return `<div class="sec"><h3>Brief<a data-quest>Whole quest ›</a></h3>${part ? `<div class="md">${md(part)}</div>` : t === undefined ? `<div class="muted">Loading…</div>` : `<div class="muted">${esc(ref)} not found in ${esc(p)}</div>`}</div>`;
 }
 
-const HEAD_ICONS = [["goal", "🎯"], ["objective", "🎯"], ["acceptance", "✅"], ["success criteria", "🏆"], ["files in scope", "📁"], ["files", "📁"],
+const HEAD_ICONS = [["about", "💡"], ["goal", "🎯"], ["objective", "🎯"], ["acceptance", "✅"], ["success criteria", "🏆"], ["files in scope", "📁"], ["files", "📁"],
   ["context", "🧭"], ["depends on", "🔗"], ["dependencies", "🔗"], ["contract", "📜"], ["done when", "🏁"], ["brief items", "📌"], ["covers", "📌"],
   ["brief", "📝"], ["document", "📄"], ["run", "⚙️"], ["progress", "⏱️"], ["timeline", "🗓️"], ["commits", "🔀"], ["where the time went", "⏳"], ["tasks", "🗂️"], ["open questions", "❓"],
   ["unknowns", "❓"], ["milestones", "🗺️"], ["decisions", "⚖️"], ["constraints", "🚧"], ["non-goals", "🚫"], ["risks", "⚠️"], ["overlaps", "💥"],

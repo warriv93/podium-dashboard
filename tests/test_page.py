@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from html import escape
 from html.parser import HTMLParser
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1780,6 +1781,39 @@ class HostileRun(unittest.TestCase):
         head = self.probe()
         self.assertIn('<span class="sid">M3</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M3" aria-haspopup="menu" aria-expanded="true" title="Change the priority or status"><span class="prio should" title="Should have"><b>★</b>Should</span>', head)
         self.assertIn('aria-checked="true" data-prio="should" data-prio-of="M3"', head)
+
+    def milestone_sheet(self, **fields):
+        sets = "".join(f'msOf("M3")[{json.dumps(k)}] = {json.dumps(v)}, ' for k, v in fields.items())
+        self.maps(self.priority_run(), probe=f'(delete msOf("M3").summary, delete msOf("M3").goal, {sets}openSheet({{ ms: "M3" }}), renderSheet(),'
+                  ' [document.getElementById("sheet-head").innerHTML, document.getElementById("sheet-body").innerHTML])')
+        return self.probe()
+
+    @staticmethod
+    def about(body):
+        return re.search(r'<div class="sec"><h3>About</h3>(.*?)</div>', body).group(1)
+
+    def test_a_milestone_sheet_opens_with_an_about_section_of_what_and_why_escaped(self):
+        _, body = self.milestone_sheet(summary="<b>urls</b> & tokens", goal=X)
+        self.assertLess(body.index("<h3>About</h3>"), body.index("<h3>Run</h3>"))
+        self.assertEqual(self.about(body), '<dl class="kv"><dt>What</dt><dd>&lt;b&gt;urls&lt;/b&gt; &amp; tokens</dd>'
+                                           f'<dt>Why</dt><dd>{escape(X).replace("&#x27;", "&#39;")}</dd></dl>')
+        self.assertNotIn("pwn>", body)
+
+    def test_a_missing_summary_or_goal_shows_a_muted_placeholder(self):
+        _, body = self.milestone_sheet(goal="Drivers stop leaking plates")
+        self.assertIn('<dt>What</dt><dd><span class="muted">No summary yet</span></dd><dt>Why</dt><dd>Drivers stop leaking plates</dd>', self.about(body))
+        _, body = self.milestone_sheet(summary="Hash plates in URLs")
+        self.assertIn('<dt>What</dt><dd>Hash plates in URLs</dd><dt>Why</dt><dd><span class="muted">No goal yet</span></dd>', self.about(body))
+
+    def test_a_milestone_with_neither_shows_one_muted_line_instead_of_the_rows(self):
+        _, body = self.milestone_sheet()
+        self.assertEqual(self.about(body), '<div class="muted">No summary yet: the orchestrator writes one on its next turn')
+        self.assertNotIn("<dt>What</dt>", body)
+
+    def test_the_milestone_summary_shows_only_in_about_not_under_the_title(self):
+        head, body = self.milestone_sheet(summary="Hash plates in URLs")
+        self.assertNotIn("Hash plates in URLs", head)
+        self.assertEqual(body.count("Hash plates in URLs"), 1)
 
     def state_picks(self, probe):
         """The Status items of the last probed sheet head's pulldown, as (state, checked, disabled)."""
