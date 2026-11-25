@@ -1784,7 +1784,7 @@ class HostileRun(unittest.TestCase):
 
     def milestone_sheet(self, **fields):
         sets = "".join(f'msOf("M3")[{json.dumps(k)}] = {json.dumps(v)}, ' for k, v in fields.items())
-        self.maps(self.priority_run(), probe=f'(delete msOf("M3").summary, delete msOf("M3").goal, {sets}openSheet({{ ms: "M3" }}), renderSheet(),'
+        self.maps(self.priority_run(), probe=f'(["summary", "goal", "value", "effort", "verdict"].forEach((k) => delete msOf("M3")[k]), {sets}openSheet({{ ms: "M3" }}), renderSheet(),'
                   ' [document.getElementById("sheet-head").innerHTML, document.getElementById("sheet-body").innerHTML])')
         return self.probe()
 
@@ -1809,6 +1809,41 @@ class HostileRun(unittest.TestCase):
         _, body = self.milestone_sheet()
         self.assertEqual(self.about(body), '<div class="muted">No summary yet: the orchestrator writes one on its next turn')
         self.assertNotIn("<dt>What</dt>", body)
+
+    @staticmethod
+    def estimates(body):
+        return body[body.index("<h3>About</h3>"):body.index("<h3>Run</h3>")]
+
+    def test_about_weighs_value_against_effort_with_a_verdict_all_escaped(self):
+        _, body = self.milestone_sheet(summary="Hash plates", value={"level": "high", "why": X}, effort={"level": "large", "why": "<b>core</b> & app"}, verdict=X)
+        about = self.estimates(body)
+        x = escape(X).replace("&#x27;", "&#39;")
+        self.assertIn('<div class="ve"><div class="ve-box"><div class="l">Value</div><div class="b"><span class="lvl good">High</span></div>'
+                      f'<div class="s">{x}</div></div>', about)
+        self.assertIn('<div class="ve-box"><div class="l">Effort</div><div class="b"><span class="lvl bad">Large</span></div>'
+                      '<div class="s">&lt;b&gt;core&lt;/b&gt; &amp; app</div></div></div>', about)
+        self.assertIn(f'<div class="verdict">{x}</div>', about)
+        self.assertLess(about.index("<dt>What</dt>"), about.index('class="ve"'))
+        self.assertNotIn("pwn>", body)
+
+    def test_an_estimate_missing_its_partner_says_not_estimated(self):
+        _, body = self.milestone_sheet(summary="Hash plates", value={"level": "low", "why": "One leak of many"})
+        about = self.estimates(body)
+        self.assertIn('<div class="b"><span class="lvl">Low</span></div><div class="s">One leak of many</div>', about)
+        self.assertIn('<div class="l">Effort</div><div class="b"><span class="muted">Not estimated</span></div></div>', about)
+        self.assertNotIn('class="verdict"', about)
+
+    def test_a_milestone_without_value_or_effort_shows_no_boxes_or_verdict(self):
+        _, body = self.milestone_sheet(summary="Hash plates", verdict="Quick win")
+        self.assertNotIn('class="ve', body)
+        self.assertNotIn("Quick win", body)
+
+    def test_an_unknown_level_shows_escaped_in_a_neutral_pill(self):
+        _, body = self.milestone_sheet(value={"level": "__proto__"}, effort={"level": X})
+        about = self.estimates(body)
+        self.assertIn('<div class="l">Value</div><div class="b"><span class="lvl">__proto__</span></div></div>', about)
+        self.assertIn(f'<div class="l">Effort</div><div class="b"><span class="lvl">{escape(X).replace("&#x27;", "&#39;")}</span></div></div>', about)
+        self.assertNotIn("pwn>", body)
 
     def test_the_milestone_summary_shows_only_in_about_not_under_the_title(self):
         head, body = self.milestone_sheet(summary="Hash plates in URLs")

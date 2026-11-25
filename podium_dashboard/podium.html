@@ -703,6 +703,17 @@ button.asanabtn:disabled { opacity: .6; cursor: default; }
 .sec h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); font-weight: 600; }
 .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 13px; }
 .kv dt { color: var(--text-2); } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ve { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.ve-box { border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; min-width: 0; }
+.ve-box .l { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+.ve-box .b { margin-top: 4px; }
+.ve-box .s { margin-top: 4px; font-size: 12px; line-height: 1.4; color: var(--text-2); overflow-wrap: anywhere; }
+.sheet .ve-box .muted { font-size: 12.5px; }
+.lvl { display: inline-block; border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 700; background: var(--gray-soft); color: var(--text-2); }
+.lvl.good { background: var(--green-soft); color: var(--green); }
+.lvl.mid { background: var(--amber-soft); color: var(--amber); }
+.lvl.bad { background: var(--red-soft); color: var(--red); }
+.verdict { margin-top: 10px; background: var(--accent-soft); border-radius: 10px; padding: 8px 11px; font-size: 12.5px; line-height: 1.45; color: var(--accent); font-weight: 600; overflow-wrap: anywhere; }
 .links { display: flex; gap: 6px; flex-wrap: wrap; }
 .link-chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
 .link-chip:hover { border-color: var(--accent); color: var(--accent); }
@@ -3127,7 +3138,20 @@ function timeSec(log, s) {
 function aboutSec(m) {
   const row = (label, value, missing) => `<dt>${label}</dt><dd>${value ? esc(value) : `<span class="muted">${missing}</span>`}</dd>`;
   const body = m.summary || m.goal ? `<dl class="kv">${row("What", m.summary, "No summary yet")}${row("Why", m.goal, "No goal yet")}</dl>` : `<div class="muted">No summary yet: the orchestrator writes one on its next turn</div>`;
-  return `<div class="sec"><h3>About</h3>${body}</div>`;
+  return `<div class="sec"><h3>About</h3>${body}${valueEffort(m)}</div>`;
+}
+const VALUE_TONE = { __proto__: null, high: "good", medium: "mid", low: "" };
+const EFFORT_TONE = { __proto__: null, small: "good", medium: "mid", large: "bad" };
+function estimateBox(label, est, tones) {
+  const level = est?.level;
+  const pill = !level ? `<span class="muted">Not estimated</span>`
+    : level in tones ? `<span class="lvl${tones[level] ? ` ${tones[level]}` : ""}">${level[0].toUpperCase()}${level.slice(1)}</span>`
+    : `<span class="lvl">${esc(level)}</span>`;
+  return `<div class="ve-box"><div class="l">${label}</div><div class="b">${pill}</div>${est?.why ? `<div class="s">${esc(est.why)}</div>` : ""}</div>`;
+}
+function valueEffort(m) {
+  if (!m.value && !m.effort) return "";
+  return `<div class="ve">${estimateBox("Value", m.value, VALUE_TONE)}${estimateBox("Effort", m.effort, EFFORT_TONE)}</div>${m.verdict ? `<div class="verdict">${esc(m.verdict)}</div>` : ""}`;
 }
 
 function milestoneSheet(m) {

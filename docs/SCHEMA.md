@@ -68,6 +68,9 @@ Never synced either: `repos/**`, `worktrees/**`, `*.logs/**`, `*.tmp`, `*.remote
 |---|---|
 | `id`, `title`, `summary` | `summary` is what the milestone changes, shown as What in its sheet's About section |
 | `goal` | optional: what we gain from it and for whom, shown as Why in the About section |
+| `value` | optional: `{"level": "high"\|"medium"\|"low", "why": "<short reason>"}`, what the milestone is worth, shown as the Value box under What and Why |
+| `effort` | optional: `{"level": "small"\|"medium"\|"large", "why": "<short reason>"}`, what it costs to build, shown as the Effort box beside Value |
+| `verdict` | optional: one line weighing value against effort ("Quick win: cheap, and it unblocks M4"), shown under the two boxes when either is set |
 | `status` | `draft`, `later`, `parked`, `todo`, `working`, `done`, `dropped`, `moved` (folded into another milestone by `podium move`) |
 | `resumeTo` | `draft` or `todo`: the status a milestone paused or closed from the Podium left, which reopening it restores |
 | `movedTo` | a moved milestone's target. The Podium greys its card with a "Moved to <id>" pill that opens the target, and unticking Finished in the State menu hides it like a landed one; it counts as neither landed nor open |
