@@ -1187,8 +1187,8 @@ class HostileRun(unittest.TestCase):
     def test_must_and_should_have_milestones_show_their_pill_after_the_id_and_the_rest_none(self):
         maps, _ = self.maps(self.priority_run())
         cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
-        self.assertIn('<span class="sid">M2</span><span class="prio must" title="Must have"><b>★</b>Must</span>', cards["M2"])
-        self.assertIn('<span class="sid">M3</span><span class="prio should" title="Should have"><b>★</b>Should</span>', cards["M3"])
+        self.assertIn('<span class="sid" data-open="M2">M2</span><span class="prio must" title="Must have"><b>★</b>Must</span>', cards["M2"])
+        self.assertIn('<span class="sid" data-open="M3">M3</span><span class="prio should" title="Should have"><b>★</b>Should</span>', cards["M3"])
         self.assertNotIn('class="prio', cards["M1"])
         self.assertNotIn("data-prio", maps[0])
 
@@ -1742,7 +1742,7 @@ class HostileRun(unittest.TestCase):
         maps, _ = self.maps(self.priority_run(), probe='(expand("M2"), S.prioPick = "M2", render(), $("map").innerHTML)')
         card = self.open_card(self.probe())
         self.assertNotIn("prioseg", card)
-        self.assertIn('<span class="sid">M2</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="true" title="Change the priority">'
+        self.assertIn('<span class="sid" data-open="M2">M2</span><span class="prio-wrap"><button class="prio-pick" data-prio-pick="M2" aria-haspopup="menu" aria-expanded="true" title="Change the priority">'
                       '<span class="prio must" title="Must have"><b>★</b>Must</span></button>', card)
         menu = re.search(r'<div class="prio-pick-menu" role="menu" aria-label="Priority of M2">(.*?)</div>', card).group(1)
         self.assertEqual(re.findall(r'aria-checked="(\w+)" data-prio="(\w*)" data-prio-of="M2">', menu),
@@ -1887,7 +1887,7 @@ class HostileRun(unittest.TestCase):
         run["epics"][1]["milestones"][1]["status"] = "parked"
         maps, _ = self.maps(run, probe='msOf("M3").status')
         self.assertEqual(self.probe(), "later")
-        self.assertIn('<div class="fms later" data-expand-ms="M3" data-id="M3">', maps[0])
+        self.assertIn('<div class="fms later" data-expand-ms="M3" data-id="M3" tabindex="0" aria-expanded="false">', maps[0])
 
     def test_a_later_milestones_badge_reads_later(self):
         self.maps(self.priority_run(), probe='(msOf("M3").status = "later", openSheet({ ms: "M3" }), renderSheet(), document.getElementById("sheet-head").innerHTML)')
@@ -2489,14 +2489,21 @@ class HostileRun(unittest.TestCase):
         maps, _ = self.maps(FINISHED_RUN, probe='(expand("M2"), toggleFold("M2"), 0)')
         self.assertIn('<button class="ocollapse" data-unfold="M2" aria-expanded="true">Fold merged waves ▴</button>', self.open_card(maps[-1]))
 
-    def test_an_expandable_closed_card_has_a_collapsed_title_button_and_no_role_of_its_own(self):
+    def test_an_expandable_closed_card_expands_while_its_id_and_title_open_the_side_panel(self):
         maps, _ = self.maps()
         cards = {re.search(r'data-id="([^"]*)"', c).group(1): c for c in re.split(r'(?=<div class="fms )', maps[0])[1:]}
-        self.assertIn('<div class="fms ', cards["M3"])
-        self.assertIn('data-expand-ms="M3" data-id="M3">', cards["M3"])
-        self.assertIn('<button class="title" aria-expanded="false">', cards["M3"])
+        self.assertIn('data-expand-ms="M3" data-id="M3" tabindex="0" aria-expanded="false">', cards["M3"])
+        self.assertIn('<span class="sid" data-open="M3">M3</span>', cards["M3"])
+        self.assertIn('<button class="title" data-open="M3">', cards["M3"])
         self.assertNotIn("role=", cards["M3"].split(">")[0])
-        self.assertNotIn("tabindex", cards["M3"].split(">")[0])
+
+    def test_an_open_cards_id_opens_the_side_panel_like_its_title(self):
+        maps, _ = self.maps(probe='(expand("M3"), 0)')
+        self.assertIn('<span class="sid" data-open="M3">M3</span>', self.open_card(maps[-1]))
+
+    def test_a_click_on_an_opener_inside_an_expandable_card_opens_rather_than_expands(self):
+        page = open(PAGE).read()
+        self.assertIn('if (xm && !(opener && xm.contains(opener))) { expand(xm.dataset.expandMs); return; }', page)
 
     def test_a_card_that_opens_a_sheet_stays_focusable_with_a_plain_title(self):
         maps, _ = self.maps()

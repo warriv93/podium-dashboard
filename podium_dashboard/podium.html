@@ -469,7 +469,7 @@ a.wchip { color: inherit; text-decoration: none; }
 @container (max-width: 560px) { .ohead > .fid { grid-row: 1; } .ohead > .oside { grid-column: 1 / -1; } }
 .oepic { font-size: 11.5px; color: var(--text-3); }
 .otitle { font-size: 15px; cursor: pointer; }
-.otitle:hover { color: var(--accent); }
+:is(.otitle, .fms [data-open]:is(.title, .sid)):hover { color: var(--accent); cursor: pointer; }
 .oside { display: flex; align-items: center; justify-content: flex-end; gap: 8px 12px; flex-wrap: wrap; margin-left: auto; }
 .ostat { font-size: 12px; color: var(--text-2); }
 .ostat b { color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -1840,8 +1840,9 @@ function fullMs(m, all) {
   const dots = stories.length ? `<span class="fdots" role="img" aria-label="${esc(dotSummary(dotted.map(([, st]) => dotWord(st))))}">${shown.map(([s, st]) => `<i class="${esc(st)}" data-ms="${esc(m.id)}" data-story="${esc(s.id)}" title="${esc(`${s.id} · ${s.title} · ${dotWord(st)}`)}"></i>`).join("")}${more}</span>` : "";
   const expands = canExpand(m) && hasBody(m);
   const go = expands ? `data-expand-ms="${esc(m.id)}"` : `data-open="${esc(m.id)}"`;
-  const title = expands ? `<button class="title" aria-expanded="false">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
-  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}"${expands ? "" : ` tabindex="0"`}><div class="ftop"><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}${overlapPills(m)}</div>${includesLine(m)}${st === "done" ? cardCost(m) : ""}${dots}</div>`;
+  const title = expands ? `<button class="title" data-open="${esc(m.id)}">${esc(m.title)}</button>` : `<span class="title">${esc(m.title)}</span>`;
+  const sid = expands ? `<span class="sid" data-open="${esc(m.id)}">${esc(m.id)}</span>` : `<span class="sid">${esc(m.id)}</span>`;
+  return `<div class="fms ${cls}${isResearch(m) ? " research" : ""}" ${go} data-id="${esc(m.id)}" tabindex="0"${expands ? ` aria-expanded="false"` : ""}><div class="ftop"><span class="fid"><span class="fidrow">${sid}${prioPill(m)}${infraTag(m)}</span>${ownerOrClaim(m)}</span><span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span></div>${title}${msCardRepos(m)}<div class="foot">${foot}${waitPills(m)}${overlapPills(m)}</div>${includesLine(m)}${st === "done" ? cardCost(m) : ""}${dots}</div>`;
 }
 function cardCost(m) {
   const c = msCost(m), line = costLine(c, { wall: false, here: "", time: shortDur });
@@ -1920,7 +1921,7 @@ function openHead(m, foot) {
     : msBuildAll(m) ? `<button class="btn ghost" data-act="stop" data-id="${esc(m.id)}">Stop after this wave</button>`
     : `<button class="btn" data-act="build-all" data-id="${esc(m.id)}">Build all</button>`;
   const stat = stories.length ? `<span class="ostat"><b>${merged}</b> of ${stories.length} merged${working.length ? ` · <span class="owork">Working on ${esc(working.join(", "))}</span>` : ""}</span>` : "";
-  return `<div class="ohead"><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button><span class="fid"><span class="fidrow"><span class="sid">${esc(m.id)}</span>${prioPick(m.id, m)}${infraTag(m)}${ownerOrClaim(m, ownerPill)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
+  return `<div class="ohead"><button class="ocollapse" data-collapse aria-expanded="true">▾ Collapse</button><span class="fid"><span class="fidrow"><span class="sid" data-open="${esc(m.id)}">${esc(m.id)}</span>${prioPick(m.id, m)}${infraTag(m)}${ownerOrClaim(m, ownerPill)}<span class="oepic">${esc(E?.title || "")}</span></span><span class="title otitle" data-open="${esc(m.id)}" tabindex="0">${esc(m.title)}</span>${msCardRepos(m)}${foot || waits ? `<div class="foot">${foot}${waits}</div>` : ""}${includesLine(m)}</span><span class="oside">${stat}<span class="ftools">${mockBtn(m)}${dsBtn(m)}${asanaBtn(m, true)}</span>${build}</span></div>`;
 }
 function keeps(ms, story) {
   const n = needsTarget();
@@ -4108,7 +4109,8 @@ document.addEventListener("click", (ev) => {
   const uf = ev.target.closest("[data-unfold]");
   if (uf) { toggleFold(uf.dataset.unfold); return; }
   const xm = ev.target.closest("[data-expand-ms]");
-  if (xm) { expand(xm.dataset.expandMs); return; }
+  const opener = ev.target.closest("[data-open]");
+  if (xm && !(opener && xm.contains(opener))) { expand(xm.dataset.expandMs); return; }
   if (ev.target.closest("[data-back]")) return sheetBack();
   const dc = ev.target.closest("[data-doc]");
   if (dc) return openDoc(dc.dataset.doc, dc.dataset.base);
