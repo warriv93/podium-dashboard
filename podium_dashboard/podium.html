@@ -14,8 +14,7 @@
   --green: #28a745; --green-dot: #34c759; --green-soft: rgba(52,199,89,.12);
   --amber: #c27c00; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.14);
   --red: #d70015; --red-soft: rgba(255,59,48,.10);
-  --purple: #8250df; --purple-soft: rgba(130,80,223,.12);
-  --fold-ink: #6f42c1; --fold-link: #0062cc; --quest-ink: #4a5bc4;
+  --purple: #8250df; --purple-soft: rgba(130,80,223,.12); --fold-link: #0062cc; --quest-ink: #4a5bc4;
   --gray-soft: rgba(142,142,147,.14);
   --star: #f5a800; --star-ink: #3a2600; --star-soft: rgba(245,168,0,.2); --should-ink: #7a4f00;
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.06);
@@ -32,8 +31,7 @@
     --green: #30d158; --green-dot: #30d158; --green-soft: rgba(48,209,88,.16);
     --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
     --red: #ff6961; --red-soft: rgba(255,69,58,.16);
-    --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
-    --fold-ink: #b392f0; --fold-link: #4da6ff; --quest-ink: #9aa6f5;
+    --purple: #b392f0; --purple-soft: rgba(163,113,247,.18); --fold-link: #4da6ff; --quest-ink: #9aa6f5;
     --gray-soft: rgba(142,142,147,.20); --should-ink: #ffcf66;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
     --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
@@ -48,8 +46,7 @@
   --green: #30d158; --green-dot: #30d158; --green-soft: rgba(48,209,88,.16);
   --amber: #ffb340; --amber-dot: #ff9f0a; --amber-soft: rgba(255,159,10,.18);
   --red: #ff6961; --red-soft: rgba(255,69,58,.16);
-  --purple: #b392f0; --purple-soft: rgba(163,113,247,.18);
-  --fold-ink: #b392f0; --fold-link: #4da6ff; --quest-ink: #9aa6f5;
+  --purple: #b392f0; --purple-soft: rgba(163,113,247,.18); --fold-link: #4da6ff; --quest-ink: #9aa6f5;
   --gray-soft: rgba(142,142,147,.20); --should-ink: #ffcf66;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
   --shadow-hi: 0 2px 4px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.55);
@@ -453,7 +450,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .fnext::after { content: ""; flex: 1; border-top: 1.5px dashed var(--accent); opacity: .5; }
 .fdots { display: flex; gap: 3px; align-self: flex-end; }
 .fdots i { width: 8px; height: 8px; border-radius: 2px; background: var(--line-2); }
-.fdots i.done { background: var(--purple); }
+.fdots i.done { background: var(--green-dot); }
 .fdots i.working { background: var(--accent); }
 .fdots i.approval { background: var(--amber-dot); }
 .fdots i.failed, .fdots i.blocked { background: var(--red); }
@@ -500,7 +497,7 @@ a.wchip { color: inherit; text-decoration: none; }
 .mfh { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .fchips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 0; min-width: 0; }
 .mfh + .fchips { margin-top: 8px; }
-.fchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 6px; background: var(--purple-soft); color: var(--fold-ink); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.fchip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 6px; background: var(--green-soft); color: var(--green); font-size: 11.5px; font-weight: 600; cursor: pointer; }
 .fchip.sel { box-shadow: 0 0 0 2px var(--accent); }
 .fchip.dim { opacity: .28; }
 .mrefold { display: flex; justify-content: flex-end; }
@@ -1018,7 +1015,7 @@ body * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .badge.dropped { --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m5.6 5.6 12.8 12.8'/%3E%3C/svg%3E"); }
 .badge.done::before, .badge.failed::before, .badge.blocked::before, .badge.waiting::before, .badge.ready::before, .badge.elsewhere::before, .badge.draft::before, .badge.later::before, .badge.dropped::before { content: ""; }
 .badge.ready::before { width: 10px; height: 10px; }
-.badge.merged { background: var(--purple-soft); color: var(--purple); }
+.badge.merged { background: var(--green-soft); color: var(--green); }
 .node.draft, .node.later { background: var(--card); border-style: dashed; }
 .node.later .title { color: var(--text-2); }
 .node.dropped { opacity: .45; }

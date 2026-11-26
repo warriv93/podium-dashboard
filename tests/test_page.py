@@ -1944,6 +1944,12 @@ class HostileRun(unittest.TestCase):
         self.assertIn(":is(.topbar, .map-head, .map-scroll, .fms, .fepic):has(:is(.prio-menu, .owner-menu, .prio-pick-menu, .state-menu)) { z-index: 35; }", css)
         self.assertIn(".fms.dropped:has(.state-menu) { opacity: 1; }", css)
 
+    def test_finished_stories_are_green_like_every_other_finished_state(self):
+        css = open(PAGE).read()
+        self.assertIn(".fdots i.done { background: var(--green-dot); }", css)
+        self.assertIn(".badge.merged { background: var(--green-soft); color: var(--green); }", css)
+        self.assertRegex(css, r"\.fchip \{[^}]*background: var\(--green-soft\); color: var\(--green\)")
+
     def test_a_repos_commits_given_as_one_bare_sha_read_as_that_commit(self):
         self.maps(probe='commitsOf({ commits: { core: 9359861629, web: "7f4b7858", api: [{ sha: "abc" }] } })')
         self.assertEqual(self.probe(), [{"repo": "core", "sha": "9359861629"}, {"repo": "web", "sha": "7f4b7858"}, {"repo": "api", "sha": "abc"}])
