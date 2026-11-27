@@ -208,6 +208,18 @@ Without `sections`, every section shows, but a whole-quest report (`cover.from` 
 
 What the user changes in the modal is saved back into the draft with `PUT /report-draft?path=<draft>` (a JSON object under 256 KB, only to `project.quest.report.draft` and only while it is `ready`): edited text in place, **Leave out** as `"hidden": true` on the item, the section checkboxes as `sections`, the Structure pick as `structure`, a ghost row's new item with `"added": true`, a row dragged to another priority, status or target group with `"keep": true`, **Show internal groundwork** as `showInternal`. Publish the draft as it is on disk: it is what the user read through. **Download PDF** prints the paper alone with every row's details open, and `/?print=report` renders that same page for a headless browser (`chrome --headless --print-to-pdf=<file> "http://127.0.0.1:<port>/?print=report"`); **Copy for Slack** copies it as plain text; **Rewrite the draft** asks for `report` again with the same cover.
 
+## Development
+
+Run the whole suite with `python3 -m tests.check`. It needs Node (the page tests run in it) and exits 1 before any test if `node` is not on the path.
+
+- Name a step to run only that one: `python3 -m tests.check unit`. The `unit` step cuts each test file into chunks of about 30 seconds and runs them in parallel, one process per chunk. An unknown step name exits 2 and lists the known ones.
+- `--workers N` sets how many chunks run at once, one per core by default.
+- `--update` runs each step's update command instead of its check (a step with none is skipped).
+- A failing test makes the command exit 1 and prints the test and its file, with the tail of that chunk's log.
+- Timings and per-chunk logs go to `.check/` (ignored by git). The next run plans its chunks from the saved timings.
+
+A new `tests/test_*.py` file is picked up without touching the runner.
+
 ## Security
 
 The server binds to `127.0.0.1` only and refuses any request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`. Any request but a GET or HEAD from a page with another `Origin` is refused too. There is no login: anyone with a shell on your machine can reach it, so do not forward the port.

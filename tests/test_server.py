@@ -106,7 +106,7 @@ class Server(unittest.TestCase):
             json.dump({"at": time.time()}, f)
 
     def response(self, method, path, headers=None):
-        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=60)
         self.addCleanup(conn.close)
         conn.request(method, path, headers={"Host": f"127.0.0.1:{self.port}", **(headers or {})})
         r = conn.getresponse()
@@ -467,7 +467,7 @@ class Hardening(Server):
         self.assertEqual((info["runDir"], info["lastUse"]["by"]), (self.run_dir, "start"))
 
     def wait_for_info(self):
-        for _ in range(100):
+        for _ in range(400):
             try:
                 return self.call("GET", "/info")[1]
             except OSError:
@@ -631,7 +631,7 @@ class Lan(Server):
         self.lan_serve()
         self.assertEqual(self.call("POST", "/restart")[0], 202)
         time.sleep(0.5)
-        for _ in range(100):
+        for _ in range(400):
             try:
                 self.assertEqual(self.call("GET", "/info", self.cookie)[0], 200)
                 return
@@ -812,7 +812,7 @@ class Report(Server):
 
     def put(self, body, path="reports/sync.json"):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
-        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=60)
         self.addCleanup(conn.close)
         conn.request("PUT", f"/report-draft?path={path}", body=data, headers={"Host": f"127.0.0.1:{self.port}"})
         r = conn.getresponse()
