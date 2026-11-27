@@ -325,7 +325,43 @@ async function build() {
       { text: body, options: { fontSize: 13, color: GRAY } },
     ], { x: x + 0.34, y, w: CW - shotW - 0.79, h: 0.95 });
   });
-  s.addNotes("The Podium on a sample run: the run switcher open in the header, the quest's weeks with its pace pills, and each epic's milestones in its own column. Orange: things that need me. Blue: decisions the run made while I was away. Green: stories being built right now. Handing over: Claim opens the owner menu, so an unowned milestone can go straight to a colleague, who sees a Given to you banner until Got it. Owner and priority are pulldowns, and Mine shows your milestones and what waits on you. Each run leases a port on this machine for a week, listed by podium ports and kept longer with pin, so its filters and collapsed sections stick; picking a stopped run starts it. The header also says when someone runs an older Podium. It's plain JSON and a CLI, Python standard library only, with 653 tests.");
+  s.addNotes("The Podium on a sample run: the run switcher open in the header, the quest's weeks with its pace pills, and each epic's milestones in its own column. Orange: things that need me. Blue: decisions the run made while I was away. Green: stories being built right now. Handing over: Claim opens the owner menu, so an unowned milestone can go straight to a colleague, who sees a Given to you banner until Got it. Owner and priority are pulldowns, and Mine shows your milestones and what waits on you. Each run leases a port on this machine for a week, listed by podium ports and kept longer with pin, so its filters and collapsed sections stick; picking a stopped run starts it. The header also says when someone runs an older Podium. It's plain JSON and a CLI, Python standard library only, with 791 tests.");
+
+  s = slide("LIGHT", "Share a run. Build it together.", "How");
+  const shareBoxes = [
+    ["Your Mac", "podium sync on", false],
+    ["your git remote", "podium-run/<slug>", true],
+    ["A colleague's Mac", "podium sync pull", false],
+  ];
+  const shareX = M + 1.1, shareW = 4.2, shareH = 1.1;
+  shareBoxes.forEach(([head, sub, ref], i) => {
+    const y = 1.6 + i * 1.8;
+    rounded(s, { x: shareX, y, w: shareW, h: shareH, fill: ref ? HEX.lt2 : HEX.dk1, line: ref ? "D2D2D7" : undefined, name: "share box " + (i + 1), shadow: !ref });
+    text(s, [
+      { text: head, options: { bold: true, fontSize: 17, breakLine: true } },
+      { text: sub, options: { fontSize: 13, fontFace: "Menlo", color: ref ? GRAY : "AEAEB2" } },
+    ], { x: shareX, y, w: shareW, h: shareH, align: "center", valign: "middle", color: ref ? C.text1 : C.background1 });
+  });
+  ["save", "pull every minute"].forEach((label, i) => {
+    const y = 1.6 + shareH + i * 1.8;
+    s.addShape(pres.shapes.UP_DOWN_ARROW, { x: shareX + shareW / 2 - 0.15, y: y + 0.1, w: 0.3, h: 0.5, fill: { color: "D2D2D7" }, line: { type: "none" }, objectName: "share arrow " + (i + 1) });
+    text(s, label, { x: shareX + shareW / 2 + 0.35, y: y + 0.15, w: 2.0, h: 0.4, fontSize: 13, color: GRAY, valign: "middle" });
+  });
+  const sharePoints = [
+    [HEX.accent1, "Share", "podium sync on --remote <repo> puts the run on its own ref, podium-run/<slug>."],
+    [HEX.accent3, "What travels", "State, events, progress and planning docs. Never code, worktrees or logs."],
+    [HEX.accent2, "Merge", "Key by key, events as a union. A text file you both changed keeps yours and writes theirs as <file>.remote."],
+    [HEX.accent4, "Claim", "Join the ref, then podium claim <id>. The first claim wins, so no milestone gets built twice."],
+  ];
+  sharePoints.forEach(([hex, head, body], i) => {
+    const x = M + 6.4 + 0.45, y = 1.6 + i * 1.2;
+    dot(s, { x, y: y + 0.07, d: 0.18, fill: hex, name: "share dot " + (i + 1) });
+    text(s, [
+      { text: head, options: { bold: true, fontSize: 16, breakLine: true } },
+      { text: body, options: { fontSize: 13, color: GRAY } },
+    ], { x: x + 0.34, y, w: CW - 6.4 - 0.79, h: 1.1 });
+  });
+  s.addNotes("Sharing is opt-in per run. sync on commits the run's state onto its own branch on any git remote you choose, through a throwaway index, so your working tree is never touched. The Share button in the Podium does the same and lists the colleague's steps. The watcher and the server pull every minute, and Fetch pulls at once; a colleague's change shows up as a SYNCED line. Merges run against the last common save. podium.json merges per key, events and progress lines are unioned in time order, and any other text goes through git merge-file. A conflict never blocks: you keep your file, theirs lands beside it as .remote, and Needs you tells you to look. Ownership is the rule that prevents duplicate work: when both of you claim a milestone, the claim that reached the remote first wins. A pull never runs code: Python files never sync.");
 
   // extras
   s = slide("DARK", "And a few things just for fun.", "How");
