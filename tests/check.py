@@ -33,7 +33,9 @@ def unit(workers):
     chunks = shards.plan(ids_by_file, shards.load_timings(timings_path))
     started = time.monotonic()
     result = shards.run(chunks, workers, os.path.join(CHECK_DIR, "logs"))
-    shards.save_timings(timings_path, result.seconds_by_file)
+    failed_files = {failed.chunk.file for failed in result.failed_chunks}
+    shards.save_timings(timings_path, {file: seconds for file, seconds in result.seconds_by_file.items()
+                                       if file not in failed_files})
     print(f"ran {result.ran} tests in {len(ids_by_file)} files, {len(chunks)} chunks, "
           f"{time.monotonic() - started:.0f}s")
     for failed in result.failed_chunks:
@@ -58,7 +60,7 @@ def main(argv):
     parser = argparse.ArgumentParser(prog="python3 -m tests.check")
     parser.add_argument("steps", nargs="*", help="steps to run, all by default")
     parser.add_argument("--update", action="store_true", help="run each step's update command instead")
-    parser.add_argument("--workers", type=int, default=os.cpu_count())
+    parser.add_argument("--workers", type=_positive, default=os.cpu_count())
     args = parser.parse_args(argv)
 
     by_name = {step.name: step for step in STEPS}
@@ -78,6 +80,13 @@ def main(argv):
         print(f"{step.name}  {'PASS' if code == 0 else 'FAIL'}  {time.monotonic() - started:.0f}s")
         failed |= code != 0
     return 1 if failed else 0
+
+
+def _positive(value):
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more, got {value}")
+    return number
 
 
 def _execute(command, workers):

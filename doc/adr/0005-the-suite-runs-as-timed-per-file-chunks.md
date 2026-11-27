@@ -22,7 +22,9 @@ The command is a list of named steps run one after another; each step is a comma
 
 ## Consequences
 
-- The suite takes about 4 minutes on a 10-core machine, so running it before every merge is practical.
+- The suite aims at about 4 minutes on an idle 10-core machine, so running it before every merge is practical. With other work loading that machine it measured 6.5 to 10 minutes.
 - A new test file is picked up by its name, `tests/test_*.py`, with no change to the runner.
 - Timings and logs live in `.check/`, ignored by git; the first run on a fresh clone balances by test count and is slower.
 - Two files never share a process, so a file whose tests leak environment changes can't break another file's tests; such a leak inside one file still can, as before.
+- With every core busy, a test waiting on a server it started waits longer than on an idle machine, so the server tests allow 60 s per request and 20 s for a restart. A test that really hangs takes that much longer to fail.
+- A failed run keeps the timings it had for the files that failed, so a file that broke early isn't planned as a light one next time.

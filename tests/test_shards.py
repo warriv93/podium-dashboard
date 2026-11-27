@@ -6,7 +6,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from unittest import mock
 
@@ -47,10 +47,9 @@ class Plan(unittest.TestCase):
         self.assertCountEqual(planned, [i for f in files.values() for i in f])
 
     def test_chunks_come_heaviest_first(self):
-        chunks = shards.plan({"a": ids("a", 20), "b": ids("b", 3), "c": ids("c", 9)}, {"a": 100.0, "b": 25.0, "c": 50.0})
+        chunks = shards.plan({"light": ids("light", 3), "heavy": ids("heavy", 20)}, {"light": 10.0, "heavy": 70.0})
 
-        weights = [c.weight for c in chunks]
-        self.assertEqual(weights, sorted(weights, reverse=True))
+        self.assertEqual([c.file for c in chunks], ["heavy", "heavy", "light"])
 
     def test_a_file_never_has_more_chunks_than_tests(self):
         chunks = shards.plan({"slow": ids("slow", 2)}, {"slow": 600.0})
@@ -248,6 +247,13 @@ class Main(unittest.TestCase):
         self.assertIn("unknown step nope; steps: first, second", out)
         self.assertEqual(self.calls, [])
 
+    def test_workers_below_one_is_a_usage_error(self):
+        with self.assertRaises(SystemExit) as exit, redirect_stderr(StringIO()):
+            self.main("--workers", "0")
+
+        self.assertEqual(exit.exception.code, 2)
+        self.assertEqual(self.calls, [])
+
     def test_a_named_step_runs_alone(self):
         code, out = self.main("first", "--workers", "3")
 
@@ -293,7 +299,7 @@ class Unit(unittest.TestCase):
                                                                    "ERROR: test_crash (tests.test_x.T.test_crash)",
                                                                    "Ran 2 tests in 0.1s", "FAILED (failures=1)"]))
         chunk = shards.Chunk("tests/test_x.py", ("tests.test_x.T.test_broken",), 1.0)
-        result = shards.Result(False, 2, [shards.FailedChunk(chunk, log)], {"tests/test_x.py": 1.5})
+        result = shards.Result(False, 2, [shards.FailedChunk(chunk, log)], {"tests/test_x.py": 1.5, "tests/test_y.py": 2.5})
         out = StringIO()
         with mock.patch.object(check.shutil, "which", return_value="/usr/bin/node"), \
                 mock.patch.object(check.shards, "discover", return_value={"tests/test_x.py": list(chunk.ids)}), \
@@ -309,7 +315,7 @@ class Unit(unittest.TestCase):
         self.assertIn("ERROR: test_crash (tests.test_x.T.test_crash)", printed)
         self.assertIn("noise 59", printed)
         self.assertNotIn("noise 20\n", printed)
-        self.assertEqual(shards.load_timings(os.path.join(tmp, ".check", "timings.json")), {"tests/test_x.py": 1.5})
+        self.assertEqual(shards.load_timings(os.path.join(tmp, ".check", "timings.json")), {"tests/test_y.py": 2.5})
 
 
 if __name__ == "__main__":
